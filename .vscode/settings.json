@@ -2,4 +2,8 @@
     "editor.formatOnSave": true,
     "C_Cpp.clang_format_style": "file",
     "C_Cpp.clang_format_fallbackStyle": "Google",
+    "files.associations": {
+        "*.tcc": "cpp",
+        "ostream": "cpp"
+    },
 }

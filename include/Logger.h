@@ -37,10 +37,11 @@ enum class LogModule
  */
 struct LogEntry
 {
-    uint32_t timestamp;  // Timestamp in milliseconds
-    uint8_t  level;      // Log level (packed)
-    uint8_t  module;     // Module identifier (packed)
-    String   message;    // Log message
+    uint32_t timestamp;       // Timestamp in milliseconds
+    uint8_t  level;           // Log level (packed)
+    uint8_t  module;          // Module identifier (packed)
+    String   message;         // Log message
+    String   additionalInfo;  // Additional information
 };
 
 /**
@@ -72,28 +73,28 @@ public:
      * @param message Message to log
      * @param module Source module
      */
-    void error(const String& message, LogModule module = LogModule::SYSTEM);
+    void error(const String& message, LogModule module = LogModule::SYSTEM, const String& additionalInfo = "");
 
     /**
      * Log a warning message
      * @param message Message to log
      * @param module Source module
      */
-    void warning(const String& message, LogModule module = LogModule::SYSTEM);
+    void warning(const String& message, LogModule module = LogModule::SYSTEM, const String& additionalInfo = "");
 
     /**
      * Log an info message
      * @param message Message to log
      * @param module Source module
      */
-    void info(const String& message, LogModule module = LogModule::SYSTEM);
+    void info(const String& message, LogModule module = LogModule::SYSTEM, const String& additionalInfo = "");
 
     /**
      * Log a debug message
      * @param message Message to log
      * @param module Source module
      */
-    void debug(const String& message, LogModule module = LogModule::SYSTEM);
+    void debug(const String& message, LogModule module = LogModule::SYSTEM, const String& additionalInfo = "");
 
     /**
      * Enable/disable serial output
@@ -120,7 +121,12 @@ public:
     const LogEntry* getEntry(size_t index) const;
 
     // Internal log function - moved from private to public
-    void log(LogLevel level, const String& message, LogModule module);
+    void log(LogLevel level, const String& message, LogModule module, const String& additionalInfo);
+
+    /**
+     * Flush the log buffer
+     */
+    void flush();
 
 private:
     static const size_t MAX_LOG_ENTRIES = 100;  // Maximum number of log entries to store
@@ -135,6 +141,13 @@ private:
      * @return Formatted string
      */
     String formatEntry(const LogEntry& entry) const;
+
+    /**
+     * Add an icon to the log level
+     * @param level Log level
+     * @return Icon string
+     */
+    String addIcon(LogLevel level) const;
 
     /**
      * Convert log level to string

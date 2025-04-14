@@ -21,7 +21,7 @@ bool Logger::initialize(uint32_t serialBaudRate)
         }
 
         // Use direct Serial.println to avoid potential memory issues during initialization
-        Serial.println("\n---------------------- Logger initialized");
+        Serial.println(F("\n-------------------------> Logger initialized"));
         return true;
     }
     serialEnabled = false;
@@ -35,27 +35,27 @@ void Logger::setLogLevel(LogLevel level)
     info(msg, LogModule::SYSTEM);
 }
 
-void Logger::error(const String& message, LogModule module)
+void Logger::error(const String& message, LogModule module, const String& additionalInfo)
 {
-    log(LogLevel::ERROR, message, module);
+    log(LogLevel::ERROR, message, module, additionalInfo);
 }
 
-void Logger::warning(const String& message, LogModule module)
+void Logger::warning(const String& message, LogModule module, const String& additionalInfo)
 {
-    log(LogLevel::WARNING, message, module);
+    log(LogLevel::WARNING, message, module, additionalInfo);
 }
 
-void Logger::info(const String& message, LogModule module)
+void Logger::info(const String& message, LogModule module, const String& additionalInfo)
 {
-    log(LogLevel::INFO, message, module);
+    log(LogLevel::INFO, message, module, additionalInfo);
 }
 
-void Logger::debug(const String& message, LogModule module)
+void Logger::debug(const String& message, LogModule module, const String& additionalInfo)
 {
-    log(LogLevel::DEBUGG, message, module);
+    log(LogLevel::DEBUGG, message, module, additionalInfo);
 }
 
-void Logger::log(LogLevel level, const String& message, LogModule module)
+void Logger::log(LogLevel level, const String& message, LogModule module, const String& additionalInfo)
 {
     // Check if we should log this level
     if (static_cast<int>(level) > static_cast<int>(currentLevel))
@@ -65,10 +65,11 @@ void Logger::log(LogLevel level, const String& message, LogModule module)
 
     // Create new log entry
     LogEntry entry;
-    entry.timestamp = millis();
-    entry.level     = static_cast<uint8_t>(level);
-    entry.module    = static_cast<uint8_t>(module);
-    entry.message   = message;
+    entry.timestamp      = millis();
+    entry.level          = static_cast<uint8_t>(level);
+    entry.module         = static_cast<uint8_t>(module);
+    entry.additionalInfo = additionalInfo;
+    entry.message        = message;
 
     // Add to buffer with size limit
     if (logBuffer.size() >= MAX_LOG_ENTRIES)
@@ -98,7 +99,7 @@ void Logger::log(LogLevel level, const String& message, LogModule module)
 void Logger::enableSerialOutput(bool enable)
 {
     serialEnabled = enable;
-    String msg    = enable ? "Serial output enabled" : "Serial output disabled";
+    String msg    = enable ? F("Serial output enabled") : F("Serial output disabled");
     info(msg, LogModule::SYSTEM);
 }
 
@@ -125,16 +126,36 @@ const LogEntry* Logger::getEntry(size_t index) const
 String Logger::formatEntry(const LogEntry& entry) const
 {
     char buffer[32];
-    snprintf(buffer, sizeof(buffer), "[%u] ", entry.timestamp);
+    snprintf(buffer, sizeof(buffer), "[%7u] ", entry.timestamp);
 
     String formattedMessage = buffer;
     formattedMessage += levelToString(static_cast<LogLevel>(entry.level));
     formattedMessage += " [";
     formattedMessage += moduleToString(static_cast<LogModule>(entry.module));
+    formattedMessage += " - ";
+    formattedMessage += entry.additionalInfo;
     formattedMessage += "] ";
+    formattedMessage += addIcon(static_cast<LogLevel>(entry.level));
     formattedMessage += entry.message;
 
     return formattedMessage;
+}
+
+String Logger::addIcon(LogLevel level) const
+{
+    switch (level)
+    {
+        case LogLevel::ERROR:
+            return "❌";
+        case LogLevel::WARNING:
+            return "⚠️";
+        case LogLevel::INFO:
+            return "ℹ️";
+        case LogLevel::DEBUGG:
+            return "🔍";
+        default:
+            return "";
+    }
 }
 
 String Logger::levelToString(LogLevel level)
@@ -171,4 +192,10 @@ String Logger::moduleToString(LogModule module)
         default:
             return "UNKNOWN";
     }
+}
+
+void Logger::flush()
+{
+    Serial.flush();
+    logBuffer.clear();
 }
