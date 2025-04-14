@@ -30,9 +30,11 @@ volatile bool motor1Enabled = false;
 // Only OK in core v1.0.6-
 bool IRAM_ATTR TimerHandler0(void* timerNo)
 {
+    motor0Enabled = true;
     if (motor0Enabled)
     {
-        motors[0].moveForward();
+        motors[0].stop();
+        motors[3].stop();
     }
     return true;
 }
@@ -41,7 +43,8 @@ bool IRAM_ATTR TimerHandler1(void* timerNo)
 {
     if (motor1Enabled)
     {
-        motors[1].moveForward();
+        motors[1].stop();
+        motors[2].stop();
     }
     return true;
 }
@@ -49,6 +52,67 @@ bool IRAM_ATTR TimerHandler1(void* timerNo)
 // Init ESP32 timer 0 and 1
 ESP32Timer ITimer0(0);
 ESP32Timer ITimer1(1);
+
+TaskHandle_t motorUpdateTaskHandle0 = NULL;
+TaskHandle_t motorUpdateTaskHandle1 = NULL;
+TaskHandle_t motorUpdateTaskHandle2 = NULL;
+TaskHandle_t motorUpdateTaskHandle3 = NULL;
+
+// Task for updating motor states
+void motorUpdateTask0(void* pvParameters)
+{
+    const TickType_t xFrequency    = pdMS_TO_TICKS(10);  // Changed from 1ms to 10ms
+    TickType_t       xLastWakeTime = xTaskGetTickCount();
+
+    while (1)
+    {
+        motors[0].update();
+        taskYIELD();  // Allow other tasks to run between motor updates
+        vTaskDelayUntil(&xLastWakeTime, xFrequency);
+    }
+}
+
+// Task for updating motor states
+void motorUpdateTask1(void* pvParameters)
+{
+    const TickType_t xFrequency    = pdMS_TO_TICKS(10);  // Changed from 1ms to 10ms
+    TickType_t       xLastWakeTime = xTaskGetTickCount();
+
+    while (1)
+    {
+        motors[1].update();
+        taskYIELD();  // Allow other tasks to run between motor updates
+        vTaskDelayUntil(&xLastWakeTime, xFrequency);
+    }
+}
+
+// Task for updating motor states
+void motorUpdateTask2(void* pvParameters)
+{
+    const TickType_t xFrequency    = pdMS_TO_TICKS(10);  // Changed from 1ms to 10ms
+    TickType_t       xLastWakeTime = xTaskGetTickCount();
+
+    while (1)
+    {
+        motors[2].update();
+        taskYIELD();  // Allow other tasks to run between motor updates
+        vTaskDelayUntil(&xLastWakeTime, xFrequency);
+    }
+}
+
+// Task for updating motor states
+void motorUpdateTask3(void* pvParameters)
+{
+    const TickType_t xFrequency    = pdMS_TO_TICKS(10);  // Changed from 1ms to 10ms
+    TickType_t       xLastWakeTime = xTaskGetTickCount();
+
+    while (1)
+    {
+        motors[3].update();
+        taskYIELD();  // Allow other tasks to run between motor updates
+        vTaskDelayUntil(&xLastWakeTime, xFrequency);
+    }
+}
 
 void setup()
 {
@@ -89,6 +153,11 @@ void setup()
     {
         Log.errorln(F("Can't set ITimer1. Select another freq. or timer"));
     }
+
+    xTaskCreate(motorUpdateTask0, "MotorUpdateTask0", 4096, NULL, 3, &motorUpdateTaskHandle0);
+    xTaskCreate(motorUpdateTask1, "MotorUpdateTask1", 4096, NULL, 3, &motorUpdateTaskHandle1);
+    xTaskCreate(motorUpdateTask2, "MotorUpdateTask2", 4096, NULL, 3, &motorUpdateTaskHandle2);
+    xTaskCreate(motorUpdateTask3, "MotorUpdateTask3", 4096, NULL, 3, &motorUpdateTaskHandle3);
 }
 
 void loop()
@@ -114,7 +183,8 @@ void loop()
             Log.noticeln(F("Stop ITimer0, millis() = %d"), millis());
             ITimer0.stopTimer();
             motor0Enabled = false;
-            motors[0].stop();
+            motors[0].moveForward();
+            motors[3].moveForward();
         }
 
         timer0Stopped = !timer0Stopped;
@@ -135,7 +205,8 @@ void loop()
             Log.noticeln(F("Stop ITimer1, millis() = %d"), millis());
             ITimer1.stopTimer();
             motor1Enabled = false;
-            motors[1].stop();
+            motors[1].moveForward();
+            motors[2].moveForward();
         }
 
         timer1Stopped = !timer1Stopped;

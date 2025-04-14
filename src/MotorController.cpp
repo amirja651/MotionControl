@@ -179,9 +179,9 @@ void MotorController::setMovementDirection(bool forward)
 // Start motor movement in forward direction
 void MotorController::moveForward()
 {
-    if (!diagnoseTMC5160())
+    if (!testCommunication() || !diagnoseTMC5160())
     {
-        Log.errorln(F("$s - Motor will not move."), instanceName);
+        Log.errorln(F("%s - Motor will not move."), instanceName);
         return;
     }
     setMovementDirection(true);
@@ -190,9 +190,9 @@ void MotorController::moveForward()
 // Start motor movement in reverse direction
 void MotorController::moveReverse()
 {
-    if (!diagnoseTMC5160())
+    if (!testCommunication() || !diagnoseTMC5160())
     {
-        Log.errorln(F("$s - Motor will not move."), instanceName);
+        Log.errorln(F("%s - Motor will not move."), instanceName);
         return;
     }
     setMovementDirection(false);
@@ -447,7 +447,7 @@ void MotorController::printDriverStatus()
 {
     // uint32_t status = driver.DRV_STATUS();
     /*
-        Log.noticeln(F("%s - DRV_STATUS Report: %s - $s - %s - %s - $s - %s - %s - $s - %s - %s - $s - %s"),
+        Log.noticeln(F("%s - DRV_STATUS Report: %s - %s - %s - %s - %s - %s - %s - %s - %s - %s - %s - %s"),
        instanceName, (status & (1 << 31) ? F("Standstill (stst)") : F("Motor moving"))), (status & (1 << 30) ? F("Open
        load on Phase B (olb)") : F("Phase B OK")), (1 << 29) ? F("Open load on Phase A (ola)") : F("Phase A OK"),
             (status & (1 << 28) ? F("Short to GND on Phase B (s2gb)") : F("Phase B GND OK")),
@@ -469,50 +469,46 @@ void MotorController::printDriverStatus()
 bool MotorController::diagnoseTMC5160()
 {
     uint32_t status = driver.DRV_STATUS();
-    bool     ok     = true;
 
     if (status & (1 << 27))
     {
         Log.errorln(F("%s - Short to GND on Phase A (s2ga)"), instanceName);
-        ok = false;
+        return false;
     }
 
     if (status & (1 << 28))
     {
         Log.errorln(F("%s - Short to GND on Phase B (s2gb)"), instanceName);
-        ok = false;
+        return false;
     }
 
     if (status & (1 << 12))
     {
         Log.errorln(F("%s - Short to supply on Phase A (s2vsa)"), instanceName);
-        ok = false;
+        return false;
     }
 
     if (status & (1 << 13))
     {
         Log.errorln(F("%s - Short to supply on Phase B (s2vsb)"), instanceName);
-        ok = false;
+        return false;
     }
 
     if (status & (1 << 25))
     {
         Log.errorln(F("%s - Overtemperature shutdown active (ot)"), instanceName);
-        ok = false;
+        return false;
     }
 
     if (status & (1 << 24))
     {
         Log.warningln(F("%s - Motor stall detected (StallGuard)"), instanceName);
-        ok = false;
+        return false;
     }
 
-    if (ok)
-    {
-        Log.info(F("%s - All driver diagnostics OK."), instanceName);
-    }
+    Log.info(F("%s - All driver diagnostics OK."), instanceName);
 
-    return ok;
+    return true;
 }
 
 void MotorController::printDriverConfig()
@@ -643,8 +639,6 @@ void MotorController::setStealthChopMode(bool enable)
 // Performs a basic SPI communication test by sending a test pattern
 bool MotorController::testCommunication()
 {
-    String message = "";
-
     enableSPI();
 
     uint32_t gconf  = driver.GCONF();
