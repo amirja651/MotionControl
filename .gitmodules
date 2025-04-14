@@ -13,3 +13,6 @@
 [submodule "lib/ESP32TimerInterrupt"]
 	path = lib/ESP32TimerInterrupt
 	url = https://github.com/khoih-prog/ESP32TimerInterrupt.git
+[submodule "lib/Arduino-Log"]
+	path = lib/Arduino-Log
+	url = https://github.com/thijse/Arduino-Log.git
