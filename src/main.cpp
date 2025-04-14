@@ -1,62 +1,145 @@
-#if !defined(ESP32)
-#error This code is intended to run on the ESP32 platform! Please check your Tools->Board setting.
-#endif
-
 #include <ArduinoLog.h>
 #include <ESP32TimerInterrupt.h>
+#include <SimpleCLI.h>
 #include "MotorInstances.h"
 
-// These define's must be placed at the beginning before #include "ESP32_New_TimerInterrupt.h"
-// _TIMERINTERRUPT_LOGLEVEL_ from 0 to 4
-// #define _TIMERINTERRUPT_LOGLEVEL_ 4
-
-#define TIMER0_INTERVAL_MS 1000
-#define TIMER0_DURATION_MS 5000
-
-#define TIMER1_INTERVAL_MS 3000
-#define TIMER1_DURATION_MS 15000
-
-// Don't use PIN_D1 in core v2.0.0 and v2.0.1. Check https://github.com/espressif/arduino-esp32/issues/5868
-// Don't use PIN_D2 with ESP32_C3 (crash)
-#define PIN_D19 19  // Pin D19 mapped to pin GPIO9 of ESP32
-#define PIN_D3  3   // Pin D3 mapped to pin GPIO3/RX0 of ESP32
-
-// Global variables for motor control
-volatile bool motor0Enabled = false;
-volatile bool motor1Enabled = false;
-
-// With core v2.0.0+, you can't use Serial.print/println in ISR or crash.
-// and you can't use float calculation inside ISR
-// Only OK in core v1.0.6-
-bool IRAM_ATTR TimerHandler0(void* timerNo)
-{
-    motor0Enabled = true;
-    if (motor0Enabled)
-    {
-        motors[0].stop();
-        motors[3].stop();
-    }
-    return true;
-}
-
-bool IRAM_ATTR TimerHandler1(void* timerNo)
-{
-    if (motor1Enabled)
-    {
-        motors[1].stop();
-        motors[2].stop();
-    }
-    return true;
-}
-
-// Init ESP32 timer 0 and 1
-ESP32Timer ITimer0(0);
-ESP32Timer ITimer1(1);
-
+TaskHandle_t serialTaskHandle       = NULL;
 TaskHandle_t motorUpdateTaskHandle0 = NULL;
 TaskHandle_t motorUpdateTaskHandle1 = NULL;
 TaskHandle_t motorUpdateTaskHandle2 = NULL;
 TaskHandle_t motorUpdateTaskHandle3 = NULL;
+SimpleCLI    cli;
+Command      cmdMove1;
+Command      cmdStop1;
+Command      cmdEcho;
+Command      cmdRm;
+Command      cmdLs;
+Command      cmdBoundless;
+Command      cmdSingle;
+Command      cmdHelp;
+
+// Task for handling serial commands
+void serialTask(void* pvParameters)
+{
+    while (1)
+    {
+        if (Serial.available())
+        {
+            String input = Serial.readStringUntil('\n');
+
+            if (input.length() > 0)
+            {
+                Serial.print("# ");
+                Serial.println(input);
+                cli.parse(input);
+            }
+        }
+
+        if (cli.available())
+        {
+            Command c = cli.getCmd();
+
+            int argNum = c.countArgs();
+
+            Serial.print("> ");
+            Serial.print(c.getName());
+            Serial.print(' ');
+
+            for (int i = 0; i < argNum; ++i)
+            {
+                Argument arg = c.getArgument(i);
+                // if(arg.isSet()) {
+                Serial.print(arg.toString());
+                Serial.print(' ');
+                // }
+            }
+
+            Serial.println();
+
+            if (c == cmdMove1)
+            {
+                Argument a = c.getArgument("p");
+                // bool     set = a.isSet();
+                if (a.isSet())
+                {
+                    String p = c.getArgument("p").getValue();
+                    float  f = p.toFloat();
+                    motors[0].moveForward();
+                    Serial.print(p + " deg Rotated!");
+                }
+                else
+                {
+                    Serial.println("Parameter p (degrees) is not set");
+                }
+            }
+            else if (c == cmdStop1)
+            {
+                motors[0].stop();
+            }
+            else if (c == cmdEcho)
+            {
+                Argument str = c.getArgument(0);
+                Serial.println(str.getValue());
+            }
+            else if (c == cmdRm)
+            {
+                Serial.println("Remove directory " + c.getArgument(0).getValue());
+            }
+            else if (c == cmdLs)
+            {
+                Argument a = c.getArgument("a");
+                // bool     set = a.isSet();
+                if (a.isSet())
+                {
+                    Serial.println("Listing all directories");
+                }
+                else
+                {
+                    Serial.println("Listing directories");
+                }
+            }
+            else if (c == cmdBoundless)
+            {
+                Serial.print("Boundless: ");
+
+                for (int i = 0; i < argNum; ++i)
+                {
+                    Argument arg = c.getArgument(i);
+                    if (i > 0)
+                        Serial.print(",");
+                    Serial.print("\"");
+                    Serial.print(arg.getValue());
+                    Serial.print("\"");
+                }
+            }
+            else if (c == cmdSingle)
+            {
+                Serial.println("Single \"" + c.getArg(0).getValue() + "\"");
+            }
+            else if (c == cmdHelp)
+            {
+                Serial.println("Help:");
+                Serial.println(cli.toString());
+            }
+        }
+
+        if (cli.errored())
+        {
+            CommandError cmdError = cli.getError();
+
+            Serial.print("ERROR: ");
+            Serial.println(cmdError.toString());
+
+            if (cmdError.hasCommand())
+            {
+                Serial.print("Did you mean \"");
+                Serial.print(cmdError.getCommand().toString());
+                Serial.println("\"?");
+            }
+        }
+        vTaskDelay(pdMS_TO_TICKS(10));
+    }
+}
 
 // Task for updating motor states
 void motorUpdateTask0(void* pvParameters)
@@ -114,6 +197,37 @@ void motorUpdateTask3(void* pvParameters)
     }
 }
 
+void initializeCLI()
+{
+    cmdMove1 = cli.addCmd("move1");
+    cmdMove1.addArg("p", "30.0");
+    cmdMove1.setDescription(" Rotate motor[1] 1 by 360 degrees");
+
+    cmdStop1 = cli.addCmd("stop1");
+    cmdStop1.setDescription(" Stop motor[1]");
+
+    cmdEcho = cli.addCmd("echo");
+    cmdEcho.addPosArg("text", "something");
+    cmdEcho.setDescription(" Echos what you said");
+
+    cmdRm = cli.addCmd("rm");
+    cmdRm.addPosArg("file");
+    cmdRm.setDescription(" Removes specified file (but not actually)");
+
+    cmdLs = cli.addCmd("ls");
+    cmdLs.addFlagArg("a");
+    cmdLs.setDescription(" Lists files in directory (-a for all)");
+
+    cmdBoundless = cli.addBoundlessCmd("boundless");
+    cmdBoundless.setDescription(" A boundless command that echos your input");
+
+    cmdSingle = cli.addSingleArgCmd("single");
+    cmdSingle.setDescription(" A single command that echos your input");
+
+    cmdHelp = cli.addCommand("help");
+    cmdHelp.setDescription(" Get help!");
+}
+
 void setup()
 {
     // Initialize serial communication
@@ -129,31 +243,8 @@ void setup()
 
     delay(500);
     initializeMotors();
-
-    // Using ESP32  => 80 / 160 / 240MHz CPU clock ,
-    // For 64-bit timer counter
-    // For 16-bit timer prescaler up to 1024
-
-    // Interval in microsecs
-    if (ITimer0.attachInterruptInterval(TIMER0_INTERVAL_MS * 1000, TimerHandler0))
-    {
-        Log.noticeln(F("Starting  ITimer0 OK, millis() = %d"), millis());
-    }
-    else
-    {
-        Log.errorln(F("Can't set ITimer0. Select another freq. or timer"));
-    }
-
-    // Interval in microsecs
-    if (ITimer1.attachInterruptInterval(TIMER1_INTERVAL_MS * 1000, TimerHandler1))
-    {
-        Log.noticeln(F("Starting  ITimer1 OK, millis() = %d"), millis());
-    }
-    else
-    {
-        Log.errorln(F("Can't set ITimer1. Select another freq. or timer"));
-    }
-
+    initializeCLI();
+    xTaskCreate(serialTask, "SerialTask", 4096, NULL, 2, &serialTaskHandle);
     xTaskCreate(motorUpdateTask0, "MotorUpdateTask0", 4096, NULL, 3, &motorUpdateTaskHandle0);
     xTaskCreate(motorUpdateTask1, "MotorUpdateTask1", 4096, NULL, 3, &motorUpdateTaskHandle1);
     xTaskCreate(motorUpdateTask2, "MotorUpdateTask2", 4096, NULL, 3, &motorUpdateTaskHandle2);
@@ -162,59 +253,5 @@ void setup()
 
 void loop()
 {
-    static unsigned long lastTimer0 = 0;
-    static unsigned long lastTimer1 = 0;
-
-    static bool timer0Stopped = false;
-    static bool timer1Stopped = false;
-
-    if (millis() - lastTimer0 > TIMER0_DURATION_MS)
-    {
-        lastTimer0 = millis();
-
-        if (timer0Stopped)
-        {
-            Log.noticeln(F("Start ITimer0, millis() = %d"), millis());
-            ITimer0.restartTimer();
-            motor0Enabled = true;
-        }
-        else
-        {
-            Log.noticeln(F("Stop ITimer0, millis() = %d"), millis());
-            ITimer0.stopTimer();
-            motor0Enabled = false;
-            motors[0].moveForward();
-            motors[3].moveForward();
-        }
-
-        timer0Stopped = !timer0Stopped;
-    }
-
-    if (millis() - lastTimer1 > TIMER1_DURATION_MS)
-    {
-        lastTimer1 = millis();
-
-        if (timer1Stopped)
-        {
-            Log.noticeln(F("Start ITimer1, millis() = %d"), millis());
-            ITimer1.restartTimer();
-            motor1Enabled = true;
-        }
-        else
-        {
-            Log.noticeln(F("Stop ITimer1, millis() = %d"), millis());
-            ITimer1.stopTimer();
-            motor1Enabled = false;
-            motors[1].moveForward();
-            motors[2].moveForward();
-        }
-
-        timer1Stopped = !timer1Stopped;
-    }
-
-    // Update motor states
-    for (uint8_t i = 0; i < Config::TMC5160T_Driver::NUM_MOTORS; i++)
-    {
-        motors[i].update();
-    }
+    delay(10);
 }
