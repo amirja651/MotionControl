@@ -2,9 +2,8 @@
 #error This code is intended to run on the ESP32 platform! Please check your Tools->Board setting.
 #endif
 
-#include <Arduino.h>
+#include <ArduinoLog.h>
 #include <ESP32TimerInterrupt.h>
-#include "Logger.h"
 #include "MotorInstances.h"
 
 // These define's must be placed at the beginning before #include "ESP32_New_TimerInterrupt.h"
@@ -22,35 +21,30 @@
 #define PIN_D19 19  // Pin D19 mapped to pin GPIO9 of ESP32
 #define PIN_D3  3   // Pin D3 mapped to pin GPIO3/RX0 of ESP32
 
+// Global variables for motor control
+volatile bool motor0Enabled = false;
+volatile bool motor1Enabled = false;
+
 // With core v2.0.0+, you can't use Serial.print/println in ISR or crash.
 // and you can't use float calculation inside ISR
 // Only OK in core v1.0.6-
 bool IRAM_ATTR TimerHandler0(void* timerNo)
 {
-    static bool toggle0 = false;
-
-    // timer interrupt toggles pin PIN_D19
-    // digitalWrite(PIN_D19, toggle0);
-    motors[0].moveForward();
-    toggle0 = !toggle0;
-
+    if (motor0Enabled)
+    {
+        motors[0].moveForward();
+    }
     return true;
 }
 
 bool IRAM_ATTR TimerHandler1(void* timerNo)
 {
-    static bool toggle1 = false;
-
-    // timer interrupt toggles outputPin
-    // digitalWrite(PIN_D3, toggle1);
-    motors[1].moveForward();
-    toggle1 = !toggle1;
-
+    if (motor1Enabled)
+    {
+        motors[1].moveForward();
+    }
     return true;
 }
-
-// Global logger instance
-Logger logger;
 
 // Init ESP32 timer 0 and 1
 ESP32Timer ITimer0(0);
@@ -58,10 +52,19 @@ ESP32Timer ITimer1(1);
 
 void setup()
 {
-    logger.initialize(115200);
-    logger.info("Hello, World!", LogModule::SYSTEM);
-    logger.info("CPU Frequency = " + String(F_CPU / 1000000) + " MHz");
+    // Initialize serial communication
+    Serial.begin(Config::System::SERIAL_BAUD_RATE);
+    delay(Config::System::STARTUP_DELAY_MS);
+    while (!Serial)
+    {
+        delay(10);
+    }
+    Log.begin(LOG_LEVEL_VERBOSE, &Serial);
+    Log.noticeln(F("Hello, World!"));
+    Log.noticeln(F("CPU Frequency : %d MHz" CR), F_CPU / 1000000);
+
     delay(500);
+    initializeMotors();
 
     // Using ESP32  => 80 / 160 / 240MHz CPU clock ,
     // For 64-bit timer counter
@@ -70,26 +73,22 @@ void setup()
     // Interval in microsecs
     if (ITimer0.attachInterruptInterval(TIMER0_INTERVAL_MS * 1000, TimerHandler0))
     {
-        logger.info("Starting  ITimer0 OK, millis() = " + String(millis()));
+        Log.noticeln(F("Starting  ITimer0 OK, millis() = %d"), millis());
     }
     else
     {
-        logger.error("Can't set ITimer0. Select another freq. or timer");
+        Log.errorln(F("Can't set ITimer0. Select another freq. or timer"));
     }
 
     // Interval in microsecs
     if (ITimer1.attachInterruptInterval(TIMER1_INTERVAL_MS * 1000, TimerHandler1))
     {
-        logger.info("Starting  ITimer1 OK, millis() = " + String(millis()));
+        Log.noticeln(F("Starting  ITimer1 OK, millis() = %d"), millis());
     }
     else
     {
-        logger.error("Can't set ITimer1. Select another freq. or timer");
+        Log.errorln(F("Can't set ITimer1. Select another freq. or timer"));
     }
-
-    initializeMotors();
-
-    logger.flush();
 }
 
 void loop()
@@ -106,13 +105,15 @@ void loop()
 
         if (timer0Stopped)
         {
-            logger.info("Start ITimer0, millis() = " + String(millis()));
+            Log.noticeln(F("Start ITimer0, millis() = %d"), millis());
             ITimer0.restartTimer();
+            motor0Enabled = true;
         }
         else
         {
-            logger.info("Stop ITimer0, millis() = " + String(millis()));
+            Log.noticeln(F("Stop ITimer0, millis() = %d"), millis());
             ITimer0.stopTimer();
+            motor0Enabled = false;
             motors[0].stop();
         }
 
@@ -125,16 +126,24 @@ void loop()
 
         if (timer1Stopped)
         {
-            logger.info("Start ITimer1, millis() = " + String(millis()));
+            Log.noticeln(F("Start ITimer1, millis() = %d"), millis());
             ITimer1.restartTimer();
+            motor1Enabled = true;
         }
         else
         {
-            logger.info("Stop ITimer1, millis() = " + String(millis()));
+            Log.noticeln(F("Stop ITimer1, millis() = %d"), millis());
             ITimer1.stopTimer();
+            motor1Enabled = false;
             motors[1].stop();
         }
 
         timer1Stopped = !timer1Stopped;
+    }
+
+    // Update motor states
+    for (uint8_t i = 0; i < Config::TMC5160T_Driver::NUM_MOTORS; i++)
+    {
+        motors[i].update();
     }
 }

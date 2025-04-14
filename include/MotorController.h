@@ -3,7 +3,15 @@
 
 #include <TMCStepper.h>
 #include "Config.h"
-#include "Logger.h"
+
+/**
+ * @brief Structure to hold communication test results
+ */
+struct CommunicationResult
+{
+    bool   success;  // Whether the communication test was successful
+    String message;  // Status message
+};
 
 /**
  * @brief Motor Controller class for managing TMC5160 stepper motor driver
@@ -74,11 +82,10 @@ public:
 
     /**
      * @brief Performs a basic SPI communication test
-     * Sends a test pattern (0x55) to verify SPI communication
-     * @param enableMessage Whether to print messages to the serial monitor
-     * @return true if communication is successful, false otherwise
+     * @param enableMessage Whether to generate detailed messages
+     * @return CommunicationResult containing test status and message
      */
-    bool testCommunication(bool enableMessage = true);
+    bool testCommunication();
 
     /**
      * @brief Performs a single byte SPI transfer
@@ -181,7 +188,6 @@ private:
 
     // Driver instance and state variables
     TMC5160Stepper driver;        // TMC5160 driver instance
-    Logger*        logger;        // Logger instance
     bool           isMoving;      // Current movement state
     bool           direction;     // Current movement direction
     const int      stepDelay;     // Delay between steps

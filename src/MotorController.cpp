@@ -1,4 +1,5 @@
 #include "MotorController.h"
+#include <ArduinoLog.h>
 // driver.TCOOLTHRS(threshold);
 
 // Constructor initializes motor driver and sets default parameters
@@ -172,9 +173,7 @@ void MotorController::setMovementDirection(bool forward)
     direction = forward;
     digitalWrite(dirPin, direction ? HIGH : LOW);
     delay(5);
-    String message = F("Direction ");
-    message.concat(forward ? F("Forward") : F("Reverse"));
-    logger->info(message, LogModule::MOTOR, motorName());
+    Log.noticeln(F("%s - Direction %s"), forward ? F("Forward") : F("Reverse"), instanceName);
 }
 
 // Start motor movement in forward direction
@@ -182,7 +181,7 @@ void MotorController::moveForward()
 {
     if (!diagnoseTMC5160())
     {
-        logger->error(F("Motor will not move."), LogModule::MOTOR, motorName());
+        Log.errorln(F("$s - Motor will not move."), instanceName);
         return;
     }
     setMovementDirection(true);
@@ -193,7 +192,7 @@ void MotorController::moveReverse()
 {
     if (!diagnoseTMC5160())
     {
-        logger->error(F("Motor will not move."), LogModule::MOTOR, motorName());
+        Log.errorln(F("$s - Motor will not move."), instanceName);
         return;
     }
     setMovementDirection(false);
@@ -255,9 +254,7 @@ void MotorController::update()
             int temp = getTemperature();
             if (temp > Config::TMC5160T_Driver::TEMP_WARNING_THRESHOLD)
             {
-                String message = F("High temperature detected: ");
-                message.concat(String(temp));
-                logger->warning(message, LogModule::MOTOR, motorName());
+                Log.warningln(F("%s - High temperature detected: %d" CR), instanceName, temp);
                 uint16_t reducedCurrent = runCurrent * 0.8;
                 driver.rms_current(reducedCurrent);
             }
@@ -292,14 +289,11 @@ void MotorController::increaseRunCurrent()
     {
         runCurrent += Config::MotorController::CURRENT_STEP;
         driver.rms_current(runCurrent);
-        String message = F("Run current increased to: ");
-        message.concat(String(runCurrent));
-        message.concat(F("mA (Max: 1000mA)"));
-        logger->info(message, LogModule::MOTOR, motorName());
+        Log.noticeln(F("%s - Run current increased to: %d mA (Max: 1000mA)"), instanceName, runCurrent);
     }
     else
     {
-        logger->warning(F("Run current at maximum (1000mA)"));
+        Log.warningln(F("%s - Run current at maximum (1000mA)"), instanceName);
     }
 }
 
@@ -309,14 +303,11 @@ void MotorController::decreaseRunCurrent()
     {
         runCurrent -= Config::MotorController::CURRENT_STEP;
         driver.rms_current(runCurrent);
-        String message = F("Run current decreased to: ");
-        message.concat(String(runCurrent));
-        message.concat(F("mA (Min: 100mA)"));
-        logger->info(message, LogModule::MOTOR, motorName());
+        Log.noticeln(F("%s - Run current decreased to: %d mA (Min: 100mA)"), instanceName, runCurrent);
     }
     else
     {
-        logger->warning(F("Run current at minimum (100mA)"));
+        Log.warningln(F("Run current at minimum (100mA)"));
     }
 }
 
@@ -326,14 +317,11 @@ void MotorController::increaseHoldCurrent()
     {
         holdCurrent += Config::MotorController::CURRENT_STEP;
         driver.ihold(holdCurrent);
-        String message = F("Hold current increased to: ");
-        message.concat(String(holdCurrent));
-        message.concat(F("mA (Max: 500mA)"));
-        logger->info(message, LogModule::MOTOR, motorName());
+        Log.noticeln(F("%s - Hold current increased to: %d mA (Max: 500mA)"), instanceName, holdCurrent);
     }
     else
     {
-        logger->warning(F("Hold current at maximum (500mA)"));
+        Log.warningln(F("Hold current at maximum (500mA)"));
     }
 }
 
@@ -343,14 +331,11 @@ void MotorController::decreaseHoldCurrent()
     {
         holdCurrent -= Config::MotorController::CURRENT_STEP;
         driver.ihold(holdCurrent);
-        String message = F("Hold current decreased to: ");
-        message.concat(String(holdCurrent));
-        message.concat(F("mA (Min: 100mA)"));
-        logger->info(message, LogModule::MOTOR, motorName());
+        Log.noticeln(F("%s - Hold current decreased to: %d mA (Min: 100mA)"), instanceName, holdCurrent);
     }
     else
     {
-        logger->warning(F("Hold current at minimum (100mA)"));
+        Log.warningln(F("Hold current at minimum (100mA)"));
     }
 }
 
@@ -369,14 +354,11 @@ void MotorController::increaseSpeed()
     if (speed < Config::MotorController::MAX_SPEED)
     {
         speed += Config::MotorController::SPEED_STEP;
-        String message = F("Speed increased to: ");
-        message.concat(String(speed));
-        message.concat(F(" steps/sec"));
-        logger->info(message, LogModule::MOTOR, motorName());
+        Log.noticeln(F("%s - Speed increased to: %d steps/sec"), instanceName, speed);
     }
     else
     {
-        logger->warning(F("Speed at maximum (10000 steps/sec)"));
+        Log.warningln(F("Speed at maximum (10000 steps/sec)"));
     }
 }
 
@@ -385,14 +367,11 @@ void MotorController::decreaseSpeed()
     if (speed > Config::MotorController::MIN_SPEED)
     {
         speed -= Config::MotorController::SPEED_STEP;
-        String message = F("Speed decreased to: ");
-        message.concat(String(speed));
-        message.concat(F(" steps/sec"));
-        logger->info(message, LogModule::MOTOR, motorName());
+        Log.noticeln(F("%s - Speed decreased to: %d steps/sec"), instanceName, speed);
     }
     else
     {
-        logger->warning(F("Speed at minimum (100 steps/sec)"));
+        Log.warningln(F("Speed at minimum (100 steps/sec)"));
     }
 }
 
@@ -402,14 +381,11 @@ void MotorController::increaseAcceleration()
     {
         acceleration += Config::MotorController::ACCEL_STEP;
         driver.AMAX(acceleration);
-        String message = F("Acceleration increased to: ");
-        message.concat(String(acceleration));
-        message.concat(F(" steps/sec²"));
-        logger->info(message, LogModule::MOTOR, motorName());
+        Log.noticeln(F("%s - Acceleration increased to: %d steps/sec²"), instanceName, acceleration);
     }
     else
     {
-        logger->warning(F("Acceleration at maximum (10000 steps/sec²)"));
+        Log.warningln(F("Acceleration at maximum (10000 steps/sec²)"));
     }
 }
 
@@ -419,14 +395,11 @@ void MotorController::decreaseAcceleration()
     {
         acceleration -= Config::MotorController::ACCEL_STEP;
         driver.AMAX(acceleration);
-        String message = F("Acceleration decreased to: ");
-        message.concat(String(acceleration));
-        message.concat(F(" steps/sec²"));
-        logger->info(message, LogModule::MOTOR, motorName());
+        Log.noticeln(F("%s - Acceleration decreased to: %d steps/sec²"), instanceName, acceleration);
     }
     else
     {
-        logger->warning(F("Acceleration at minimum (100 steps/sec²)"));
+        Log.warningln(F("Acceleration at minimum (100 steps/sec²)"));
     }
 }
 
@@ -442,10 +415,7 @@ uint16_t MotorController::getAcceleration() const
 
 void MotorController::printStatusRegister(uint32_t status)
 {
-    String message = F("Driver Status Register:");
-    message.concat(F("   Raw Status: 0x"));
-    message.concat(String(status, HEX));
-    logger->info(message, LogModule::MOTOR, motorName());
+    Log.noticeln(F("%s - Raw Driver Status: 0x%X"), instanceName, status);
     printErrorFlags(status);
     printStallGuardStatus(status);
     printDriverState(status);
@@ -453,200 +423,47 @@ void MotorController::printStatusRegister(uint32_t status)
 
 void MotorController::printErrorFlags(uint32_t status)
 {
-    String message = F("Over Temperature: ");
-    if (status & 0x00000001)
-    {
-        message.concat(F("Yes"));
-        logger->error(message, LogModule::MOTOR, motorName());
-    }
-    else
-    {
-        message.concat(F("No"));
-        logger->info(message, LogModule::MOTOR, motorName());
-    }
-
-    message = "";
-    message.concat(F("Short to Ground A: "));
-    if (status & 0x00000002)
-    {
-        message.concat(F("Yes"));
-        logger->error(message, LogModule::MOTOR, motorName());
-    }
-    else
-    {
-        message.concat(F("No"));
-        logger->info(message, LogModule::MOTOR, motorName());
-    }
-
-    message = "";
-    message.concat(F("Short to Ground B: "));
-    if (status & 0x00000004)
-    {
-        message.concat(F("Yes"));
-        logger->error(message, LogModule::MOTOR, motorName());
-    }
-    else
-    {
-        message.concat(F("No"));
-        logger->info(message, LogModule::MOTOR, motorName());
-    }
-
-    message = "";
-    message.concat(F("Open Load A: "));
-    if (status & 0x00000008)
-    {
-        message.concat(F("Yes"));
-        logger->error(message, LogModule::MOTOR, motorName());
-    }
-    else
-    {
-        message.concat(F("No"));
-        logger->info(message, LogModule::MOTOR, motorName());
-    }
-
-    message = "";
-    message.concat(F("Open Load B: "));
-    if (status & 0x00000010)
-    {
-        message.concat(F("Yes"));
-        logger->error(message, LogModule::MOTOR, motorName());
-    }
-    else
-    {
-        message.concat(F("No"));
-        logger->info(message, LogModule::MOTOR, motorName());
-    }
+    Log.noticeln(F("%s - Over Temperature: %s"), instanceName, (status & 0x00000001) ? F("Yes") : F("No"));
+    Log.noticeln(F("%s - Short to Ground A: %s"), instanceName, (status & 0x00000002) ? F("Yes") : F("No"));
+    Log.noticeln(F("%s - Short to Ground B: %s"), instanceName, (status & 0x00000004) ? F("Yes") : F("No"));
+    Log.noticeln(F("%s - Open Load A: %s"), instanceName, (status & 0x00000008) ? F("Yes") : F("No"));
+    Log.noticeln(F("%s - Open Load B: %s"), instanceName, (status & 0x00000010) ? F("Yes") : F("No"));
 }
 
 void MotorController::printStallGuardStatus(uint32_t status)
 {
-    String message = F("StallGuard Value: ");
-    message.concat(String((status >> 10) & 0x3FF));
-    logger->info(message, LogModule::MOTOR, motorName());
-
-    message = "";
-    message.concat(F("Stall Detected: "));
-    if (status & 0x00000200)
-    {
-        message.concat(F("Yes"));
-        logger->error(message, LogModule::MOTOR, motorName());
-    }
-    else
-    {
-        message.concat(F("No"));
-        logger->info(message, LogModule::MOTOR, motorName());
-    }
+    Log.noticeln(F("%s - StallGuard Value: %s"), instanceName, String((status >> 10) & 0x3FF));
+    Log.noticeln(F("%s - Stall Detected: %s"), instanceName, (status & 0x00000200) ? F("Yes") : F("No"));
 }
 
 void MotorController::printDriverState(uint32_t status)
 {
-    String message = F("Standstill: ");
-    if (status & 0x00000400)
-    {
-        message.concat(F("Yes"));
-        logger->error(message, LogModule::MOTOR, motorName());
-    }
-    else
-    {
-        message.concat(F("No"));
-        logger->info(message, LogModule::MOTOR, motorName());
-    }
-
-    message = "";
-    message.concat(F("Velocity Reached: "));
-    if (status & 0x00000800)
-    {
-        message.concat(F("Yes"));
-        logger->error(message, LogModule::MOTOR, motorName());
-    }
-    else
-    {
-        message.concat(F("No"));
-        logger->info(message, LogModule::MOTOR, motorName());
-    }
-
-    message = "";
-    message.concat(F("Position Reached: "));
-    if (status & 0x00001000)
-    {
-        message.concat(F("Yes"));
-        logger->error(message, LogModule::MOTOR, motorName());
-    }
-    else
-    {
-        message.concat(F("No"));
-        logger->info(message, LogModule::MOTOR, motorName());
-    }
+    Log.noticeln(F("%s - Standstill: %s"), instanceName, (status & 0x00000400) ? F("Yes") : F("No"));
+    Log.noticeln(F("%s - Velocity Reached: %s"), instanceName, (status & 0x00000800) ? F("Yes") : F("No"));
+    Log.noticeln(F("%s - Position Reached: %s"), instanceName, (status & 0x00001000) ? F("Yes") : F("No"));
 }
 
 void MotorController::printDriverStatus()
 {
-    uint32_t status = driver.DRV_STATUS();
-
-    String message = F("DRV_STATUS Report");
-
-    message = (status & (1 << 31) ? F("Standstill (stst)") : F("Motor moving"));
-    logger->info(message, LogModule::MOTOR, motorName());
-
-    message = (status & (1 << 30) ? F("Open load on Phase B (olb)") : F("Phase B OK"));
-    logger->info(message, LogModule::MOTOR, motorName());
-
-    message = (status & (1 << 29) ? F("Open load on Phase A (ola)") : F("Phase A OK"));
-    logger->info(message, LogModule::MOTOR, motorName());
-
-    message = (status & (1 << 28) ? F("Short to GND on Phase B (s2gb)") : F("Phase B GND OK"));
-    logger->info(message, LogModule::MOTOR, motorName());
-
-    message = (status & (1 << 27) ? F("Short to GND on Phase A (s2ga)") : F("Phase A GND OK"));
-    logger->info(message, LogModule::MOTOR, motorName());
-
-    message = (status & (1 << 26) ? F("Overtemperature pre-warning (otpw)") : F("Temp OK"));
-    logger->info(message, LogModule::MOTOR, motorName());
-
-    message = (status & (1 << 25) ? F("Overtemperature shutdown (ot)") : F("Not overheated"));
-    logger->info(message, LogModule::MOTOR, motorName());
-
-    message = (status & (1 << 24) ? F("StallGuard: Stall detected!") : F("No stall"));
-    logger->info(message, LogModule::MOTOR, motorName());
-
-    message = (status & (1 << 15) ? F("Fullstep active (fsactive)") : F("Microstepping active"));
-    logger->info(message, LogModule::MOTOR, motorName());
-
-    message = (status & (1 << 14) ? F("StealthChop active (stealth)") : F("SpreadCycle active"));
-    logger->info(message, LogModule::MOTOR, motorName());
-
-    message = (status & (1 << 13) ? F("Short to V+ on Phase B (s2vbs)") : F("Phase B Supply OK"));
-    logger->info(message, LogModule::MOTOR, motorName());
-
-    message = (status & (1 << 12) ? F("Short to V+ on Phase A (s2vsa)") : F("Phase A Supply OK"));
-    logger->info(message, LogModule::MOTOR, motorName());
-
-    uint8_t cs_actual = (status >> 17) & 0x0F;
-    message           = (F("CS_ACTUAL (current scaling): "));
-    message.concat(cs_actual);
-    logger->info(message, LogModule::MOTOR, motorName());
-
-    float current_mA = cs_actual / 32.0 * driver.rms_current();
-    message          = (F("Estimated actual current = "));
-    message.concat(current_mA);
-    message.concat(F(" mA"));
-    logger->info(message, LogModule::MOTOR, motorName());
-
-    uint16_t sg_result = status & 0x03FF;
-    if (sg_result < 100)
-    {
-        message = (F(" Possible stall condition!"));
-    }
-    else if (sg_result < 500)
-    {
-        message = (F("Moderate load"));
-    }
-    else
-    {
-        message = (F("Light load"));
-    }
-
-    logger->info(message, LogModule::MOTOR, motorName());
+    // uint32_t status = driver.DRV_STATUS();
+    /*
+        Log.noticeln(F("%s - DRV_STATUS Report: %s - $s - %s - %s - $s - %s - %s - $s - %s - %s - $s - %s"),
+       instanceName, (status & (1 << 31) ? F("Standstill (stst)") : F("Motor moving"))), (status & (1 << 30) ? F("Open
+       load on Phase B (olb)") : F("Phase B OK")), (1 << 29) ? F("Open load on Phase A (ola)") : F("Phase A OK"),
+            (status & (1 << 28) ? F("Short to GND on Phase B (s2gb)") : F("Phase B GND OK")),
+            (status & (1 << 27) ? F("Short to GND on Phase A (s2ga)") : F("Phase A GND OK")),
+            (status & (1 << 26) ? F("Overtemperature pre-warning (otpw)") : F("Temp OK")),
+            (status & (1 << 25) ? F("Overtemperature shutdown (ot)") : F("Not overheated")),
+            (status & (1 << 24) ? F("StallGuard: Stall detected!") : F("No stall")),
+            (status & (1 << 15) ? F("Fullstep active (fsactive)") : F("Microstepping active")),
+            (status & (1 << 14) ? F("StealthChop active (stealth)") : F("SpreadCycle active")),
+            (status & (1 << 13) ? F("Short to V+ on Phase B (s2vbs)") : F("Phase B Supply OK")),
+            (status & (1 << 12) ? F("Short to V+ on Phase A (s2vsa)") : F("Phase A Supply OK")),
+            F("CS_ACTUAL (current scaling): %s"), (status >> 17) & 0x0F,
+            F("Estimated actual current: %f  mA ") + ((status >> 17) & 0x0F) / 32.0 * driver.rms_current(),
+            (status & 0x03FF) < 100   ? F("Possible stall condition!")
+            : (status & 0x03FF) < 500 ? F("Moderate load")
+                                      : F("Light load");*/
 }
 
 bool MotorController::diagnoseTMC5160()
@@ -656,43 +473,43 @@ bool MotorController::diagnoseTMC5160()
 
     if (status & (1 << 27))
     {
-        logger->error(F("Short to GND on Phase A (s2ga)"), LogModule::MOTOR, motorName());
+        Log.errorln(F("%s - Short to GND on Phase A (s2ga)"), instanceName);
         ok = false;
     }
 
     if (status & (1 << 28))
     {
-        logger->error(F("Short to GND on Phase B (s2gb)"), LogModule::MOTOR, motorName());
+        Log.errorln(F("%s - Short to GND on Phase B (s2gb)"), instanceName);
         ok = false;
     }
 
     if (status & (1 << 12))
     {
-        logger->error(F("Short to supply on Phase A (s2vsa)"), LogModule::MOTOR, motorName());
+        Log.errorln(F("%s - Short to supply on Phase A (s2vsa)"), instanceName);
         ok = false;
     }
 
     if (status & (1 << 13))
     {
-        logger->error(F("Short to supply on Phase B (s2vsb)"), LogModule::MOTOR, motorName());
+        Log.errorln(F("%s - Short to supply on Phase B (s2vsb)"), instanceName);
         ok = false;
     }
 
     if (status & (1 << 25))
     {
-        logger->error(F("Overtemperature shutdown active (ot)"), LogModule::MOTOR, motorName());
+        Log.errorln(F("%s - Overtemperature shutdown active (ot)"), instanceName);
         ok = false;
     }
 
     if (status & (1 << 24))
     {
-        logger->warning(F("Motor stall detected (StallGuard)"), LogModule::MOTOR, motorName());
+        Log.warningln(F("%s - Motor stall detected (StallGuard)"), instanceName);
         ok = false;
     }
 
     if (ok)
     {
-        logger->info(F("All driver diagnostics OK."), LogModule::MOTOR, motorName());
+        Log.info(F("%s - All driver diagnostics OK."), instanceName);
     }
 
     return ok;
@@ -700,57 +517,59 @@ bool MotorController::diagnoseTMC5160()
 
 void MotorController::printDriverConfig()
 {
+    /*
     String message = F("Run Current: ");
     message.concat(String(runCurrent));
     message.concat(F("mA"));
-    logger->info(message, LogModule::MOTOR, motorName());
+    Log.info(message, instanceName);
 
     message = F("Hold Current: ");
     message.concat(String(holdCurrent));
     message.concat(F("mA"));
-    logger->info(message, LogModule::MOTOR, motorName());
+    Log.info(message, instanceName);
 
     message = F("Microsteps: ");
     message.concat(String(16));
-    logger->info(message, LogModule::MOTOR, motorName());
+    Log.info(message, instanceName);
 
     message = F("Speed: ");
     message.concat(String(speed));
     message.concat(F(" steps/sec"));
-    logger->info(message, LogModule::MOTOR, motorName());
+    Log.info(message, instanceName);
 
     message = F("Acceleration: ");
     message.concat(String(acceleration));
     message.concat(F(" steps/sec²"));
-    logger->info(message, LogModule::MOTOR, motorName());
+    Log.info(message, instanceName);
 
     message = F("GCONF (Global Config): 0x");
     message.concat(String(driver.GCONF(), HEX));
-    logger->info(message, LogModule::MOTOR, motorName());
+    Log.info(message, instanceName);
 
     message = F("TPOWERDOWN (Power Down Time): ");
     message.concat(String(driver.TPOWERDOWN()));
     message.concat(F(" tclk"));
-    logger->info(message, LogModule::MOTOR, motorName());
+    Log.info(message, instanceName);
 
     message = F("TSTEP (Current Step Timing): ");
     message.concat(String(driver.TSTEP()));
     message.concat(F(" tclk"));
-    logger->info(message, LogModule::MOTOR, motorName());
+    Log.info(message, instanceName);
 
     message = F("TPWMTHRS (StealthChop Threshold): ");
     message.concat(String(driver.TPWMTHRS()));
     message.concat(F(" tclk"));
-    logger->info(message, LogModule::MOTOR, motorName());
+    Log.info(message, instanceName);
 
     message = F("THIGH (Step Pulse High Time): ");
     message.concat(String(driver.THIGH()));
     message.concat(F(" tclk"));
-    logger->info(message, LogModule::MOTOR, motorName());
+    Log.info(message, instanceName);
 
     message = F("XDIRECT (Direct Coil Control): 0x");
     message.concat(String(driver.XDIRECT(), HEX));
-    logger->info(message, LogModule::MOTOR, motorName());
+    Log.info(message, instanceName);
+    */
 }
 
 int MotorController::getTemperature()
@@ -762,27 +581,31 @@ int MotorController::getTemperature()
 
 void MotorController::printTemperature()
 {
+    /*
     int temp = getTemperature();
     if (temp != lastTemperature)
     {
         String message = F("Temperature: ");
         message.concat(String(temp));
         message.concat(F("°C"));
-        logger->info(message, LogModule::MOTOR, motorName());
+        Log.info(message, instanceName);
         lastTemperature = temp;
     }
+    */
 }
 
 // Check for motor stall condition
 void MotorController::checkStall()
 {
+    /*
     uint32_t status = driver.DRV_STATUS();
     if (status & 0x00000200)
     {
-        logger->warning(F("Stall detected!"), LogModule::MOTOR, motorName());
+        Log.warningln(F("Stall detected!"), instanceName);
         stop();  // Stop motor on stall
         printStallGuardStatus(status);
     }
+    */
 }
 
 // Toggle between StealthChop and SpreadCycle modes
@@ -793,13 +616,13 @@ void MotorController::toggleStealthChop()
     {
         // Currently in StealthChop mode, switch to SpreadCycle
         driver.TPWMTHRS(500);  // Switch to SpreadCycle above 500 steps/sec
-        logger->info(F("Switched to SpreadCycle mode (more power, more noise)"), LogModule::MOTOR, String(motorName()));
+        // Log.info(F("Switched to SpreadCycle mode (more power, more noise)"), LogModule::MOTOR, String(instanceName));
     }
     else
     {
         // Currently in SpreadCycle mode, switch to StealthChop
         driver.TPWMTHRS(0);  // Enable StealthChop mode
-        logger->info(F("Switched to StealthChop mode (silent operation)"), LogModule::MOTOR, motorName());
+        // Log.info(F("Switched to StealthChop mode (silent operation)"), instanceName);
     }
 }
 
@@ -808,24 +631,19 @@ void MotorController::setStealthChopMode(bool enable)
     if (enable)
     {
         driver.TPWMTHRS(0);  // Enable StealthChop full-time
-        logger->info(F("StealthChop enabled"), LogModule::MOTOR, motorName());
+        // Log.info(F("StealthChop enabled"), instanceName);
     }
     else
     {
         driver.TPWMTHRS(300);  // Enable SpreadCycle above threshold
-        logger->info(F("SpreadCycle enabled (TPWMTHRS = 300)"), LogModule::MOTOR, motorName());
+        // Log.info(F("SpreadCycle enabled (TPWMTHRS = 300)"), instanceName);
     }
 }
 
 // Performs a basic SPI communication test by sending a test pattern
-bool MotorController::testCommunication(bool enableMessage)
+bool MotorController::testCommunication()
 {
     String message = "";
-
-    if (enableMessage)
-    {
-        message = F("Testing SPI communication with TMC5160: ");
-    }
 
     enableSPI();
 
@@ -834,21 +652,9 @@ bool MotorController::testCommunication(bool enableMessage)
 
     if (gconf == 0xFFFFFFFF || status == 0xFFFFFFFF)
     {
-        if (enableMessage)
-        {
-            message.concat(F("Failed"));
-        }
-
-        logger->error(message, LogModule::MOTOR, motorName());
         return false;
     }
 
-    if (enableMessage)
-    {
-        message.concat(F("Ok"));
-    }
-
-    logger->info(message, LogModule::MOTOR, motorName());
     return true;
 }
 
@@ -1021,16 +827,16 @@ void MotorController::updateDiagnostics()
     if (!diagnosticsEnabled)
         return;
 
-    uint32_t load_value = getLoadValue();
-    int      temp       = getTemperature();
+    //  uint32_t load_value = getLoadValue();
+    // int      temp       = getTemperature();
 
-    String message = F("Diagnostics -> Load: ");
-    message.concat(String(load_value));
-    message.concat(F(", Temp: "));
-    message.concat(String(temp));
-    message.concat(F("°C"));
+    /*    String message = F("Diagnostics -> Load: ");
+        message.concat(String(load_value));
+        message.concat(F(", Temp: "));
+        message.concat(String(temp));
+        message.concat(F("°C"));
 
-    logger->info(message, LogModule::MOTOR, motorName());
+        Log.info(message, instanceName);*/
 
     if (isStalled())
     {
@@ -1041,8 +847,8 @@ void MotorController::updateDiagnostics()
 // Handle stall condition
 void MotorController::handleStall()
 {
-    String message = F("Stall detected:");
-    logger->warning(message, LogModule::MOTOR, motorName());
+    //    String message = F("Stall detected:");
+    //  Log.warningln(message, instanceName);
 
     // Reduce current temporarily
     uint16_t originalCurrent = runCurrent;
@@ -1083,9 +889,7 @@ void MotorController::checkLoad()
     uint32_t load = getLoadValue();
     if (load > Config::TMC5160T_Driver::LOAD_WARNING_THRESHOLD)
     {
-        String message = F("High load detected: ");
-        message.concat(String(load));
-        logger->warning(message, LogModule::MOTOR, motorName());
+        Log.warningln(F("%s - High load detected: $d"), instanceName, load);
         optimizeCurrent();
     }
 }

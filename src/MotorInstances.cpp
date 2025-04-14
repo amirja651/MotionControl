@@ -16,9 +16,6 @@ void initializeMotors()
     for (uint8_t i = 0; i < Config::TMC5160T_Driver::NUM_MOTORS; i++)
     {
         motors[i].begin();
-        Serial.print(F("\nMotor "));
-        Serial.print(i + 1);
-        Serial.print(F(" - "));
         motors[i].testCommunication();
     }
 }
