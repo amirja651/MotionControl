@@ -10,3 +10,6 @@
 [submodule "lib/PID"]
 	path = lib/PID
 	url = https://github.com/br3ttb/Arduino-PID-Library.git
+[submodule "lib/ESP32TimerInterrupt"]
+	path = lib/ESP32TimerInterrupt
+	url = https://github.com/khoih-prog/ESP32TimerInterrupt.git
