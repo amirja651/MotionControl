@@ -16,3 +16,6 @@
 [submodule "lib/Arduino-Log"]
 	path = lib/Arduino-Log
 	url = https://github.com/thijse/Arduino-Log.git
+[submodule "lib/SimpleCLI"]
+	path = lib/SimpleCLI
+	url = https://github.com/SpacehuhnTech/SimpleCLI.git
