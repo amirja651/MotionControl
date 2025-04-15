@@ -1,50 +1,57 @@
 #include "MAE3Encoder.h"
 #include "MotorController.h"
+#include "PIDController.h"
 
 // Create instances
-MAE3Encoder encoder(36);
-// MotorController motor(/* motor parameters */);
+MAE3Encoder     encoder(36);
+MotorController motor("MainMotor", Config::SPI::MOTOR1_CS, Config::TMC5160T_Driver::MOTOR1_STEP_PIN,
+                      Config::TMC5160T_Driver::MOTOR1_DIR_PIN, Config::TMC5160T_Driver::MOTOR1_EN_PIN);
+
+// Create PID controller with initial gains
+PIDController pidController(&motor, &encoder, 2.0, 0.5, 0.1);
+
+TaskHandle_t motorUpdateTaskHandle0 = NULL;
+
+// Task for updating motor states
+void motorUpdateTask0(void* pvParameters)
+{
+    const TickType_t xFrequency    = pdMS_TO_TICKS(10);  // Changed from 1ms to 10ms
+    TickType_t       xLastWakeTime = xTaskGetTickCount();
+
+    while (1)
+    {
+        motor.update();
+        taskYIELD();  // Allow other tasks to run between motor updates
+        vTaskDelayUntil(&xLastWakeTime, xFrequency);
+    }
+}
 
 void setup()
 {
-    Serial.begin(115200);
-    Serial.println("Encoder-Motor Control Test");
+    Serial.begin(Config::System::SERIAL_BAUD_RATE);
+    Serial.println("PID Motor Control System");
 
-    // Initialize both devices
+    // Initialize devices
     encoder.begin();
-    // motor.begin();
+    motor.begin();
+    pidController.begin();
+
+    xTaskCreate(motorUpdateTask0, "MotorUpdateTask0", 4096, NULL, 3, &motorUpdateTaskHandle0);
+
+    // Set initial target position
+    pidController.setTarget(180.0);  // Target 180 degrees
 }
 
 void loop()
 {
-    static float lastPosition = 0.0f;
-
     // Update encoder position
     if (encoder.update())
     {
         float currentPosition = encoder.getPositionDegrees();
         float currentVelocity = encoder.getVelocityDPS();
 
-        // Calculate position change
-        float positionChange = currentPosition - lastPosition;
-        lastPosition         = currentPosition;
-
-        // Simple position control logic
-        if (currentPosition < 90.0f)
-        {
-            // Move forward if below 90 degrees
-            // motor.moveForward();
-        }
-        else if (currentPosition > 270.0f)
-        {
-            // Move reverse if above 270 degrees
-            // motor.moveReverse();
-        }
-        else
-        {
-            // Stop if in the middle range
-            // motor.stop();
-        }
+        // Update PID controller
+        pidController.update();
 
         // Print status every 100ms
         static unsigned long lastPrintTime = 0;
@@ -58,8 +65,8 @@ void loop()
             Serial.print(currentVelocity, 2);
             Serial.print(" deg/s, ");
 
-            Serial.print("Change: ");
-            Serial.print(positionChange, 2);
+            Serial.print("Target: ");
+            Serial.print(pidController.getTarget(), 2);
             Serial.println(" degrees");
 
             lastPrintTime = millis();

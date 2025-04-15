@@ -5,6 +5,7 @@
     "files.associations": {
         "*.tcc": "cpp",
         "ostream": "cpp",
-        "cmath": "cpp"
+        "cmath": "cpp",
+        "main_cpp_cli": "cpp"
     },
 }
