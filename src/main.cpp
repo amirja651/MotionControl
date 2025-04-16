@@ -20,19 +20,23 @@ void motorUpdateTask0(void* pvParameters)
 
     while (1)
     {
-        motors[0].update();
-        encoders[0].update();
-        pids[0].update();
+        bool testOK = motors[0].testCommunication();
+        if (testOK)
+        {
+            motors[0].update();
+            encoders[0].update();
+            pids[0].update();
 
-        // Check if we just reached target
-        if (!wasAtTarget && pids[0].isAtTarget())
-        {
-            Serial.println("Target reached!");
-            wasAtTarget = true;
-        }
-        else if (!pids[0].isAtTarget())
-        {
-            wasAtTarget = false;
+            // Check if we just reached target
+            if (!wasAtTarget && pids[0].isAtTarget())
+            {
+                Serial.println("Target reached!");
+                wasAtTarget = true;
+            }
+            else if (!pids[0].isAtTarget())
+            {
+                wasAtTarget = false;
+            }
         }
 
         taskYIELD();
@@ -43,7 +47,7 @@ void motorUpdateTask0(void* pvParameters)
 // Task for handling serial input and PID tuning
 void serialReadTask0(void* pvParameters)
 {
-    const TickType_t     xFrequency    = pdMS_TO_TICKS(300);  // 50ms update rate
+    const TickType_t     xFrequency    = pdMS_TO_TICKS(500);  // 50ms update rate
     TickType_t           xLastWakeTime = xTaskGetTickCount();
     static unsigned long lastPrintTime = 0;
 
@@ -115,27 +119,31 @@ void serialReadTask0(void* pvParameters)
         // Print status periodically (every 500ms)
         if (millis() - lastPrintTime >= 500)
         {
-            float currentPosition = encoders[0].getPositionDegrees();
-            float currentVelocity = encoders[0].getVelocityDPS();
-            float targetPosition  = pids[0].getTarget();
-            float positionError   = abs(currentPosition - targetPosition);
-
-            if (positionError > 180.0f)
+            bool testOK = motors[0].testCommunication();
+            if (testOK)
             {
-                positionError = 360.0f - positionError;
+                float currentPosition = encoders[0].getPositionDegrees();
+                float currentVelocity = encoders[0].getVelocityDPS();
+                float targetPosition  = pids[0].getTarget();
+                float positionError   = abs(currentPosition - targetPosition);
+
+                if (positionError > 180.0f)
+                {
+                    positionError = 360.0f - positionError;
+                }
+
+                Serial.print("Position: ");
+                Serial.print(currentPosition, 2);
+                Serial.print("°, Velocity: ");
+                Serial.print(currentVelocity, 2);
+                Serial.print("°/s, Target: ");
+                Serial.print(targetPosition, 2);
+                Serial.print("°, Error: ");
+                Serial.print(positionError, 2);
+                Serial.println("°");
+
+                lastPrintTime = millis();
             }
-
-            Serial.print("Position: ");
-            Serial.print(currentPosition, 2);
-            Serial.print("°, Velocity: ");
-            Serial.print(currentVelocity, 2);
-            Serial.print("°/s, Target: ");
-            Serial.print(targetPosition, 2);
-            Serial.print("°, Error: ");
-            Serial.print(positionError, 2);
-            Serial.println("°");
-
-            lastPrintTime = millis();
         }
 
         taskYIELD();

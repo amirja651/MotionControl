@@ -59,9 +59,13 @@ void initializeSystem()
     for (uint8_t i = 0; i < NUM_MOTORS; i++)
     {
         motors[i].begin();
-        motors[i].testCommunication();
-        encoders[i].begin();
-        pids[i].begin();
-        pids[i].setPositionThreshold(0.5f);  // 0.5 degrees threshold
+        bool testOK = motors[i].testCommunication();
+        Serial.println("Motor " + String(i + 1) + " communication test: " + (testOK ? "OK" : "FAILED"));
+        if (!testOK)
+        {
+            encoders[i].begin();
+            pids[i].begin();
+            pids[i].setPositionThreshold(0.5f);  // 0.5 degrees threshold
+        }
     }
 }
