@@ -64,12 +64,9 @@ void initializeSystem()
     {
         motors[i].begin();
         bool testOK = motors[i].testCommunication();
-        Serial.println("Motor " + String(i + 1) + " communication test: " + (testOK ? "OK" : "FAILED"));
-        if (!testOK)
-        {
-            encoders[i].begin();
-            pids[i].begin();
-            pids[i].setPositionThreshold(0.5f);  // 0.5 degrees threshold
-        }
+        Serial.print((testOK ? "" : "Motor " + String(i + 1) + " communication test: FAILED\n"));
+        encoders[i].begin();
+        pids[i].begin();
+        pids[i].setPositionThreshold(0.5f);  // 0.5 degrees threshold
     }
 }

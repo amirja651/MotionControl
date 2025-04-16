@@ -21,23 +21,25 @@ void motorUpdateTask0(void* pvParameters)
     while (1)
     {
         bool testOK = motors[0].testCommunication();
-        if (testOK)
-        {
-            motors[0].update();
-            encoders[0].update();
-            pids[0].update();
 
-            // Check if we just reached target
-            if (!wasAtTarget && pids[0].isAtTarget())
-            {
-                Serial.println("Target reached!");
-                wasAtTarget = true;
-            }
-            else if (!pids[0].isAtTarget())
-            {
-                wasAtTarget = false;
-            }
+        Serial.print((testOK ? "" : "Motor 1 communication test: FAILED\n"));
+        // if (testOK)
+        //{
+        motors[0].update();
+        encoders[0].update();
+        pids[0].update();
+
+        // Check if we just reached target
+        if (!wasAtTarget && pids[0].isAtTarget())
+        {
+            Serial.println("Target reached!");
+            wasAtTarget = true;
         }
+        else if (!pids[0].isAtTarget())
+        {
+            wasAtTarget = false;
+        }
+        //}
 
         taskYIELD();
         vTaskDelayUntil(&xLastWakeTime, xFrequency);

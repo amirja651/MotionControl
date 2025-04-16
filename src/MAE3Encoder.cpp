@@ -69,34 +69,48 @@ void MAE3Encoder::begin()
     }
 }
 
+bool flag1 = false;
+bool flag2 = false;
+bool flag3 = false;
+bool flag4 = false;
+bool flag5 = false;
+bool flag6 = false;
+
 void MAE3Encoder::handleInterrupt()
 {
+    flag1                     = true;
     unsigned long currentTime = micros();
     if (digitalRead(interruptPin) == HIGH)
     {
         pulseStartTime = currentTime;
+        flag2          = true;
     }
     else
     {
+        flag3 = true;
         if (pulseStartTime > 0)
         {
+            flag4               = true;
             uint32_t pulseWidth = currentTime - pulseStartTime;
             if (pulseWidth >= MIN_PULSE_WIDTH && pulseWidth <= MAX_PULSE_WIDTH)
             {
+                flag5             = true;
                 currentPulseWidth = pulseWidth;
                 newPulseAvailable = true;
             }
+            flag6 = true;
         }
     }
 }
 
 bool MAE3Encoder::update()
 {
+    // Serial.println("update:" + String(flag1) + " " + String(flag2) + " " + String(flag3) + " " + String(flag4) + " "
+    // + String(flag5) + " " + String(flag6));
     if (!newPulseAvailable)
     {
         return false;
     }
-
     uint32_t pulseWidth;
     {
         portDISABLE_INTERRUPTS();
