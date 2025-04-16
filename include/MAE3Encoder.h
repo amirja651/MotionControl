@@ -2,6 +2,7 @@
 #define MAE3_ENCODER_H
 
 #include <Arduino.h>
+#include "Config/System_Config.h"
 
 class MAE3Encoder
 {
@@ -36,26 +37,38 @@ public:
      * @brief Get the current position in degrees (0-360)
      * @return Current position in degrees
      */
-    float getPositionDegrees() const;
+    float getPositionDegrees() const
+    {
+        return lastValidPosition;
+    }
 
     /**
      * @brief Get the raw pulse width in microseconds
      * @return Pulse width in microseconds
      */
-    uint32_t getPulseWidth() const;
+    uint32_t getPulseWidth() const
+    {
+        return pulseFilter[filterIndex];
+    }
 
     /**
      * @brief Get the current velocity in degrees per second
      * @return Current velocity in degrees per second
      */
-    float getVelocityDPS() const;
+    float getVelocityDPS() const
+    {
+        return currentVelocity;
+    }
 
     /**
      * @brief Convert degrees to pulse width
      * @param degree Angle in degrees
      * @return Corresponding pulse width in microseconds
      */
-    uint32_t convertToPulseWidth(float degree);
+    uint32_t convertToPulseWidth(float degree) const
+    {
+        return static_cast<uint32_t>(degree * DEGREE_TO_PULSE);
+    }
 
     /**
      * @brief Interrupt handler for encoder signal
@@ -67,9 +80,9 @@ private:
     // Median filter implementation
     uint32_t medianFilter();
 
-    // Pin assignments
-    const uint8_t signalPin;
-    const uint8_t interruptPin;
+    // Pin assignments (packed to save memory)
+    const uint8_t signalPin : 6;     // Using 6 bits for pin number (0-63)
+    const uint8_t interruptPin : 6;  // Using 6 bits for pin number (0-63)
 
     // Interrupt-related members
     volatile uint32_t      currentPulseWidth;  // Current pulse width measurement

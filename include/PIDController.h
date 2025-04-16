@@ -8,7 +8,7 @@
 class PIDController
 {
 public:
-    static constexpr float DEFAULT_POSITION_THRESHOLD = 0.5f;  // Default position threshold in degrees
+    static constexpr float DEFAULT_POSITION_THRESHOLD = 0.3f;  // Default position threshold in degrees
 
     /**
      * @brief Constructor for PIDController

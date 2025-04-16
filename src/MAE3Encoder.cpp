@@ -1,20 +1,34 @@
 #include "MAE3Encoder.h"
 #include "Config/System_Config.h"
 // Array to store encoder instances for interrupt handling
-static MAE3Encoder* encoderInstances[NUM_MOTORS] = {nullptr};  // Support up to [NUM_MOTORS] encoders
-static uint8_t      numEncoders                  = 0;
+static MAE3Encoder* encoderInstances[4] = {nullptr};  // Support up to NUM_MOTORS encoders
+static uint8_t      numEncoders         = 0;
 
-// Static interrupt handler that dispatches to the correct instance
-static void encoderInterruptHandler()
+// Static interrupt handlers for each encoder
+static void encoderInterruptHandler0()
 {
-    for (uint8_t i = 0; i < numEncoders; i++)
-    {
-        if (encoderInstances[i])
-        {
-            encoderInstances[i]->handleInterrupt();
-        }
-    }
+    if (encoderInstances[0])
+        encoderInstances[0]->handleInterrupt();
 }
+static void encoderInterruptHandler1()
+{
+    if (encoderInstances[1])
+        encoderInstances[1]->handleInterrupt();
+}
+static void encoderInterruptHandler2()
+{
+    if (encoderInstances[2])
+        encoderInstances[2]->handleInterrupt();
+}
+static void encoderInterruptHandler3()
+{
+    if (encoderInstances[3])
+        encoderInstances[3]->handleInterrupt();
+}
+
+// Array of interrupt handlers (explicitly sized to match NUM_MOTORS)
+static void (*interruptHandlers[4])() = {encoderInterruptHandler0, encoderInterruptHandler1, encoderInterruptHandler2,
+                                         encoderInterruptHandler3};
 
 // Floating-point map function
 float mapf(float x, float in_min, float in_max, float out_min, float out_max)
@@ -49,12 +63,9 @@ void MAE3Encoder::begin()
     // Register this instance for interrupt handling
     if (numEncoders < NUM_MOTORS)
     {
-        encoderInstances[numEncoders++] = this;
-        if (numEncoders == 1)
-        {
-            // Only attach interrupt once
-            attachInterrupt(digitalPinToInterrupt(interruptPin), encoderInterruptHandler, CHANGE);
-        }
+        uint8_t instanceIndex           = numEncoders++;
+        encoderInstances[instanceIndex] = this;
+        attachInterrupt(digitalPinToInterrupt(interruptPin), interruptHandlers[instanceIndex], CHANGE);
     }
 }
 
@@ -144,32 +155,12 @@ bool MAE3Encoder::update()
     return false;
 }
 
-uint32_t MAE3Encoder::getPulseWidth() const
-{
-    return pulseFilter[filterIndex];
-}
-
-float MAE3Encoder::getPositionDegrees() const
-{
-    return lastValidPosition;
-}
-
-float MAE3Encoder::getVelocityDPS() const
-{
-    return currentVelocity;
-}
-
-uint32_t MAE3Encoder::convertToPulseWidth(float degree)
-{
-    return static_cast<uint32_t>(degree * DEGREE_TO_PULSE);
-}
-
 uint32_t MAE3Encoder::medianFilter()
 {
+    // Simple insertion sort for small arrays
     uint32_t sorted[FILTER_SIZE];
     memcpy(sorted, pulseFilter, sizeof(pulseFilter));
 
-    // Simple insertion sort for small arrays
     for (uint8_t i = 1; i < FILTER_SIZE; i++)
     {
         uint32_t key = sorted[i];
