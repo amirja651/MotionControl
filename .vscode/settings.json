@@ -6,6 +6,7 @@
         "*.tcc": "cpp",
         "ostream": "cpp",
         "cmath": "cpp",
-        "main_cpp_cli": "cpp"
+        "main_cpp_cli": "cpp",
+        "bitset": "cpp"
     },
 }

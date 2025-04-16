@@ -12,6 +12,7 @@ PIDController::PIDController(MotorController* motor, MAE3Encoder* encoder, doubl
       Kd(Kd),
       sampleTime(sampleTime),
       enabled(false),
+      positionThreshold(DEFAULT_POSITION_THRESHOLD),
       lastUpdateTime(0)
 {
     // Create PID instance with default parameters
@@ -42,6 +43,14 @@ bool PIDController::update()
     {
         // Update input from encoder
         input = encoder->getPositionDegrees();
+
+        // Check if we're already at target
+        if (isAtTarget())
+        {
+            motor->stop();
+            lastUpdateTime = currentTime;
+            return true;
+        }
 
         // Compute PID
         bool computed = pid->Compute();
@@ -130,4 +139,33 @@ void PIDController::setSampleTime(unsigned long sampleTime)
     {
         pid->SetSampleTime(sampleTime);
     }
+}
+
+void PIDController::setPositionThreshold(float threshold)
+{
+    positionThreshold = threshold;
+}
+
+float PIDController::getPositionThreshold() const
+{
+    return positionThreshold;
+}
+
+bool PIDController::isAtTarget() const
+{
+    if (!encoder)
+    {
+        return false;
+    }
+
+    float currentPosition = encoder->getPositionDegrees();
+    float positionError   = abs(currentPosition - setpoint);
+
+    // Handle wrap-around at 0/360 degrees
+    if (positionError > 180.0f)
+    {
+        positionError = 360.0f - positionError;
+    }
+
+    return positionError <= positionThreshold;
 }

@@ -1,43 +1,42 @@
 #include "MotorController.h"
 #include <ArduinoLog.h>
+#include "Config/SPI.h"
+#include "Config/System_Config.h"
+#include "Config/TMC5160T_Driver.h"
 // driver.TCOOLTHRS(threshold);
 
 // Constructor initializes motor driver and sets default parameters
-MotorController::MotorController(String name, uint8_t csPin, uint8_t stepPin, uint8_t dirPin, uint8_t enPin,
-                                 uint8_t mosiPin, uint8_t misoPin, uint8_t sckPin)
-    : driver(csPin, mosiPin, misoPin, sckPin),
+MotorController::MotorController(String name, DriverConfig dc)
+    : driver(dc.csPin, CONFIG::SPI::MOSI, CONFIG::SPI::MISO, CONFIG::SPI::SCK),
       isMoving(false),
       direction(true),
-      stepDelay(Config::MotorController::STEP_DELAY),
+      stepDelay(STEP_DELAY),
       lastStepTime(0),
       stepCounter(0),
-      csPin(csPin),
-      stepPin(stepPin),
-      dirPin(dirPin),
-      enPin(enPin),
-      mosiPin(mosiPin),
-      misoPin(misoPin),
-      sckPin(sckPin),
-      runCurrent(Config::MotorSpecs::Operation::RUN_CURRENT),     // Default 1000mA
-      holdCurrent(Config::MotorSpecs::Operation::HOLD_CURRENT),   // Default 500mA
-      speed(Config::MotorSpecs::Operation::SPEED),                // Default 1000 steps/sec
-      acceleration(Config::MotorSpecs::Operation::ACCELERATION),  // Default 1000 steps/sec²
+      csPin(dc.csPin),
+      stepPin(dc.stepPin),
+      dirPin(dc.dirPin),
+      enPin(dc.enPin),
+      runCurrent(CONFIG::MotorSpecs::Operation::RUN_CURRENT),     // Default 1000mA
+      holdCurrent(CONFIG::MotorSpecs::Operation::HOLD_CURRENT),   // Default 500mA
+      speed(CONFIG::MotorSpecs::Operation::SPEED),                // Default 1000 steps/sec
+      acceleration(CONFIG::MotorSpecs::Operation::ACCELERATION),  // Default 1000 steps/sec²
       lastTempPrintTime(0),
       lastTemperature(0),
       instanceName(name),
       diagnosticsEnabled(false),
-      coolStepThreshold(Config::TMC5160T_Driver::TCOOLTHRS),
-      stallGuardThreshold(Config::TMC5160T_Driver::SGTHRS),
+      coolStepThreshold(CONFIG::SYSTEM::TCOOLTHRS),
+      stallGuardThreshold(CONFIG::SYSTEM::SGTHRS),
       stallGuardFilter(true),
       spreadCycleEnabled(false),
       microstepInterpolation(true),
-      currentScaling(Config::TMC5160T_Driver::CURRENT_SCALING),
-      currentHoldDelay(Config::TMC5160T_Driver::IHOLDDELAY),
-      currentRunDelay(Config::TMC5160T_Driver::IRUNDELAY),
+      currentScaling(CONFIG::SYSTEM::CURRENT_SCALING),
+      currentHoldDelay(CONFIG::SYSTEM::IHOLDDELAY),
+      currentRunDelay(CONFIG::SYSTEM::IRUNDELAY),
       rampMode(0),  // Default to positioning mode
-      maxSpeed(Config::MotorSpecs::Operation::SPEED),
-      maxAcceleration(Config::MotorSpecs::Operation::ACCELERATION),
-      maxDeceleration(Config::MotorSpecs::Operation::ACCELERATION)
+      maxSpeed(CONFIG::MotorSpecs::Operation::SPEED),
+      maxAcceleration(CONFIG::MotorSpecs::Operation::ACCELERATION),
+      maxDeceleration(CONFIG::MotorSpecs::Operation::ACCELERATION)
 {
 }
 
@@ -102,10 +101,10 @@ void MotorController::configureDriver()
     driver.ihold(holdCurrent);
     driver.irun(runCurrent);
     driver.iholddelay(currentHoldDelay);
-    driver.TPOWERDOWN(Config::TMC5160T_Driver::TPOWERDOWN);
+    driver.TPOWERDOWN(CONFIG::SYSTEM::TPOWERDOWN);
 
     // Configure microstepping
-    driver.microsteps(Config::TMC5160T_Driver::MICROSTEPS);
+    driver.microsteps(CONFIG::SYSTEM::MICROSTEPS);
     driver.intpol(microstepInterpolation);
 
     // Configure CoolStep
@@ -118,16 +117,16 @@ void MotorController::configureDriver()
     driver.TPWMTHRS(0);  // Enable stealthChop by default
     driver.pwm_autoscale(true);
     driver.pwm_autograd(true);
-    driver.pwm_ofs(Config::TMC5160T_Driver::PWM_OFS);
-    driver.pwm_grad(Config::TMC5160T_Driver::PWM_GRAD);
-    driver.pwm_freq(Config::TMC5160T_Driver::PWM_FREQ);
+    driver.pwm_ofs(CONFIG::SYSTEM::PWM_OFS);
+    driver.pwm_grad(CONFIG::SYSTEM::PWM_GRAD);
+    driver.pwm_freq(CONFIG::SYSTEM::PWM_FREQ);
 
     // Configure spreadCycle
     driver.en_pwm_mode(!spreadCycleEnabled);  // 0 for spread cycle, 1 for stealthChop
-    driver.toff(Config::TMC5160T_Driver::TOFF);
-    driver.blank_time(Config::TMC5160T_Driver::BLANK_TIME);
-    driver.hysteresis_start(Config::TMC5160T_Driver::HSTRT);
-    driver.hysteresis_end(Config::TMC5160T_Driver::HEND);
+    driver.toff(CONFIG::SYSTEM::TOFF);
+    driver.blank_time(CONFIG::SYSTEM::BLANK_TIME);
+    driver.hysteresis_start(CONFIG::SYSTEM::HSTRT);
+    driver.hysteresis_end(CONFIG::SYSTEM::HEND);
 
     // Configure motion control
     driver.RAMPMODE(rampMode);
@@ -213,7 +212,7 @@ void MotorController::step()
     digitalWrite(stepPin, LOW);
     lastStepTime = micros();
 
-    if (++stepCounter >= Config::MotorController::STATUS_PRINT_INTERVAL)
+    if (++stepCounter >= STATUS_PRINT_INTERVAL)
     {
         stepCounter = 0;
     }
@@ -252,7 +251,7 @@ void MotorController::update()
         if (millis() - lastTempCheckTime >= 200)
         {
             int temp = getTemperature();
-            if (temp > Config::TMC5160T_Driver::TEMP_WARNING_THRESHOLD)
+            if (temp > CONFIG::SYSTEM::TEMP_WARNING_THRESHOLD)
             {
                 Log.warningln(F("%s - High temperature detected: %d" CR), instanceName, temp);
                 uint16_t reducedCurrent = runCurrent * 0.8;
@@ -262,7 +261,7 @@ void MotorController::update()
         }
 
         // Print temperature at configured interval
-        if (millis() - lastTempPrintTime >= Config::TMC5160T_Driver::TEMP_PRINT_INTERVAL)
+        if (millis() - lastTempPrintTime >= CONFIG::SYSTEM::TEMP_PRINT_INTERVAL)
         {
             printTemperature();
             lastTempPrintTime = millis();
@@ -285,9 +284,9 @@ uint32_t MotorController::getDriverStatus()
 
 void MotorController::increaseRunCurrent()
 {
-    if (runCurrent < Config::MotorController::MAX_RUN_CURRENT)
+    if (runCurrent < MAX_RUN_CURRENT)
     {
-        runCurrent += Config::MotorController::CURRENT_STEP;
+        runCurrent += CURRENT_STEP;
         driver.rms_current(runCurrent);
         Log.noticeln(F("%s - Run current increased to: %d mA (Max: 1000mA)"), instanceName, runCurrent);
     }
@@ -299,9 +298,9 @@ void MotorController::increaseRunCurrent()
 
 void MotorController::decreaseRunCurrent()
 {
-    if (runCurrent > Config::MotorController::MIN_CURRENT)
+    if (runCurrent > MIN_CURRENT)
     {
-        runCurrent -= Config::MotorController::CURRENT_STEP;
+        runCurrent -= CURRENT_STEP;
         driver.rms_current(runCurrent);
         Log.noticeln(F("%s - Run current decreased to: %d mA (Min: 100mA)"), instanceName, runCurrent);
     }
@@ -313,9 +312,9 @@ void MotorController::decreaseRunCurrent()
 
 void MotorController::increaseHoldCurrent()
 {
-    if (holdCurrent < Config::MotorController::MAX_HOLD_CURRENT)
+    if (holdCurrent < MAX_HOLD_CURRENT)
     {
-        holdCurrent += Config::MotorController::CURRENT_STEP;
+        holdCurrent += CURRENT_STEP;
         driver.ihold(holdCurrent);
         Log.noticeln(F("%s - Hold current increased to: %d mA (Max: 500mA)"), instanceName, holdCurrent);
     }
@@ -327,9 +326,9 @@ void MotorController::increaseHoldCurrent()
 
 void MotorController::decreaseHoldCurrent()
 {
-    if (holdCurrent > Config::MotorController::MIN_CURRENT)
+    if (holdCurrent > MIN_CURRENT)
     {
-        holdCurrent -= Config::MotorController::CURRENT_STEP;
+        holdCurrent -= CURRENT_STEP;
         driver.ihold(holdCurrent);
         Log.noticeln(F("%s - Hold current decreased to: %d mA (Min: 100mA)"), instanceName, holdCurrent);
     }
@@ -351,9 +350,9 @@ uint16_t MotorController::getHoldCurrent() const
 
 void MotorController::increaseSpeed()
 {
-    if (speed < Config::MotorController::MAX_SPEED)
+    if (speed < MAX_SPEED)
     {
-        speed += Config::MotorController::SPEED_STEP;
+        speed += SPEED_STEP;
         Log.noticeln(F("%s - Speed increased to: %d steps/sec"), instanceName, speed);
     }
     else
@@ -364,9 +363,9 @@ void MotorController::increaseSpeed()
 
 void MotorController::decreaseSpeed()
 {
-    if (speed > Config::MotorController::MIN_SPEED)
+    if (speed > MIN_SPEED)
     {
-        speed -= Config::MotorController::SPEED_STEP;
+        speed -= SPEED_STEP;
         Log.noticeln(F("%s - Speed decreased to: %d steps/sec"), instanceName, speed);
     }
     else
@@ -377,9 +376,9 @@ void MotorController::decreaseSpeed()
 
 void MotorController::increaseAcceleration()
 {
-    if (acceleration < Config::MotorController::MAX_ACCEL)
+    if (acceleration < MAX_ACCEL)
     {
-        acceleration += Config::MotorController::ACCEL_STEP;
+        acceleration += ACCEL_STEP;
         driver.AMAX(acceleration);
         Log.noticeln(F("%s - Acceleration increased to: %d steps/sec²"), instanceName, acceleration);
     }
@@ -391,9 +390,9 @@ void MotorController::increaseAcceleration()
 
 void MotorController::decreaseAcceleration()
 {
-    if (acceleration > Config::MotorController::MIN_ACCEL)
+    if (acceleration > MIN_ACCEL)
     {
-        acceleration -= Config::MotorController::ACCEL_STEP;
+        acceleration -= ACCEL_STEP;
         driver.AMAX(acceleration);
         Log.noticeln(F("%s - Acceleration decreased to: %d steps/sec²"), instanceName, acceleration);
     }
@@ -699,23 +698,23 @@ void MotorController::optimizeForPancake()
     // Set optimal parameters for pancake motor
     setMicrostepInterpolation(true);
     setStallGuardFilter(true);
-    setStallGuardThreshold(Config::TMC5160T_Driver::SGTHRS);
-    setCoolStepThreshold(Config::TMC5160T_Driver::TCOOLTHRS);
+    setStallGuardThreshold(CONFIG::SYSTEM::SGTHRS);
+    setCoolStepThreshold(CONFIG::SYSTEM::TCOOLTHRS);
 
     // Configure for high precision
     driver.microsteps(256);  // Maximum microstepping for smooth motion
     driver.intpol(true);     // Enable microstep interpolation
 
     // Optimize current control
-    setCurrentScaling(Config::TMC5160T_Driver::CURRENT_SCALING);
-    setCurrentHoldDelay(Config::TMC5160T_Driver::IHOLDDELAY);
-    setCurrentRunDelay(Config::TMC5160T_Driver::IRUNDELAY);
+    setCurrentScaling(CONFIG::SYSTEM::CURRENT_SCALING);
+    setCurrentHoldDelay(CONFIG::SYSTEM::IHOLDDELAY);
+    setCurrentRunDelay(CONFIG::SYSTEM::IRUNDELAY);
 
     // Configure motion control
     setRampMode(0);  // Positioning mode for precise control
-    setMaxSpeed(Config::MotorSpecs::Operation::MAX_SPEED);
-    setMaxAcceleration(Config::MotorSpecs::Operation::MAX_ACCELERATION);
-    setMaxDeceleration(Config::MotorSpecs::Operation::MAX_DECELERATION);
+    setMaxSpeed(CONFIG::MotorSpecs::Operation::MAX_SPEED);
+    setMaxAcceleration(CONFIG::MotorSpecs::Operation::MAX_ACCELERATION);
+    setMaxDeceleration(CONFIG::MotorSpecs::Operation::MAX_DECELERATION);
 }
 
 // Advanced motor control methods
@@ -859,19 +858,19 @@ void MotorController::handleStall()
 void MotorController::optimizeCurrent()
 {
     uint32_t load = getLoadValue();
-    if (load > Config::TMC5160T_Driver::LOAD_THRESHOLD)
+    if (load > CONFIG::SYSTEM::LOAD_THRESHOLD)
     {
         // Increase current by 20% but not above MAX_RUN_CURRENT
-        uint16_t newCurrent = static_cast<uint16_t>(std::min(
-            static_cast<double>(runCurrent * 1.2), static_cast<double>(Config::MotorController::MAX_RUN_CURRENT)));
+        uint16_t newCurrent = static_cast<uint16_t>(
+            std::min(static_cast<double>(runCurrent * 1.2), static_cast<double>(MAX_RUN_CURRENT)));
         driver.rms_current(newCurrent);
         runCurrent = newCurrent;
     }
-    else if (load < Config::TMC5160T_Driver::LOAD_THRESHOLD / 2)
+    else if (load < CONFIG::SYSTEM::LOAD_THRESHOLD / 2)
     {
         // Decrease current by 20% but not below MIN_CURRENT
-        uint16_t newCurrent = static_cast<uint16_t>(
-            std::max(static_cast<double>(runCurrent * 0.8), static_cast<double>(Config::MotorController::MIN_CURRENT)));
+        uint16_t newCurrent =
+            static_cast<uint16_t>(std::max(static_cast<double>(runCurrent * 0.8), static_cast<double>(MIN_CURRENT)));
         driver.rms_current(newCurrent);
         runCurrent = newCurrent;
     }
@@ -881,7 +880,7 @@ void MotorController::optimizeCurrent()
 void MotorController::checkLoad()
 {
     uint32_t load = getLoadValue();
-    if (load > Config::TMC5160T_Driver::LOAD_WARNING_THRESHOLD)
+    if (load > CONFIG::SYSTEM::LOAD_WARNING_THRESHOLD)
     {
         Log.warningln(F("%s - High load detected: $d"), instanceName, load);
         optimizeCurrent();
@@ -891,12 +890,12 @@ void MotorController::checkLoad()
 // Adjust microstepping based on speed
 void MotorController::adjustMicrostepping()
 {
-    if (speed > Config::MotorSpecs::Operation::HIGH_SPEED_THRESHOLD)
+    if (speed > CONFIG::MotorSpecs::Operation::HIGH_SPEED_THRESHOLD)
     {
         driver.microsteps(8);  // Reduce microstepping at high speeds
     }
     else
     {
-        driver.microsteps(Config::TMC5160T_Driver::MICROSTEPS);
+        driver.microsteps(CONFIG::SYSTEM::MICROSTEPS);
     }
 }

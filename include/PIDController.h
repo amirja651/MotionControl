@@ -8,6 +8,8 @@
 class PIDController
 {
 public:
+    static constexpr float DEFAULT_POSITION_THRESHOLD = 0.5f;  // Default position threshold in degrees
+
     /**
      * @brief Constructor for PIDController
      * @param motor Pointer to the motor controller instance
@@ -80,18 +82,37 @@ public:
      */
     void setSampleTime(unsigned long sampleTime);
 
+    /**
+     * @brief Set the position threshold in degrees
+     * @param threshold Position threshold in degrees
+     */
+    void setPositionThreshold(float threshold);
+
+    /**
+     * @brief Get the current position threshold
+     * @return Current position threshold in degrees
+     */
+    float getPositionThreshold() const;
+
+    /**
+     * @brief Check if the current position is within threshold of the target
+     * @return true if within threshold, false otherwise
+     */
+    bool isAtTarget() const;
+
 private:
     MotorController* motor;    // Pointer to motor controller
     MAE3Encoder*     encoder;  // Pointer to encoder
     PID*             pid;      // PID controller instance
 
     // PID variables
-    double        input;       // Process variable (current position)
-    double        output;      // Controller output
-    double        setpoint;    // Target position
-    double        Kp, Ki, Kd;  // PID gains
-    unsigned long sampleTime;  // Sample time in milliseconds
-    bool          enabled;     // Controller state
+    double        input;              // Process variable (current position)
+    double        output;             // Controller output
+    double        setpoint;           // Target position
+    double        Kp, Ki, Kd;         // PID gains
+    unsigned long sampleTime;         // Sample time in milliseconds
+    bool          enabled;            // Controller state
+    float         positionThreshold;  // Position threshold in degrees
 
     // Timing variables
     unsigned long lastUpdateTime;  // Last update timestamp

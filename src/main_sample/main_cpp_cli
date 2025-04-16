@@ -244,7 +244,7 @@ void initializeCLI()
 void setup2()
 {
     // Initialize serial communication
-    Serial.begin(Config::System::SERIAL_BAUD_RATE);
+    Serial.begin(CONFIG::System::SERIAL_BAUD_RATE);
     delay(Config::System::STARTUP_DELAY_MS);
     while (!Serial)
     {
