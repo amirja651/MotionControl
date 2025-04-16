@@ -8,7 +8,7 @@
 
 DriverConfig    dc1 = {CONFIG::MOTOR::CS1, CONFIG::MOTOR::STEP1, CONFIG::MOTOR::DIR1, CONFIG::MOTOR::EN1};
 MotorController motors[NUM_MOTORS]   = {MotorController(MOTOR_NAME1, dc1)};
-MAE3Encoder     encoders[NUM_MOTORS] = {MAE3Encoder(CONFIG::ENCODER::ENC1)};
+MAE3Encoder     encoders[NUM_MOTORS] = {MAE3Encoder(CONFIG::ENCODER::ENC1, CONFIG::ENCODER::ENC1)};
 PIDController   pids[NUM_MOTORS]     = {
     PIDController(&motors[0], &encoders[0], CONFIG::PID::KP, CONFIG::PID::KI, CONFIG::PID::KD)};
 
@@ -17,7 +17,8 @@ PIDController   pids[NUM_MOTORS]     = {
 DriverConfig    dc1 = {CONFIG::MOTOR::CS1, CONFIG::MOTOR::STEP1, CONFIG::MOTOR::DIR1, CONFIG::MOTOR::EN1};
 DriverConfig    dc2 = {CONFIG::MOTOR::CS2, CONFIG::MOTOR::STEP2, CONFIG::MOTOR::DIR2, CONFIG::MOTOR::EN2};
 MotorController motors[NUM_MOTORS]   = {MotorController(MOTOR_NAME1, dc1), MotorController(MOTOR_NAME2, dc2)};
-MAE3Encoder     encoders[NUM_MOTORS] = {MAE3Encoder(CONFIG::ENCODER::ENC1), MAE3Encoder(CONFIG::ENCODER::ENC2)};
+MAE3Encoder     encoders[NUM_MOTORS] = {MAE3Encoder(CONFIG::ENCODER::ENC1, CONFIG::ENCODER::ENC1),
+                                        MAE3Encoder(CONFIG::ENCODER::ENC2, CONFIG::ENCODER::ENC2)};
 PIDController   pids[NUM_MOTORS]     = {
     PIDController(&motors[0], &encoders[0], CONFIG::PID::KP, CONFIG::PID::KI, CONFIG::PID::KD),
     PIDController(&motors[1], &encoders[1], CONFIG::PID::KP, CONFIG::PID::KI, CONFIG::PID::KD)};
@@ -29,8 +30,9 @@ DriverConfig    dc2 = {CONFIG::MOTOR::CS2, CONFIG::MOTOR::STEP2, CONFIG::MOTOR::
 DriverConfig    dc3 = {CONFIG::MOTOR::CS3, CONFIG::MOTOR::STEP3, CONFIG::MOTOR::DIR3, CONFIG::MOTOR::EN3};
 MotorController motors[NUM_MOTORS]   = {MotorController(MOTOR_NAME1, dc1), MotorController(MOTOR_NAME2, dc2),
                                         MotorController(MOTOR_NAME3, dc3)};
-MAE3Encoder     encoders[NUM_MOTORS] = {MAE3Encoder(CONFIG::ENCODER::ENC1), MAE3Encoder(CONFIG::ENCODER::ENC2),
-                                        MAE3Encoder(CONFIG::ENCODER::ENC3)};
+MAE3Encoder     encoders[NUM_MOTORS] = {MAE3Encoder(CONFIG::ENCODER::ENC1, CONFIG::ENCODER::ENC1),
+                                        MAE3Encoder(CONFIG::ENCODER::ENC2, CONFIG::ENCODER::ENC2),
+                                        MAE3Encoder(CONFIG::ENCODER::ENC3, CONFIG::ENCODER::ENC3)};
 PIDController   pids[NUM_MOTORS]     = {
     PIDController(&motors[0], &encoders[0], CONFIG::PID::KP, CONFIG::PID::KI, CONFIG::PID::KD),
     PIDController(&motors[1], &encoders[1], CONFIG::PID::KP, CONFIG::PID::KI, CONFIG::PID::KD),
@@ -44,8 +46,10 @@ DriverConfig    dc3 = {CONFIG::MOTOR::CS3, CONFIG::MOTOR::STEP3, CONFIG::MOTOR::
 DriverConfig    dc4 = {CONFIG::MOTOR::CS4, CONFIG::MOTOR::STEP4, CONFIG::MOTOR::DIR4, CONFIG::MOTOR::EN4};
 MotorController motors[NUM_MOTORS]   = {MotorController(MOTOR_NAME1, dc1), MotorController(MOTOR_NAME2, dc2),
                                         MotorController(MOTOR_NAME3, dc3), MotorController(MOTOR_NAME4, dc4)};
-MAE3Encoder     encoders[NUM_MOTORS] = {MAE3Encoder(CONFIG::ENCODER::ENC1), MAE3Encoder(CONFIG::ENCODER::ENC2),
-                                        MAE3Encoder(CONFIG::ENCODER::ENC3), MAE3Encoder(CONFIG::ENCODER::ENC4)};
+MAE3Encoder     encoders[NUM_MOTORS] = {MAE3Encoder(CONFIG::ENCODER::ENC1, CONFIG::ENCODER::ENC1),
+                                        MAE3Encoder(CONFIG::ENCODER::ENC2, CONFIG::ENCODER::ENC2),
+                                        MAE3Encoder(CONFIG::ENCODER::ENC3, CONFIG::ENCODER::ENC3),
+                                        MAE3Encoder(CONFIG::ENCODER::ENC4, CONFIG::ENCODER::ENC4)};
 PIDController   pids[NUM_MOTORS]     = {
     PIDController(&motors[0], &encoders[0], CONFIG::PID::KP, CONFIG::PID::KI, CONFIG::PID::KD),
     PIDController(&motors[1], &encoders[1], CONFIG::PID::KP, CONFIG::PID::KI, CONFIG::PID::KD),

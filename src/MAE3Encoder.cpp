@@ -1,7 +1,20 @@
 #include "MAE3Encoder.h"
+#include "Config/System_Config.h"
+// Array to store encoder instances for interrupt handling
+static MAE3Encoder* encoderInstances[NUM_MOTORS] = {nullptr};  // Support up to [NUM_MOTORS] encoders
+static uint8_t      numEncoders                  = 0;
 
-// Initialize static member
-MAE3Encoder* MAE3Encoder::instance = nullptr;
+// Static interrupt handler that dispatches to the correct instance
+static void encoderInterruptHandler()
+{
+    for (uint8_t i = 0; i < numEncoders; i++)
+    {
+        if (encoderInstances[i])
+        {
+            encoderInstances[i]->handleInterrupt();
+        }
+    }
+}
 
 // Floating-point map function
 float mapf(float x, float in_min, float in_max, float out_min, float out_max)
@@ -9,8 +22,9 @@ float mapf(float x, float in_min, float in_max, float out_min, float out_max)
     return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
 }
 
-MAE3Encoder::MAE3Encoder(uint8_t signalPin)
+MAE3Encoder::MAE3Encoder(uint8_t signalPin, uint8_t interruptPin)
     : signalPin(signalPin),
+      interruptPin(interruptPin),
       currentPulseWidth(0),
       newPulseAvailable(false),
       pulseStartTime(0),
@@ -20,36 +34,46 @@ MAE3Encoder::MAE3Encoder(uint8_t signalPin)
       velocityUpdateTime(0),
       lastUpdateTime(0)
 {
-    memset(pulseFilter, 0, sizeof(pulseFilter));
-    instance = this;
+    // Initialize filter array
+    for (uint8_t i = 0; i < FILTER_SIZE; i++)
+    {
+        pulseFilter[i] = 0;
+    }
 }
 
 void MAE3Encoder::begin()
 {
     pinMode(signalPin, INPUT);
-    attachInterrupt(digitalPinToInterrupt(signalPin), handleInterrupt, CHANGE);
-    lastUpdateTime = millis();
+    pinMode(interruptPin, INPUT);
+
+    // Register this instance for interrupt handling
+    if (numEncoders < NUM_MOTORS)
+    {
+        encoderInstances[numEncoders++] = this;
+        if (numEncoders == 1)
+        {
+            // Only attach interrupt once
+            attachInterrupt(digitalPinToInterrupt(interruptPin), encoderInterruptHandler, CHANGE);
+        }
+    }
 }
 
 void MAE3Encoder::handleInterrupt()
 {
-    if (instance)
+    unsigned long currentTime = micros();
+    if (digitalRead(interruptPin) == HIGH)
     {
-        if (digitalRead(instance->signalPin) == HIGH)
+        pulseStartTime = currentTime;
+    }
+    else
+    {
+        if (pulseStartTime > 0)
         {
-            instance->pulseStartTime = micros();
-        }
-        else
-        {
-            unsigned long currentTime = micros();
-            if (instance->pulseStartTime != 0)
+            uint32_t pulseWidth = currentTime - pulseStartTime;
+            if (pulseWidth >= MIN_PULSE_WIDTH && pulseWidth <= MAX_PULSE_WIDTH)
             {
-                unsigned long pulseWidth = currentTime - instance->pulseStartTime;
-                if (pulseWidth > MIN_PULSE_WIDTH && pulseWidth < MAX_PULSE_WIDTH)
-                {
-                    instance->currentPulseWidth = pulseWidth;
-                    instance->newPulseAvailable = true;
-                }
+                currentPulseWidth = pulseWidth;
+                newPulseAvailable = true;
             }
         }
     }

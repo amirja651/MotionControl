@@ -17,8 +17,9 @@ public:
     /**
      * @brief Constructor for MAE3Encoder
      * @param signalPin GPIO pin connected to encoder PWM output
+     * @param interruptPin GPIO pin for interrupt (can be same as signalPin if supported)
      */
-    MAE3Encoder(uint8_t signalPin);
+    MAE3Encoder(uint8_t signalPin, uint8_t interruptPin);
 
     /**
      * @brief Initialize the encoder
@@ -56,18 +57,21 @@ public:
      */
     uint32_t convertToPulseWidth(float degree);
 
-private:
-    // Static interrupt handler
-    static void handleInterrupt();
+    /**
+     * @brief Interrupt handler for encoder signal
+     * @note This method is public to allow access from the static interrupt handler
+     */
+    void handleInterrupt();
 
+private:
     // Median filter implementation
     uint32_t medianFilter();
 
     // Pin assignments
     const uint8_t signalPin;
+    const uint8_t interruptPin;
 
     // Interrupt-related members
-    static MAE3Encoder*    instance;           // Static instance pointer for interrupt handler
     volatile uint32_t      currentPulseWidth;  // Current pulse width measurement
     volatile bool          newPulseAvailable;  // Flag indicating new pulse measurement
     volatile unsigned long pulseStartTime;     // Start time of current pulse
