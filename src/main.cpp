@@ -1,15 +1,12 @@
-#include "MAE3Encoder.h"
-#include "MotorController.h"
-#include "MotorInstances.h"
-#include "PIDController.h"
+#include <algorithm>
+#include "Config/TMC5160T_Driver.h"
+#include "ObjectInstances.h"
 
-// Create instances
-MAE3Encoder encoder(36);
-
+static double lastKP         = CONFIG::PID::KP;
+static double lastKI         = CONFIG::PID::KI;
+static double lastKD         = CONFIG::PID::KD;
 static bool   wasAtTarget    = false;
 const double  PID_STEP_SMALL = 0.01;
-static double lastKp = 2.0, lastKi = 0.5, lastKd = 0.1;
-PIDController pidController(&motors[0], &encoder, lastKp, lastKi, lastKd);
 
 // Task handles
 TaskHandle_t motorUpdateTaskHandle0 = NULL;
@@ -24,16 +21,16 @@ void motorUpdateTask0(void* pvParameters)
     while (1)
     {
         motors[0].update();
-        encoder.update();
-        pidController.update();
+        encoders[0].update();
+        pids[0].update();
 
         // Check if we just reached target
-        if (!wasAtTarget && pidController.isAtTarget())
+        if (!wasAtTarget && pids[0].isAtTarget())
         {
             Serial.println("Target reached!");
             wasAtTarget = true;
         }
-        else if (!pidController.isAtTarget())
+        else if (!pids[0].isAtTarget())
         {
             wasAtTarget = false;
         }
@@ -69,35 +66,35 @@ void serialReadTask0(void* pvParameters)
                     switch (input)
                     {
                         case 'p':
-                            lastKp = max(0.0, lastKp - PID_STEP_SMALL);
+                            lastKP = std::max(0.0, lastKP - PID_STEP_SMALL);
                             break;
                         case 'P':
-                            lastKp += PID_STEP_SMALL;
+                            lastKP += PID_STEP_SMALL;
                             break;
                         case 'i':
-                            lastKi = max(0.0, lastKi - PID_STEP_SMALL);
+                            lastKI = std::max(0.0, lastKI - PID_STEP_SMALL);
                             break;
                         case 'I':
-                            lastKi += PID_STEP_SMALL;
+                            lastKI += PID_STEP_SMALL;
                             break;
                         case 'd':
-                            lastKd = max(0.0, lastKd - PID_STEP_SMALL);
+                            lastKD = std::max(0.0, lastKD - PID_STEP_SMALL);
                             break;
                         case 'D':
-                            lastKd += PID_STEP_SMALL;
+                            lastKD += PID_STEP_SMALL;
                             break;
                     }
 
                     // Apply new gains
-                    pidController.setGains(lastKp, lastKi, lastKd);
+                    pids[0].setGains(lastKP, lastKI, lastKD);
 
                     // Print updated values immediately
                     Serial.print("PID gains updated: Kp=");
-                    Serial.print(lastKp, 3);
+                    Serial.print(lastKP, 3);
                     Serial.print(", Ki=");
-                    Serial.print(lastKi, 3);
+                    Serial.print(lastKI, 3);
                     Serial.print(", Kd=");
-                    Serial.println(lastKd, 3);
+                    Serial.println(lastKD, 3);
                     break;
                 }
                 case 's':  // Toggle step size
@@ -118,9 +115,9 @@ void serialReadTask0(void* pvParameters)
         // Print status periodically (every 500ms)
         if (millis() - lastPrintTime >= 500)
         {
-            float currentPosition = encoder.getPositionDegrees();
-            float currentVelocity = encoder.getVelocityDPS();
-            float targetPosition  = pidController.getTarget();
+            float currentPosition = encoders[0].getPositionDegrees();
+            float currentVelocity = encoders[0].getVelocityDPS();
+            float targetPosition  = pids[0].getTarget();
             float positionError   = abs(currentPosition - targetPosition);
 
             if (positionError > 180.0f)
@@ -151,18 +148,13 @@ void setup()
     Serial.begin(CONFIG::SYSTEM::SERIAL_BAUD_RATE);
     Serial.println("PID Motor Control System");
 
-    // Initialize devices
-    encoder.begin();
-    initializeMotors();
-    pidController.begin();
-
-    // Set position threshold
-    pidController.setPositionThreshold(0.5f);  // 0.5 degrees threshold
+    initializeSystem();
 
     xTaskCreate(motorUpdateTask0, "MotorUpdateTask0", 4096, NULL, 3, &motorUpdateTaskHandle0);
     xTaskCreate(serialReadTask0, "SerialReadTask0", 4096, NULL, 3, &serialReadTaskHandle0);
+
     // Set initial target position
-    pidController.setTarget(45.5);  // Target 180 degrees
+    pids[0].setTarget(45.5);  // Target 180 degrees
 }
 
 void loop()

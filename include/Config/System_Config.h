@@ -3,6 +3,13 @@
 
 #include <stdint.h>
 
+// Number of motors in the system
+#define NUM_MOTORS  1
+#define MOTOR_NAME1 "Motor 1"
+#define MOTOR_NAME2 "Motor 2"
+#define MOTOR_NAME3 "Motor 3"
+#define MOTOR_NAME4 "Motor 4"
+
 namespace CONFIG
 {
     // System Configuration
@@ -10,9 +17,6 @@ namespace CONFIG
     {
         static const uint32_t SERIAL_BAUD_RATE = 115200;  // Serial communication speed
         static const uint32_t STARTUP_DELAY_MS = 1000;    // Initial delay for system stability
-
-        // Number of motors in the system
-        static const uint8_t NUM_MOTORS = 4;
 
         // Motor driver settings
         static const uint16_t TMC_CURRENT_MA = 1000;  // Motor RMS current in mA

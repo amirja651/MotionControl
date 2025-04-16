@@ -27,6 +27,21 @@ namespace CONFIG
         static const uint8_t CS3 = ESP32W::RIGHTPINS::GPIO15;
         static const uint8_t CS4 = ESP32W::RIGHTPINS::GPIO16;
     };
+
+    struct ENCODER
+    {
+        static const uint8_t ENC1 = ESP32W::LEFTPINS::GPIO36;
+        static const uint8_t ENC2 = ESP32W::LEFTPINS::GPIO39;
+        static const uint8_t ENC3 = ESP32W::LEFTPINS::GPIO34;
+        static const uint8_t ENC4 = ESP32W::LEFTPINS::GPIO35;
+    };
+
+    struct PID
+    {
+        static constexpr double KP = 2.0;
+        static constexpr double KI = 0.5;
+        static constexpr double KD = 0.1;
+    };
 }  // namespace CONFIG
 
 #endif  // TMC5160T_DRIVER_H
