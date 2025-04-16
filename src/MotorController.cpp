@@ -158,11 +158,45 @@ void MotorController::handlePowerLoss()
 bool MotorController::checkAndReinitializeDriver()
 {
     uint32_t status = driver.DRV_STATUS();
+
+    // Check for communication errors
     if (status == 0 || status == 0xFFFFFFFF)
     {
+        Log.errorln(F("%s - Driver communication error detected"), instanceName);
         handlePowerLoss();
         return true;
     }
+
+    // Check for critical error conditions
+    if (status & (1 << 25))  // Overtemperature shutdown
+    {
+        Log.errorln(F("%s - Driver overtemperature shutdown detected"), instanceName);
+        handlePowerLoss();
+        return true;
+    }
+
+    if (status & (1 << 27) || status & (1 << 28))  // Short to ground
+    {
+        Log.errorln(F("%s - Driver short to ground detected"), instanceName);
+        handlePowerLoss();
+        return true;
+    }
+
+    if (status & (1 << 12) || status & (1 << 13))  // Short to supply
+    {
+        Log.errorln(F("%s - Driver short to supply detected"), instanceName);
+        handlePowerLoss();
+        return true;
+    }
+
+    // Check for StallGuard stall condition
+    if (((status >> 10) & 0x3FF) < 50)  // Very low StallGuard value
+    {
+        Log.warningln(F("%s - Driver stall condition detected"), instanceName);
+        handlePowerLoss();
+        return true;
+    }
+
     return false;
 }
 
@@ -172,7 +206,7 @@ void MotorController::setMovementDirection(bool forward)
     direction = forward;
     digitalWrite(dirPin, direction ? HIGH : LOW);
     delay(5);
-    Log.noticeln(F("%s - Direction %s"), forward ? F("Forward") : F("Reverse"), instanceName);
+    // Log.noticeln(F("%s - Direction %s"), forward ? F("Forward") : F("Reverse"), instanceName);
 }
 
 // Start motor movement in forward direction
@@ -189,19 +223,51 @@ void MotorController::moveForward()
 // Start motor movement in reverse direction
 void MotorController::moveReverse()
 {
+    // Check driver status and communication
     if (!testCommunication() || !diagnoseTMC5160())
     {
-        Log.errorln(F("%s - Motor will not move."), instanceName);
+        Log.errorln(F("%s - Motor will not move due to driver error."), instanceName);
         return;
     }
+
+    // Configure motion parameters
+    driver.RAMPMODE(1);         // Velocity mode
+    driver.VMAX(speed);         // Set target velocity
+    driver.AMAX(acceleration);  // Set acceleration
+    driver.DMAX(acceleration);  // Set deceleration
+
+    // Set direction and start movement
     setMovementDirection(false);
+
+    // Enable driver and start motion
+    enableDriver();
+    driver.VSTART(0);  // Start from zero velocity
+
+    // Log.noticeln(F("%s - Moving reverse at %d steps/sec, acceleration %d steps/sec²"), instanceName, speed,
+    //              acceleration);
 }
 
 // Stop motor movement
 void MotorController::stop()
 {
+    // Set target velocity to zero
+    driver.VMAX(0);
+
+    // Wait for standstill
+    uint32_t status;
+    do
+    {
+        status = driver.DRV_STATUS();
+        delay(1);
+    } while (!((status & (1 << 31))));  // Wait for standstill bit
+
+    // Reduce to hold current
+    driver.ihold(holdCurrent);
+
+    // Update state
     isMoving = false;
-    driver.ihold(100);  // Reduce to ultra low hold current
+
+    Log.noticeln(F("%s - Motor stopped"), instanceName);
 }
 
 // Execute a single step
@@ -223,13 +289,25 @@ void MotorController::update()
 {
     if (isMoving)
     {
-        // Handle step timing
-        if (micros() - lastStepTime >= (1000000 / speed))
+        // Check driver status and reinitialize if needed
+        if (checkAndReinitializeDriver())
         {
-            step();
+            Log.errorln(F("%s - Driver reinitialized due to error"), instanceName);
+            return;
         }
 
-        // Update diagnostics less frequently
+        // Get current motion status
+        uint32_t status = driver.DRV_STATUS();
+
+        // Check for motion completion
+        if (status & (1 << 29))  // Position reached
+        {
+            isMoving = false;
+            Log.noticeln(F("%s - Target position reached"), instanceName);
+            return;
+        }
+
+        // Update diagnostics periodically
         static unsigned long lastDiagnosticTime = 0;
         if (diagnosticsEnabled && millis() - lastDiagnosticTime >= 100)
         {
@@ -237,37 +315,30 @@ void MotorController::update()
             lastDiagnosticTime = millis();
         }
 
-        // Check load and optimize current less frequently
-        static unsigned long lastLoadCheckTime = 0;
+        // Check load and optimize current periodically
+        /*static unsigned long lastLoadCheckTime = 0;
         if (millis() - lastLoadCheckTime >= 50)
         {
             checkLoad();
             optimizeCurrent();
             lastLoadCheckTime = millis();
-        }
+        }*/
 
-        // Monitor temperature less frequently
+        // Monitor temperature periodically
         static unsigned long lastTempCheckTime = 0;
         if (millis() - lastTempCheckTime >= 200)
         {
-            int temp = getTemperature();
-            if (temp > CONFIG::SYSTEM::TEMP_WARNING_THRESHOLD)
+            int temp = (status >> 16) & 0xFF;  // Temperature from DRV_STATUS
+            if (temp >= 120)                   // Overtemperature pre-warning
             {
-                Log.warningln(F("%s - High temperature detected: %d" CR), instanceName, temp);
+                Log.warningln(F("%s - High temperature detected: %d°C"), instanceName, temp);
                 uint16_t reducedCurrent = runCurrent * 0.8;
                 driver.rms_current(reducedCurrent);
             }
             lastTempCheckTime = millis();
         }
 
-        // Print temperature at configured interval
-        if (millis() - lastTempPrintTime >= CONFIG::SYSTEM::TEMP_PRINT_INTERVAL)
-        {
-            printTemperature();
-            lastTempPrintTime = millis();
-        }
-
-        // Adjust microstepping based on speed
+        // Adjust microstepping based on speed periodically
         static unsigned long lastMicrostepCheckTime = 0;
         if (millis() - lastMicrostepCheckTime >= 100)
         {
@@ -422,47 +493,56 @@ void MotorController::printStatusRegister(uint32_t status)
 
 void MotorController::printErrorFlags(uint32_t status)
 {
-    Log.noticeln(F("%s - Over Temperature: %s"), instanceName, (status & 0x00000001) ? F("Yes") : F("No"));
-    Log.noticeln(F("%s - Short to Ground A: %s"), instanceName, (status & 0x00000002) ? F("Yes") : F("No"));
-    Log.noticeln(F("%s - Short to Ground B: %s"), instanceName, (status & 0x00000004) ? F("Yes") : F("No"));
-    Log.noticeln(F("%s - Open Load A: %s"), instanceName, (status & 0x00000008) ? F("Yes") : F("No"));
-    Log.noticeln(F("%s - Open Load B: %s"), instanceName, (status & 0x00000010) ? F("Yes") : F("No"));
+    Log.noticeln(F("%s - Overtemperature Pre-warning: %s"), instanceName, (status & 0x00000001) ? F("Yes") : F("No"));
+    Log.noticeln(F("%s - Overtemperature Shutdown: %s"), instanceName, (status & 0x00000002) ? F("Yes") : F("No"));
+    Log.noticeln(F("%s - Short to Ground A: %s"), instanceName, (status & 0x00000004) ? F("Yes") : F("No"));
+    Log.noticeln(F("%s - Short to Ground B: %s"), instanceName, (status & 0x00000008) ? F("Yes") : F("No"));
+    Log.noticeln(F("%s - Open Load A: %s"), instanceName, (status & 0x00000010) ? F("Yes") : F("No"));
+    Log.noticeln(F("%s - Open Load B: %s"), instanceName, (status & 0x00000020) ? F("Yes") : F("No"));
 }
 
 void MotorController::printStallGuardStatus(uint32_t status)
 {
     Log.noticeln(F("%s - StallGuard Value: %s"), instanceName, String((status >> 10) & 0x3FF));
-    Log.noticeln(F("%s - Stall Detected: %s"), instanceName, (status & 0x00000200) ? F("Yes") : F("No"));
+    Log.noticeln(F("%s - Stall Detected: %s"), instanceName, (status & 0x01000000) ? F("Yes") : F("No"));
 }
 
 void MotorController::printDriverState(uint32_t status)
 {
-    Log.noticeln(F("%s - Standstill: %s"), instanceName, (status & 0x00000400) ? F("Yes") : F("No"));
-    Log.noticeln(F("%s - Velocity Reached: %s"), instanceName, (status & 0x00000800) ? F("Yes") : F("No"));
-    Log.noticeln(F("%s - Position Reached: %s"), instanceName, (status & 0x00001000) ? F("Yes") : F("No"));
+    Log.noticeln(F("%s - Standstill: %s"), instanceName, (status & 0x80000000) ? F("Yes") : F("No"));
+    Log.noticeln(F("%s - Velocity Reached: %s"), instanceName, (status & 0x40000000) ? F("Yes") : F("No"));
+    Log.noticeln(F("%s - Position Reached: %s"), instanceName, (status & 0x20000000) ? F("Yes") : F("No"));
 }
 
 void MotorController::printDriverStatus()
 {
-    // uint32_t status = driver.DRV_STATUS();
-    /*
-        Log.noticeln(F("%s - DRV_STATUS Report: %s - %s - %s - %s - %s - %s - %s - %s - %s - %s - %s - %s"),
-       instanceName, (status & (1 << 31) ? F("Standstill (stst)") : F("Motor moving"))), (status & (1 << 30) ? F("Open
-       load on Phase B (olb)") : F("Phase B OK")), (1 << 29) ? F("Open load on Phase A (ola)") : F("Phase A OK"),
-            (status & (1 << 28) ? F("Short to GND on Phase B (s2gb)") : F("Phase B GND OK")),
-            (status & (1 << 27) ? F("Short to GND on Phase A (s2ga)") : F("Phase A GND OK")),
-            (status & (1 << 26) ? F("Overtemperature pre-warning (otpw)") : F("Temp OK")),
-            (status & (1 << 25) ? F("Overtemperature shutdown (ot)") : F("Not overheated")),
-            (status & (1 << 24) ? F("StallGuard: Stall detected!") : F("No stall")),
-            (status & (1 << 15) ? F("Fullstep active (fsactive)") : F("Microstepping active")),
-            (status & (1 << 14) ? F("StealthChop active (stealth)") : F("SpreadCycle active")),
-            (status & (1 << 13) ? F("Short to V+ on Phase B (s2vbs)") : F("Phase B Supply OK")),
-            (status & (1 << 12) ? F("Short to V+ on Phase A (s2vsa)") : F("Phase A Supply OK")),
-            F("CS_ACTUAL (current scaling): %s"), (status >> 17) & 0x0F,
-            F("Estimated actual current: %f  mA ") + ((status >> 17) & 0x0F) / 32.0 * driver.rms_current(),
-            (status & 0x03FF) < 100   ? F("Possible stall condition!")
-            : (status & 0x03FF) < 500 ? F("Moderate load")
-                                      : F("Light load");*/
+    uint32_t status = driver.DRV_STATUS();
+
+    Log.noticeln(F("%s - DRV_STATUS Report:"), instanceName);
+    Log.noticeln(F("%s - Standstill: %s"), instanceName, (status & (1 << 31)) ? F("Yes") : F("No"));
+    Log.noticeln(F("%s - Open Load B: %s"), instanceName, (status & (1 << 30)) ? F("Yes") : F("No"));
+    Log.noticeln(F("%s - Open Load A: %s"), instanceName, (status & (1 << 29)) ? F("Yes") : F("No"));
+    Log.noticeln(F("%s - Short to GND B: %s"), instanceName, (status & (1 << 28)) ? F("Yes") : F("No"));
+    Log.noticeln(F("%s - Short to GND A: %s"), instanceName, (status & (1 << 27)) ? F("Yes") : F("No"));
+    Log.noticeln(F("%s - Overtemperature Pre-warning: %s"), instanceName, (status & (1 << 26)) ? F("Yes") : F("No"));
+    Log.noticeln(F("%s - Overtemperature Shutdown: %s"), instanceName, (status & (1 << 25)) ? F("Yes") : F("No"));
+    Log.noticeln(F("%s - Stall Detected: %s"), instanceName, (status & (1 << 24)) ? F("Yes") : F("No"));
+    Log.noticeln(F("%s - StallGuard Value: %d"), instanceName, (status >> 10) & 0x3FF);
+
+    // Load interpretation based on StallGuard value
+    uint16_t sg_value = status & 0x3FF;
+    if (sg_value < 100)
+    {
+        Log.noticeln(F("%s - Load Status: Possible stall condition!"), instanceName);
+    }
+    else if (sg_value < 500)
+    {
+        Log.noticeln(F("%s - Load Status: Moderate load"), instanceName);
+    }
+    else
+    {
+        Log.noticeln(F("%s - Load Status: Light load"), instanceName);
+    }
 }
 
 bool MotorController::diagnoseTMC5160()
@@ -505,66 +585,58 @@ bool MotorController::diagnoseTMC5160()
         return false;
     }
 
-    Log.info(F("%s - All driver diagnostics OK."), instanceName);
+    // Log.info(F("%s - All driver diagnostics OK."), instanceName);
 
     return true;
 }
 
 void MotorController::printDriverConfig()
 {
-    /*
-    String message = F("Run Current: ");
-    message.concat(String(runCurrent));
-    message.concat(F("mA"));
-    Log.info(message, instanceName);
+    Log.noticeln(F("%s - Driver Configuration:"), instanceName);
 
-    message = F("Hold Current: ");
-    message.concat(String(holdCurrent));
-    message.concat(F("mA"));
-    Log.info(message, instanceName);
+    // Current settings
+    Log.noticeln(F("%s - Run Current: %d mA"), instanceName, runCurrent);
+    Log.noticeln(F("%s - Hold Current: %d mA"), instanceName, holdCurrent);
 
-    message = F("Microsteps: ");
-    message.concat(String(16));
-    Log.info(message, instanceName);
+    // Microstepping configuration
+    Log.noticeln(F("%s - Microsteps: %d"), instanceName, driver.microsteps());
+    Log.noticeln(F("%s - Microstep Interpolation: %s"), instanceName, driver.intpol() ? F("Enabled") : F("Disabled"));
 
-    message = F("Speed: ");
-    message.concat(String(speed));
-    message.concat(F(" steps/sec"));
-    Log.info(message, instanceName);
+    // Motion control
+    Log.noticeln(F("%s - Speed: %d steps/sec"), instanceName, speed);
+    Log.noticeln(F("%s - Acceleration: %d steps/sec²"), instanceName, acceleration);
 
-    message = F("Acceleration: ");
-    message.concat(String(acceleration));
-    message.concat(F(" steps/sec²"));
-    Log.info(message, instanceName);
+    // Global configuration
+    Log.noticeln(F("%s - GCONF: 0x%X"), instanceName, driver.GCONF());
 
-    message = F("GCONF (Global Config): 0x");
-    message.concat(String(driver.GCONF(), HEX));
-    Log.info(message, instanceName);
+    // Power management
+    Log.noticeln(F("%s - TPOWERDOWN: %d tclk"), instanceName, driver.TPOWERDOWN());
+    Log.noticeln(F("%s - TPOWERDOWN: %d ms"), instanceName, (driver.TPOWERDOWN() * 2) / 1000);  // Convert to ms
 
-    message = F("TPOWERDOWN (Power Down Time): ");
-    message.concat(String(driver.TPOWERDOWN()));
-    message.concat(F(" tclk"));
-    Log.info(message, instanceName);
+    // StealthChop configuration
+    Log.noticeln(F("%s - TPWMTHRS: %d tclk"), instanceName, driver.TPWMTHRS());
+    Log.noticeln(F("%s - TCOOLTHRS: %d tclk"), instanceName, driver.TCOOLTHRS());
+    Log.noticeln(F("%s - THIGH: %d tclk"), instanceName, driver.THIGH());
 
-    message = F("TSTEP (Current Step Timing): ");
-    message.concat(String(driver.TSTEP()));
-    message.concat(F(" tclk"));
-    Log.info(message, instanceName);
+    // StallGuard configuration
+    Log.noticeln(F("%s - SGTHRS: %d"), instanceName, driver.sgt());
+    Log.noticeln(F("%s - SFILT: %s"), instanceName, driver.sfilt() ? F("Enabled") : F("Disabled"));
 
-    message = F("TPWMTHRS (StealthChop Threshold): ");
-    message.concat(String(driver.TPWMTHRS()));
-    message.concat(F(" tclk"));
-    Log.info(message, instanceName);
+    // Chopper configuration
+    Log.noticeln(F("%s - TOFF: %d"), instanceName, driver.toff());
+    Log.noticeln(F("%s - HSTRT: %d"), instanceName, driver.hysteresis_start());
+    Log.noticeln(F("%s - HEND: %d"), instanceName, driver.hysteresis_end());
+    Log.noticeln(F("%s - TBL: %d"), instanceName, driver.blank_time());
 
-    message = F("THIGH (Step Pulse High Time): ");
-    message.concat(String(driver.THIGH()));
-    message.concat(F(" tclk"));
-    Log.info(message, instanceName);
+    // PWM configuration
+    Log.noticeln(F("%s - PWM_OFS: %d"), instanceName, driver.pwm_ofs());
+    Log.noticeln(F("%s - PWM_GRAD: %d"), instanceName, driver.pwm_grad());
+    Log.noticeln(F("%s - PWM_FREQ: %d"), instanceName, driver.pwm_freq());
+    Log.noticeln(F("%s - PWM_AUTOSCALE: %s"), instanceName, driver.pwm_autoscale() ? F("Enabled") : F("Disabled"));
+    Log.noticeln(F("%s - PWM_AUTOGRAD: %s"), instanceName, driver.pwm_autograd() ? F("Enabled") : F("Disabled"));
 
-    message = F("XDIRECT (Direct Coil Control): 0x");
-    message.concat(String(driver.XDIRECT(), HEX));
-    Log.info(message, instanceName);
-    */
+    // Direct coil control
+    Log.noticeln(F("%s - XDIRECT: 0x%X"), instanceName, driver.XDIRECT());
 }
 
 int MotorController::getTemperature()
@@ -576,31 +648,60 @@ int MotorController::getTemperature()
 
 void MotorController::printTemperature()
 {
-    /*
-    int temp = getTemperature();
+    uint32_t status = driver.DRV_STATUS();
+
+    // Temperature is in bits 16-23 of DRV_STATUS
+    int temp = (status >> 16) & 0xFF;
+
     if (temp != lastTemperature)
     {
-        String message = F("Temperature: ");
-        message.concat(String(temp));
-        message.concat(F("°C"));
-        Log.info(message, instanceName);
+        // Report temperature with warning levels
+        // TMC5160A datasheet:
+        // - Overtemperature shutdown at 150°C
+        // - Overtemperature pre-warning at 120°C
+        if (temp >= 150)  // Overtemperature shutdown threshold
+        {
+            Log.errorln(F("%s - Temperature: %d°C (SHUTDOWN)"), instanceName, temp);
+        }
+        else if (temp >= 120)  // Overtemperature pre-warning threshold
+        {
+            Log.warningln(F("%s - Temperature: %d°C (WARNING)"), instanceName, temp);
+        }
+        else
+        {
+            Log.noticeln(F("%s - Temperature: %d°C"), instanceName, temp);
+        }
+
         lastTemperature = temp;
     }
-    */
 }
 
 // Check for motor stall condition
 void MotorController::checkStall()
 {
-    /*
     uint32_t status = driver.DRV_STATUS();
-    if (status & 0x00000200)
+
+    // Check StallGuard value (bits 10-19) and Stall flag (bit 24)
+    uint16_t sg_value       = (status >> 10) & 0x3FF;
+    bool     stall_detected = status & 0x01000000;
+
+    if (stall_detected || sg_value < stallGuardThreshold)
     {
-        Log.warningln(F("Stall detected!"), instanceName);
-        stop();  // Stop motor on stall
+        Log.warningln(F("%s - Stall detected! SG Value: %d"), instanceName, sg_value);
+
+        // Reduce current temporarily to prevent damage
+        uint16_t originalCurrent = runCurrent;
+        driver.rms_current(runCurrent * 0.7);
+
+        // Print detailed stall information
         printStallGuardStatus(status);
+
+        // Wait for recovery
+        delay(100);
+
+        // Restore current
+        driver.rms_current(originalCurrent);
     }
-    */
 }
 
 // Toggle between StealthChop and SpreadCycle modes
@@ -625,13 +726,36 @@ void MotorController::setStealthChopMode(bool enable)
 {
     if (enable)
     {
-        driver.TPWMTHRS(0);  // Enable StealthChop full-time
-        // Log.info(F("StealthChop enabled"), instanceName);
+        // Enable StealthChop mode
+        driver.TPWMTHRS(0);  // Enable StealthChop for all velocities
+
+        // Configure PWM for StealthChop
+        driver.pwm_autoscale(true);  // Enable automatic current scaling
+        driver.pwm_autograd(true);   // Enable automatic gradient adaptation
+        driver.pwm_ofs(36);          // Default PWM offset
+        driver.pwm_grad(14);         // Default PWM gradient
+        driver.pwm_freq(1);          // 1 = 23.4kHz PWM frequency
+
+        // Configure chopper for StealthChop
+        driver.toff(3);              // Minimum time for slow decay phase
+        driver.hysteresis_start(1);  // Hysteresis start value
+        driver.hysteresis_end(2);    // Hysteresis end value
+        driver.blank_time(24);       // Blanking time
+
+        Log.noticeln(F("%s - StealthChop mode enabled"), instanceName);
     }
     else
     {
-        driver.TPWMTHRS(300);  // Enable SpreadCycle above threshold
-        // Log.info(F("SpreadCycle enabled (TPWMTHRS = 300)"), instanceName);
+        // Switch to SpreadCycle mode
+        driver.TPWMTHRS(0xFFFFF);  // Disable StealthChop (very high threshold)
+
+        // Configure for SpreadCycle
+        driver.toff(5);              // Standard time for slow decay phase
+        driver.hysteresis_start(4);  // Standard hysteresis start
+        driver.hysteresis_end(1);    // Standard hysteresis end
+        driver.blank_time(24);       // Standard blanking time
+
+        Log.noticeln(F("%s - SpreadCycle mode enabled"), instanceName);
     }
 }
 
@@ -820,17 +944,47 @@ void MotorController::updateDiagnostics()
     if (!diagnosticsEnabled)
         return;
 
-    //  uint32_t load_value = getLoadValue();
-    // int      temp       = getTemperature();
+    // Get current status
+    uint32_t status   = driver.DRV_STATUS();
+    uint16_t sg_value = (status >> 10) & 0x3FF;  // StallGuard value
+    int      temp     = (status >> 16) & 0xFF;   // Temperature
 
-    /*    String message = F("Diagnostics -> Load: ");
-        message.concat(String(load_value));
-        message.concat(F(", Temp: "));
-        message.concat(String(temp));
-        message.concat(F("°C"));
+    // Report load status based on StallGuard value
+    String load_status;
+    if (sg_value < 100)
+    {
+        load_status = F("Possible stall condition!");
+    }
+    else if (sg_value < 500)
+    {
+        load_status = F("Moderate load");
+    }
+    else
+    {
+        load_status = F("Light load");
+    }
 
-        Log.info(message, instanceName);*/
+    // Report temperature status
+    String temp_status;
+    if (temp >= 150)
+    {
+        temp_status = F("SHUTDOWN");
+    }
+    else if (temp >= 120)
+    {
+        temp_status = F("WARNING");
+    }
+    else
+    {
+        temp_status = F("Normal");
+    }
 
+    // Log detailed diagnostics
+    Log.noticeln(F("%s - Diagnostics:"), instanceName);
+    Log.noticeln(F("%s - Load: %d (SG Value) - %s"), instanceName, sg_value, load_status);
+    Log.noticeln(F("%s - Temperature: %d°C - %s"), instanceName, temp, temp_status);
+
+    // Check for stall condition
     if (isStalled())
     {
         handleStall();
@@ -857,22 +1011,45 @@ void MotorController::handleStall()
 // Optimize current based on load
 void MotorController::optimizeCurrent()
 {
-    uint32_t load = getLoadValue();
-    if (load > CONFIG::SYSTEM::LOAD_THRESHOLD)
+    uint32_t status   = driver.DRV_STATUS();
+    uint16_t sg_value = (status >> 10) & 0x3FF;  // StallGuard value from bits 10-19
+
+    // Optimize current based on StallGuard value
+    if (sg_value < 100)  // Possible stall condition
     {
-        // Increase current by 20% but not above MAX_RUN_CURRENT
+        // Increase current by 30% but not above MAX_RUN_CURRENT
         uint16_t newCurrent = static_cast<uint16_t>(
-            std::min(static_cast<double>(runCurrent * 1.2), static_cast<double>(MAX_RUN_CURRENT)));
+            std::min(static_cast<double>(runCurrent * 1.3), static_cast<double>(MAX_RUN_CURRENT)));
         driver.rms_current(newCurrent);
         runCurrent = newCurrent;
+        Log.noticeln(F("%s - Current increased to %d mA (StallGuard: %d)"), instanceName, newCurrent, sg_value);
     }
-    else if (load < CONFIG::SYSTEM::LOAD_THRESHOLD / 2)
+    else if (sg_value < 300)  // High load
+    {
+        // Increase current by 15% but not above MAX_RUN_CURRENT
+        uint16_t newCurrent = static_cast<uint16_t>(
+            std::min(static_cast<double>(runCurrent * 1.15), static_cast<double>(MAX_RUN_CURRENT)));
+        driver.rms_current(newCurrent);
+        runCurrent = newCurrent;
+        Log.noticeln(F("%s - Current increased to %d mA (StallGuard: %d)"), instanceName, newCurrent, sg_value);
+    }
+    else if (sg_value > 800)  // Very light load
     {
         // Decrease current by 20% but not below MIN_CURRENT
         uint16_t newCurrent =
             static_cast<uint16_t>(std::max(static_cast<double>(runCurrent * 0.8), static_cast<double>(MIN_CURRENT)));
         driver.rms_current(newCurrent);
         runCurrent = newCurrent;
+        Log.noticeln(F("%s - Current decreased to %d mA (StallGuard: %d)"), instanceName, newCurrent, sg_value);
+    }
+    else if (sg_value > 500)  // Light load
+    {
+        // Decrease current by 10% but not below MIN_CURRENT
+        uint16_t newCurrent =
+            static_cast<uint16_t>(std::max(static_cast<double>(runCurrent * 0.9), static_cast<double>(MIN_CURRENT)));
+        driver.rms_current(newCurrent);
+        runCurrent = newCurrent;
+        Log.noticeln(F("%s - Current decreased to %d mA (StallGuard: %d)"), instanceName, newCurrent, sg_value);
     }
 }
 
@@ -890,12 +1067,35 @@ void MotorController::checkLoad()
 // Adjust microstepping based on speed
 void MotorController::adjustMicrostepping()
 {
-    if (speed > CONFIG::MotorSpecs::Operation::HIGH_SPEED_THRESHOLD)
+    // TMC5160A supports microstepping from 1 to 256
+    // Adjust based on speed and precision requirements
+    /*if (speed > 20000)  // Very high speed
     {
-        driver.microsteps(8);  // Reduce microstepping at high speeds
+        driver.microsteps(4);  // Minimum microstepping for high speed
+        Log.noticeln(F("%s - Microstepping set to 4 (Very High Speed: %d steps/sec)"), instanceName, speed);
     }
-    else
+    else if (speed > 10000)  // High speed
     {
-        driver.microsteps(CONFIG::SYSTEM::MICROSTEPS);
+        driver.microsteps(8);  // Reduced microstepping for high speed
+        Log.noticeln(F("%s - Microstepping set to 8 (High Speed: %d steps/sec)"), instanceName, speed);
     }
+    else if (speed > 5000)  // Medium speed
+    {
+        driver.microsteps(16);  // Balanced microstepping for medium speed
+        Log.noticeln(F("%s - Microstepping set to 16 (Medium Speed: %d steps/sec)"), instanceName, speed);
+    }
+    else if (speed > 1000)  // Low speed
+    {
+        driver.microsteps(32);  // Higher microstepping for low speed
+        Log.noticeln(F("%s - Microstepping set to 32 (Low Speed: %d steps/sec)"), instanceName, speed);
+    }
+    else  // Very low speed
+    {
+        driver.microsteps(64);  // Maximum microstepping for precision
+        Log.noticeln(F("%s - Microstepping set to 64 (Very Low Speed: %d steps/sec)"), instanceName, speed);
+    }*/
+
+    driver.microsteps(16);
+    // Enable microstep interpolation for smoother motion
+    driver.intpol(true);
 }

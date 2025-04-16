@@ -1,3 +1,4 @@
+#include <ArduinoLog.h>
 #include <algorithm>
 #include "Config/TMC5160T_Driver.h"
 #include "ObjectInstances.h"
@@ -61,6 +62,27 @@ void serialReadTask0(void* pvParameters)
 
             switch (input)
             {
+                case '1':
+                    motors[0].printDriverConfig();
+                    break;
+                case '2':
+                    motors[0].printDriverState(motors[0].getDriverStatus());
+                    break;
+                case '3':
+                    motors[0].printStallGuardStatus(motors[0].getDriverStatus());
+                    break;
+                case '4':
+                    motors[0].printTemperature();
+                    break;
+                case '5':
+                    motors[0].printStatusRegister(motors[0].getDriverStatus());
+                    break;
+                case '6':
+                    motors[0].diagnoseTMC5160();
+                    break;
+                case '7':
+                    motors[0].checkAndReinitializeDriver();
+                    break;
                 case 'p':
                 case 'P':  // Kp adjustment
                 case 'i':
@@ -157,6 +179,7 @@ void setup()
 {
     Serial.begin(CONFIG::SYSTEM::SERIAL_BAUD_RATE);
     Serial.println("PID Motor Control System");
+    Log.begin(LOG_LEVEL_VERBOSE, &Serial);
 
     initializeSystem();
 

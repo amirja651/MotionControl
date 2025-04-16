@@ -85,25 +85,25 @@ public:
     uint32_t getStallGuardValue();                      // Get current StallGuard value
     uint32_t getLoadValue();                            // Get current load value
     bool     isStalled();                               // Check if motor is stalled
+    void     printStatusRegister(uint32_t status);      // Print driver status register
+    void     printErrorFlags(uint32_t status);          // Print error flags
+    void     printStallGuardStatus(uint32_t status);    // Print stall guard status
+    void     printDriverState(uint32_t status);         // Print driver state
+    void     updateDiagnostics();                       // Update diagnostic information
+    bool     checkAndReinitializeDriver();              // Check and reinitialize driver if needed
 
 private:
     // Internal configuration methods
-    void configureDriver();                       // Configure driver parameters
-    void setupPins();                             // Setup GPIO pins
-    void step();                                  // Execute single step
-    bool checkAndReinitializeDriver();            // Check and reinitialize driver if needed
-    void handlePowerLoss();                       // Handle power loss situation
-    void checkStall();                            // Check for motor stall condition
-    void setMovementDirection(bool forward);      // Set movement direction and update state
-    void printStatusRegister(uint32_t status);    // Print driver status register
-    void printErrorFlags(uint32_t status);        // Print error flags
-    void printStallGuardStatus(uint32_t status);  // Print stall guard status
-    void printDriverState(uint32_t status);       // Print driver state
-    void updateDiagnostics();                     // Update diagnostic information
-    void handleStall();                           // Handle stall condition
-    void optimizeCurrent();                       // Optimize current based on load
-    void checkLoad();                             // Check motor load
-    void adjustMicrostepping();                   // Adjust microstepping based on speed
+    void configureDriver();                   // Configure driver parameters
+    void setupPins();                         // Setup GPIO pins
+    void step();                              // Execute single step
+    void handlePowerLoss();                   // Handle power loss situation
+    void checkStall();                        // Check for motor stall condition
+    void setMovementDirection(bool forward);  // Set movement direction and update state
+    void handleStall();                       // Handle stall condition
+    void optimizeCurrent();                   // Optimize current based on load
+    void checkLoad();                         // Check motor load
+    void adjustMicrostepping();               // Adjust microstepping based on speed
 
     // Driver instance and state variables
     TMC5160Stepper driver;        // TMC5160 driver instance
@@ -157,18 +157,18 @@ private:
     static constexpr int STATUS_PRINT_INTERVAL = 1000;  // Status print interval in steps
 
     // Current settings with motor specifications constraints
-    static constexpr uint16_t CURRENT_STEP     = 100;   // Current adjustment step size in mA
-    static constexpr uint16_t MIN_CURRENT      = 100;   // Minimum allowed current in mA
-    static constexpr uint16_t MAX_RUN_CURRENT  = 1000;  // Maximum run current in mA (1A max)
-    static constexpr uint16_t MAX_HOLD_CURRENT = 500;   // Maximum hold current in mA (0.5A max)
+    static constexpr uint16_t CURRENT_STEP     = 100;  // Current adjustment step size in mA
+    static constexpr uint16_t MIN_CURRENT      = 100;  // Minimum allowed current in mA
+    static constexpr uint16_t MAX_RUN_CURRENT  = 300;  // Maximum run current in mA (1A max)
+    static constexpr uint16_t MAX_HOLD_CURRENT = 300;  // Maximum hold current in mA (0.5A max)
 
     // Speed and acceleration settings
-    static constexpr uint16_t SPEED_STEP = 100;    // Speed adjustment step size in steps/sec
-    static constexpr uint16_t ACCEL_STEP = 100;    // Acceleration adjustment step size in steps/sec²
-    static constexpr uint16_t MIN_SPEED  = 100;    // Minimum speed in steps/sec
-    static constexpr uint16_t MAX_SPEED  = 10000;  // Maximum speed in steps/sec
-    static constexpr uint16_t MIN_ACCEL  = 100;    // Minimum acceleration in steps/sec²
-    static constexpr uint16_t MAX_ACCEL  = 10000;  // Maximum acceleration in steps/sec²
+    static constexpr uint16_t SPEED_STEP = 100;   // Speed adjustment step size in steps/sec
+    static constexpr uint16_t ACCEL_STEP = 100;   // Acceleration adjustment step size in steps/sec²
+    static constexpr uint16_t MIN_SPEED  = 100;   // Minimum speed in steps/sec
+    static constexpr uint16_t MAX_SPEED  = 500;   // Maximum speed in steps/sec
+    static constexpr uint16_t MIN_ACCEL  = 100;   // Minimum acceleration in steps/sec²
+    static constexpr uint16_t MAX_ACCEL  = 1000;  // Maximum acceleration in steps/sec²
 
     // Timing settings
     static constexpr int STEP_DELAY          = 500;   // Step pulse delay in microseconds
