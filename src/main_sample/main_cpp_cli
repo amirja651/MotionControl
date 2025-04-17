@@ -154,6 +154,113 @@ void serialTask(void* pvParameters)
     }
 }
 
+// Task for handling serial input and PID tuning
+void serialTask2(void* pvParameters)
+{
+    const TickType_t     xFrequency    = pdMS_TO_TICKS(500);  // 50ms update rate
+    TickType_t           xLastWakeTime = xTaskGetTickCount();
+    static unsigned long lastPrintTime = 0;
+
+    while (1)
+    {
+        if (Serial.available() > 0)
+        {
+            char input = Serial.read();
+
+            switch (input)
+            {
+                case 'p':
+                case 'P':  // Kp adjustment
+                case 'i':
+                case 'I':  // Ki adjustment
+                case 'd':
+                case 'D':  // Kd adjustment
+                {
+                    // Adjust the appropriate gain
+                    switch (input)
+                    {
+                        case 'p':
+                            lastKP = std::max(0.0, lastKP - PID_STEP_SMALL);
+                            break;
+                        case 'P':
+                            lastKP += PID_STEP_SMALL;
+                            break;
+                        case 'i':
+                            lastKI = std::max(0.0, lastKI - PID_STEP_SMALL);
+                            break;
+                        case 'I':
+                            lastKI += PID_STEP_SMALL;
+                            break;
+                        case 'd':
+                            lastKD = std::max(0.0, lastKD - PID_STEP_SMALL);
+                            break;
+                        case 'D':
+                            lastKD += PID_STEP_SMALL;
+                            break;
+                    }
+
+                    // Apply new gains
+                    pids[0].setGains(lastKP, lastKI, lastKD);
+
+                    // Print updated values immediately
+                    Serial.print("PID gains updated: Kp=");
+                    Serial.print(lastKP, 3);
+                    Serial.print(", Ki=");
+                    Serial.print(lastKI, 3);
+                    Serial.print(", Kd=");
+                    Serial.println(lastKD, 3);
+                    break;
+                }
+                case 's':  // Toggle step size
+                    Serial.print("Step size changed to: ");
+                    Serial.println(PID_STEP_SMALL, 3);
+                    break;
+                case '?':  // Show help
+                    Serial.println("\nPID Control Commands:");
+                    Serial.println("p/P - Decrease/Increase Kp");
+                    Serial.println("i/I - Decrease/Increase Ki");
+                    Serial.println("d/D - Decrease/Increase Kd");
+                    Serial.println("s   - Toggle step size (0.01/0.1)");
+                    Serial.println("?   - Show this help");
+                    break;
+            }
+        }
+
+        // Print status periodically (every 500ms)
+        if (millis() - lastPrintTime >= 500)
+        {
+            bool testOK = motors[0].testCommunication();
+            if (testOK)
+            {
+                float currentPosition = encoders[0].getPositionDegrees();
+                float currentVelocity = encoders[0].getVelocityDPS();
+                float targetPosition  = pids[0].getTarget();
+                float positionError   = abs(currentPosition - targetPosition);
+
+                if (positionError > 180.0f)
+                {
+                    positionError = 360.0f - positionError;
+                }
+
+                Serial.print("Position: ");
+                Serial.print(currentPosition, 2);
+                Serial.print("°, Velocity: ");
+                Serial.print(currentVelocity, 2);
+                Serial.print("°/s, Target: ");
+                Serial.print(targetPosition, 2);
+                Serial.print("°, Error: ");
+                Serial.print(positionError, 2);
+                Serial.println("°");
+
+                lastPrintTime = millis();
+            }
+        }
+
+        taskYIELD();
+        vTaskDelayUntil(&xLastWakeTime, xFrequency);
+    }
+}
+
 // Task for updating motor states
 void motorUpdateTask0(void* pvParameters)
 {
@@ -250,6 +357,7 @@ void setup2()
     {
         delay(10);
     }
+
     Log.begin(LOG_LEVEL_VERBOSE, &Serial);
     Log.noticeln(F("Hello, World!"));
     Log.noticeln(F("CPU Frequency : %d MHz" CR), F_CPU / 1000000);

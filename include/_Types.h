@@ -1,5 +1,5 @@
-#ifndef TYPES_H
-#define TYPES_H
+#ifndef _TYPES_H
+#define _TYPES_H
 
 #include <Arduino.h>
 #include <functional>
@@ -7,7 +7,7 @@
 /**
  * Common types and definitions used across the motion control system
  */
-namespace Types
+namespace _Types
 {
     // Position types
     using EncoderPosition = int32_t;
@@ -32,6 +32,6 @@ namespace Types
         CALIBRATION_FAILED,
         TIMEOUT
     };
-}  // namespace Types
+}  // namespace _Types
 
 #endif  // TYPES_H

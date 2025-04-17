@@ -41,7 +41,7 @@ namespace CONFIG
         static const uint16_t STATUS_PRINT_INTERVAL = 1000;  // Status print interval in steps
 
         // Driver configuration settings
-        static const uint8_t  TOFF       = 5;     // Driver off time
+        static const uint8_t  TOFF       = 3;     // Driver off time
         static const uint8_t  BLANK_TIME = 24;    // Driver blank time
         static const uint8_t  IHOLDDELAY = 6;     // Hold current delay
         static const uint16_t TCOOLTHRS  = 1000;  // CoolStep threshold
