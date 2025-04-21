@@ -248,8 +248,9 @@ void initializeCLI()
 void setup()
 {
     SPI.begin();
-    Serial.begin(CONFIG::SYSTEM::SERIAL_BAUD_RATE);
-    delay(CONFIG::SYSTEM::STARTUP_DELAY_MS);
+
+    Serial.begin(115200);
+    delay(1000);
     while (!Serial)
     {
         delay(10);
@@ -263,9 +264,6 @@ void setup()
     initializeCLI();
     xTaskCreate(motorUpdateTask0, "MotorUpdateTask0", 4096, NULL, 3, &motorUpdateTaskHandle0);
     xTaskCreate(serialTask, "SerialReadTask0", 4096, NULL, 3, &serialReadTaskHandle0);
-
-    pids[0].setTarget(5.0f);
-    pids[0].setOutputLimits(-180.0f, 180.0f);
 }
 
 void loop()

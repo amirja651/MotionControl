@@ -1,22 +1,18 @@
 #include "PIDController.h"
 
-PIDController::PIDController(MotorController* motor, MAE3Encoder* encoder, double Kp, double Ki, double Kd,
-                             unsigned long sampleTime)
+PIDController::PIDController(MotorController* motor, MAE3Encoder* encoder, PIDConfig config, unsigned long sampleTime)
     : motor(motor),
       encoder(encoder),
       input(0.0),
       output(0.0),
       setpoint(0.0),
-      Kp(Kp),
-      Ki(Ki),
-      Kd(Kd),
       sampleTime(sampleTime),
       enabled(false),
-      positionThreshold(DEFAULT_POSITION_THRESHOLD),
+      positionThreshold(0.3f),  // Default position threshold in degrees
       lastUpdateTime(0)
 {
     // Create PID instance with default parameters
-    pid = new PID(&input, &output, &setpoint, Kp, Ki, Kd, DIRECT);
+    pid = new PID(&input, &output, &setpoint, config.Kp, config.Ki, config.Kd, DIRECT);
 }
 
 void PIDController::begin()
@@ -25,8 +21,7 @@ void PIDController::begin()
     {
         pid->SetMode(AUTOMATIC);
         pid->SetSampleTime(sampleTime);
-        // Set default output limits (-100 to 100 for speed control)
-        pid->SetOutputLimits(-100.0, 100.0);
+        pid->SetOutputLimits(-100.0, 100.0);  // Set default output limits (-100 to 100 for speed control)
         enabled = true;
     }
 }
@@ -90,10 +85,6 @@ double PIDController::getTarget() const
 
 void PIDController::setGains(double Kp, double Ki, double Kd)
 {
-    this->Kp = Kp;
-    this->Ki = Ki;
-    this->Kd = Kd;
-
     if (pid)
     {
         pid->SetTunings(Kp, Ki, Kd);

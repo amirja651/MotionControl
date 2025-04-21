@@ -5,22 +5,24 @@
 #include "MAE3Encoder.h"
 #include "MotorController.h"
 
+struct PIDConfig
+{
+    double Kp;
+    double Ki;
+    double Kd;
+};
+
 class PIDController
 {
 public:
-    static constexpr float DEFAULT_POSITION_THRESHOLD = 0.3f;  // Default position threshold in degrees
-
     /**
      * @brief Constructor for PIDController
      * @param motor Pointer to the motor controller instance
      * @param encoder Pointer to the encoder instance
-     * @param Kp Proportional gain
-     * @param Ki Integral gain
-     * @param Kd Derivative gain
+     * @param config PID configuration
      * @param sampleTime Sample time in milliseconds
      */
-    PIDController(MotorController* motor, MAE3Encoder* encoder, double Kp = 1.0, double Ki = 0.0, double Kd = 0.0,
-                  unsigned long sampleTime = 100);
+    PIDController(MotorController* motor, MAE3Encoder* encoder, PIDConfig config, unsigned long sampleTime = 100);
 
     /**
      * @brief Initialize the PID controller
@@ -109,7 +111,6 @@ private:
     double        input;              // Process variable (current position)
     double        output;             // Controller output
     double        setpoint;           // Target position
-    double        Kp, Ki, Kd;         // PID gains
     unsigned long sampleTime;         // Sample time in milliseconds
     bool          enabled;            // Controller state
     float         positionThreshold;  // Position threshold in degrees

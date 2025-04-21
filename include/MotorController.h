@@ -56,7 +56,8 @@ public:
 
 private:
     // Internal configuration methods
-    void configureDriver();     // Configure driver parameters
+    void configureDriver();  // Configure driver parameters
+    void NewFunction();
     void optimizeForPancake();  // Optimize the motor controller for pancake motor
 
     // Driver instance and state variables

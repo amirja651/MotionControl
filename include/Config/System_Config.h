@@ -15,9 +15,6 @@ namespace CONFIG
     // System Configuration
     struct SYSTEM
     {
-        static const uint32_t SERIAL_BAUD_RATE = 115200;  // Serial communication speed
-        static const uint32_t STARTUP_DELAY_MS = 1000;    // Initial delay for system stability
-
         // Motor driver settings
         static const uint16_t TMC_CURRENT_MA = 1000;  // Motor RMS current in mA
         static const uint8_t  MICROSTEPS     = 16;    // Microstep resolution
