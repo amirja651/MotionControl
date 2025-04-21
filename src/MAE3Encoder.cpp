@@ -106,8 +106,6 @@ void MAE3Encoder::handleInterrupt()
 
 bool MAE3Encoder::update()
 {
-    // Serial.println("update:" + String(flag1) + " " + String(flag2) + " " + String(flag3) + " " + String(flag4) + " "
-    // + String(flag5) + " " + String(flag6));
     if (!newPulseAvailable)
     {
         return false;

@@ -1,15 +1,15 @@
 #include "PIDController.h"
 
 PIDController::PIDController(MotorController* motor, MAE3Encoder* encoder, PIDConfig config, unsigned long sampleTime)
-    : motor(motor),
-      encoder(encoder),
-      input(0.0),
+    : input(0.0),
       output(0.0),
       setpoint(0.0),
       sampleTime(sampleTime),
       enabled(false),
       positionThreshold(0.3f),  // Default position threshold in degrees
-      lastUpdateTime(0)
+      lastUpdateTime(0),
+      motor(motor),
+      encoder(encoder)
 {
     // Create PID instance with default parameters
     pid = new PID(&input, &output, &setpoint, config.Kp, config.Ki, config.Kd, DIRECT);
@@ -144,7 +144,7 @@ float PIDController::getPositionThreshold() const
 
 bool PIDController::isAtTarget() const
 {
-    if (!encoder)
+    if (!enabled || !pid || !motor || !encoder)
     {
         return false;
     }

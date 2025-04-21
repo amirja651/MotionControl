@@ -39,6 +39,8 @@ void MotorController::begin()
     pinMode(enPin, OUTPUT);
     digitalWrite(enPin, HIGH);
 
+    driver.begin();
+
     configureDriver();
 
     digitalWrite(enPin, LOW);
@@ -81,8 +83,6 @@ void MotorController::moveReverse()
 {
     isMoving = true;
     digitalWrite(dirPin, LOW);
-
-    //              acceleration);
 }
 
 void MotorController::stop()
@@ -98,22 +98,11 @@ void MotorController::stop()
         delay(1);
     } while (!((status & (1 << 31))));  // Wait for standstill bit
 
-    // Reduce to hold current
-    driver.ihold(holdCurrent);
-
-    // Update state
+    driver.ihold(holdCurrent);  // Reduce to hold current
     isMoving = false;
-
-    // Log.noticeln(F("%s - Motor stopped"), instanceName);
 }
 
-void MotorController::update()
-{
-    if (isMoving)
-    {
-        step();
-    }
-}
+void MotorController::update() {}
 
 void MotorController::toggleStealthChop()
 {
@@ -122,13 +111,11 @@ void MotorController::toggleStealthChop()
     {
         // Currently in StealthChop mode, switch to SpreadCycle
         driver.TPWMTHRS(500);  // Switch to SpreadCycle above 500 steps/sec
-        // Log.info(F("Switched to SpreadCycle mode (more power, more noise)"), LogModule::MOTOR, String(instanceName));
     }
     else
     {
         // Currently in SpreadCycle mode, switch to StealthChop
         driver.TPWMTHRS(0);  // Enable StealthChop mode
-        // Log.info(F("Switched to StealthChop mode (silent operation)"), instanceName);
     }
 }
 
@@ -151,8 +138,6 @@ void MotorController::setStealthChopMode(bool enable)
         driver.hysteresis_start(1);  // Hysteresis start value
         driver.hysteresis_end(2);    // Hysteresis end value
         driver.blank_time(24);       // Blanking time
-
-        Log.noticeln(F("%s - StealthChop mode enabled"), instanceName);
     }
     else
     {
@@ -164,22 +149,27 @@ void MotorController::setStealthChopMode(bool enable)
         driver.hysteresis_start(4);  // Standard hysteresis start
         driver.hysteresis_end(1);    // Standard hysteresis end
         driver.blank_time(24);       // Standard blanking time
-
-        Log.noticeln(F("%s - SpreadCycle mode enabled"), instanceName);
     }
 }
 
 bool MotorController::testCommunication()
 {
-    digitalWrite(csPin, LOW);
-    ;
-
-    uint32_t gconf  = driver.GCONF();
-    uint32_t status = driver.DRV_STATUS();
-
-    if (gconf == 0xFFFFFFFF || status == 0xFFFFFFFF)
+    if (driver.version() == 0xFF || driver.version() == 0)
     {
         return false;
+    }
+
+    if (0)
+    {
+        digitalWrite(csPin, LOW);
+
+        uint32_t gconf  = driver.GCONF();
+        uint32_t status = driver.DRV_STATUS();
+
+        if (gconf == 0xFFFFFFFF || status == 0xFFFFFFFF)
+        {
+            return false;
+        }
     }
 
     return true;
@@ -188,31 +178,6 @@ bool MotorController::testCommunication()
 // Private Methods
 void MotorController::configureDriver()
 {
-    driver.begin();
-
-    if (driver.version() == 0xFF || driver.version() == 0)
-    {
-        Serial.println("Driver communication error");
-        while (true)
-            ;
-    }
-
-    Serial.print("Driver firmware version: ");
-    Serial.println(driver.version());
-
-    if (driver.sd_mode())
-    {
-        Serial.println("Driver is hardware configured for Step & Dir mode");
-        // while (true)
-        //     ;
-    }
-    if (driver.drv_enn())
-    {
-        Serial.println("Driver is not hardware enabled");
-        // while (true)
-        //     ;
-    }
-
     // Configure GCONF register for optimal performance
     uint32_t gconf = 0;
     gconf |= (1 << 0);  // Enable internal RSense
@@ -268,8 +233,11 @@ void MotorController::configureDriver()
 
 void MotorController::step()
 {
-    digitalWrite(stepPin, HIGH);
-    delayMicroseconds(160);
-    digitalWrite(stepPin, LOW);
-    delayMicroseconds(160);
+    if (isMoving)
+    {
+        digitalWrite(stepPin, HIGH);
+        delayMicroseconds(160);
+        digitalWrite(stepPin, LOW);
+        delayMicroseconds(160);
+    }
 }

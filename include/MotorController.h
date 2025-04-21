@@ -34,6 +34,8 @@ class MotorController
 {
 public:
     MotorController(String name, DriverConfig config);
+    TMC5160Stepper driver;  // TMC5160 driver instance
+
     void begin();                          // Initialize the motor controller
     void moveForward();                    // Move motor in forward direction
     void moveReverse();                    // Move motor in reverse direction
@@ -43,15 +45,10 @@ public:
     void toggleStealthChop();              // Toggle stealth chop mode
     void setStealthChopMode(bool enable);  // Set stealth chop mode
     bool testCommunication();              // Performs a basic SPI communication test
+    void configureDriver();                // Configure driver parameters
+    void optimizeForPancake();             // Optimize the motor controller for pancake motor
 
 private:
-    // Internal configuration methods
-    void configureDriver();     // Configure driver parameters
-    void optimizeForPancake();  // Optimize the motor controller for pancake motor
-
-    // Driver instance and state variables
-    TMC5160Stepper driver;  // TMC5160 driver instance
-
     // Pin assignments
     const uint8_t csPin;    // Chip select pin
     const uint8_t stepPin;  // Step pin

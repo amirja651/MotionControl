@@ -1,11 +1,19 @@
 #include <ArduinoLog.h>
 #include <SimpleCLI.h>
-#include <algorithm>
 #include "Config/TMC5160T_Driver.h"
 #include "ObjectInstances.h"
 
-static bool  wasAtTarget    = false;
-const double PID_STEP_SMALL = 0.01;
+#if NUM_MOTORS == 1
+static bool lastShowMotorStatus[1] = {false};
+#elif NUM_MOTORS == 2
+static bool lastShowMotorStatus[2] = {false, false};
+#elif NUM_MOTORS == 3
+static bool lastShowMotorStatus[3] = {false, false, false};
+#elif NUM_MOTORS == 4
+static bool lastShowMotorStatus[4] = {false, false, false, false};
+#endif
+
+static bool wasAtTarget = false;
 
 // Task handles
 TaskHandle_t motorUpdateTaskHandle0 = NULL;
@@ -13,13 +21,21 @@ TaskHandle_t serialReadTaskHandle0  = NULL;
 
 SimpleCLI cli;
 Command   cmdMove1;
+Command   cmdMove2;
+Command   cmdMove3;
+Command   cmdMove4;
 Command   cmdStop1;
+Command   cmdStop2;
+Command   cmdStop3;
+Command   cmdStop4;
 Command   cmdEcho;
 Command   cmdRm;
 Command   cmdLs;
 Command   cmdBoundless;
 Command   cmdSingle;
 Command   cmdHelp;
+
+uint8_t _motorIndex = 0;
 
 // Task for updating motor states
 void motorUpdateTask0(void* pvParameters)
@@ -29,22 +45,48 @@ void motorUpdateTask0(void* pvParameters)
 
     while (1)
     {
-        // bool testOK = motors[0].testCommunication();
-
-        motors[0].update();
-        encoders[0].update();
-        pids[0].update();
-
-        // Check if we just reached target
-        if (!wasAtTarget && pids[0].isAtTarget())
+        for (uint8_t i = 0; i < NUM_MOTORS; i++)
         {
-            Serial.println("Target reached!");
-            motors[0].step();
-            wasAtTarget = true;
-        }
-        else if (!pids[0].isAtTarget())
-        {
-            wasAtTarget = false;
+            motors[i].step();
+            encoders[i].update();
+
+            if (pids[i].isAtTarget())
+            {
+                motors[i].stop();
+            }
+            else
+            {
+                // Compute PID
+                bool computed = pids[i].pid->Compute();
+
+                if (computed)
+                {
+                    // Apply output to motor
+                    if (pids[i].output > 0)
+                    {
+                        motors[i].moveForward();
+                    }
+                    else if (pids[i].output < 0)
+                    {
+                        motors[i].moveReverse();
+                    }
+                    else
+                    {
+                        motors[i].stop();
+                    }
+                }
+            }
+            // Check if we just reached target
+            if (!wasAtTarget && pids[i].isAtTarget())
+            {
+                Log.noticeln(F("Target reached!"));
+                motors[i].step();
+                wasAtTarget = true;
+            }
+            else if (!pids[i].isAtTarget())
+            {
+                wasAtTarget = false;
+            }
         }
 
         taskYIELD();
@@ -52,161 +94,140 @@ void motorUpdateTask0(void* pvParameters)
     }
 }
 
+void parseSerialInput()
+{
+    if (Serial.available())
+    {
+        String input = Serial.readStringUntil('\n');
+
+        if (input.length() > 0)
+        {
+            Log.noticeln(F("# %s"), input.c_str());
+            cli.parse(input);
+        }
+    }
+}
+
+void parseCLIInput()
+{
+    if (cli.available())
+    {
+        Command c         = cli.getCmd();
+        int     argNum    = c.countArgs();
+        String  argString = "";
+
+        for (int i = 0; i < argNum; ++i)
+        {
+            Argument arg = c.getArgument(i);
+            argString += arg.toString() + ' ';
+        }
+
+        Log.noticeln(F("> %s %s"), c.getName().c_str(), argString.c_str());
+
+        if (c == cmdMove1 || c == cmdMove2 || c == cmdMove3 || c == cmdMove4)
+        {
+            _motorIndex = c.getName().c_str()[4] - '0';
+
+            Argument a = c.getArgument("p");
+            // bool     set = a.isSet();
+            if (a.isSet())
+            {
+                String p = c.getArgument("p").getValue();
+                float  f = p.toFloat();
+                pids[_motorIndex].setTarget(f);  // Target 180 degrees
+                Log.notice(F(" %f deg Rotated!"), f);
+            }
+            else
+            {
+                Log.noticeln(F("Parameter p (degrees) is not set"));
+            }
+        }
+        else if (c == cmdStop1 || c == cmdStop2 || c == cmdStop3 || c == cmdStop4)
+        {
+            _motorIndex = c.getName().c_str()[4] - '0';
+            motors[_motorIndex].stop();
+        }
+        else if (c == cmdHelp)
+        {
+            Log.noticeln(F("Help:"));
+            Log.noticeln(F("%s"), cli.toString());
+        }
+    }
+
+    if (cli.errored())
+    {
+        CommandError cmdError = cli.getError();
+
+        Log.noticeln(F("ERROR: %s"), cmdError.toString());
+
+        if (cmdError.hasCommand())
+        {
+            Log.notice(F("Did you mean \"%s\"?"), cmdError.getCommand().toString());
+        }
+    }
+}
+
+void showMotorStatus(uint8_t motorIndex)
+{
+    float currentPosition = encoders[motorIndex].getPositionDegrees();
+    float currentVelocity = encoders[motorIndex].getVelocityDPS();
+    float targetPosition  = pids[motorIndex].getTarget();
+    float positionError   = abs(currentPosition - targetPosition);
+
+    if (positionError > 180.0f)
+    {
+        positionError = 360.0f - positionError;
+    }
+
+    Log.noticeln(F("Position: %s°, Velocity: %s°/s, Target: %s°, Error: %s°"), String(currentPosition).c_str(),
+                 String(currentVelocity).c_str(), String(targetPosition).c_str(), String(positionError).c_str());
+}
+
+void showStatus()
+{
+    for (uint8_t i = 0; i < NUM_MOTORS; i++)
+    {
+        if (!motors[i].testCommunication())
+        {
+            Log.errorln(F("Motor %d communication test: FAILED"), i + 1);
+            Log.errorln(F("Please check the motor connections and try again."));
+
+            while (!motors[i].testCommunication())
+                ;
+        }
+        else if (!pids[i].isAtTarget())
+        {
+            showMotorStatus(i);
+            lastShowMotorStatus[i] = false;
+        }
+        else
+        {
+            if (!lastShowMotorStatus[i])
+            {
+                showMotorStatus(i);
+                lastShowMotorStatus[i] = true;
+            }
+        }
+    }
+}
+
 // Task for handling serial input and PID tuning
 void serialTask(void* pvParameters)
 {
-    const TickType_t     xFrequency    = pdMS_TO_TICKS(500);  // 50ms update rate
-    TickType_t           xLastWakeTime = xTaskGetTickCount();
-    static unsigned long lastPrintTime = 0;
+    const TickType_t     xFrequency     = pdMS_TO_TICKS(50);  // 50ms update rate
+    TickType_t           xLastWakeTime  = xTaskGetTickCount();
+    static unsigned long lastnoticeTime = 0;
 
     while (1)
     {
-        if (Serial.available())
+        parseSerialInput();
+        parseCLIInput();
+
+        // notice status periodically (every 800ms)
+        if (millis() - lastnoticeTime >= 800)
         {
-            String input = Serial.readStringUntil('\n');
-
-            if (input.length() > 0)
-            {
-                Serial.print("# ");
-                Serial.println(input);
-                cli.parse(input);
-            }
-        }
-
-        if (cli.available())
-        {
-            Command c = cli.getCmd();
-
-            int argNum = c.countArgs();
-
-            Serial.print("> ");
-            Serial.print(c.getName());
-            Serial.print(' ');
-
-            for (int i = 0; i < argNum; ++i)
-            {
-                Argument arg = c.getArgument(i);
-                // if(arg.isSet()) {
-                Serial.print(arg.toString());
-                Serial.print(' ');
-                // }
-            }
-
-            Serial.println();
-
-            if (c == cmdMove1)
-            {
-                Argument a = c.getArgument("p");
-                // bool     set = a.isSet();
-                if (a.isSet())
-                {
-                    String p = c.getArgument("p").getValue();
-                    float  f = p.toFloat();
-                    pids[0].setTarget(f);  // Target 180 degrees
-                    Serial.print(p + " deg Rotated!");
-                }
-                else
-                {
-                    Serial.println("Parameter p (degrees) is not set");
-                }
-            }
-            else if (c == cmdStop1)
-            {
-                motors[0].stop();
-            }
-            else if (c == cmdEcho)
-            {
-                Argument str = c.getArgument(0);
-                Serial.println(str.getValue());
-            }
-            else if (c == cmdRm)
-            {
-                Serial.println("Remove directory " + c.getArgument(0).getValue());
-            }
-            else if (c == cmdLs)
-            {
-                Argument a = c.getArgument("a");
-                // bool     set = a.isSet();
-                if (a.isSet())
-                {
-                    Serial.println("Listing all directories");
-                }
-                else
-                {
-                    Serial.println("Listing directories");
-                }
-            }
-            else if (c == cmdBoundless)
-            {
-                Serial.print("Boundless: ");
-
-                for (int i = 0; i < argNum; ++i)
-                {
-                    Argument arg = c.getArgument(i);
-                    if (i > 0)
-                        Serial.print(",");
-                    Serial.print("\"");
-                    Serial.print(arg.getValue());
-                    Serial.print("\"");
-                }
-            }
-            else if (c == cmdSingle)
-            {
-                Serial.println("Single \"" + c.getArg(0).getValue() + "\"");
-            }
-            else if (c == cmdHelp)
-            {
-                Serial.println("Help:");
-                Serial.println(cli.toString());
-            }
-        }
-
-        if (cli.errored())
-        {
-            CommandError cmdError = cli.getError();
-
-            Serial.print("ERROR: ");
-            Serial.println(cmdError.toString());
-
-            if (cmdError.hasCommand())
-            {
-                Serial.print("Did you mean \"");
-                Serial.print(cmdError.getCommand().toString());
-                Serial.println("\"?");
-            }
-        }
-
-        // Print status periodically (every 500ms)
-        if (millis() - lastPrintTime >= 800)
-        {
-            if (!pids[0].isAtTarget())
-            {
-                bool testOK = motors[0].testCommunication();
-                if (testOK)
-                {
-                    float currentPosition = encoders[0].getPositionDegrees();
-                    float currentVelocity = encoders[0].getVelocityDPS();
-                    float targetPosition  = pids[0].getTarget();
-                    float positionError   = abs(currentPosition - targetPosition);
-
-                    if (positionError > 180.0f)
-                    {
-                        positionError = 360.0f - positionError;
-                    }
-
-                    Serial.print("Position: ");
-                    Serial.print(currentPosition, 2);
-                    Serial.print("°, Velocity: ");
-                    Serial.print(currentVelocity, 2);
-                    Serial.print("°/s, Target: ");
-                    Serial.print(targetPosition, 2);
-                    Serial.print("°, Error: ");
-                    Serial.print(positionError, 2);
-                    Serial.println("°");
-                }
-            }
-
-            lastPrintTime = millis();
+            showStatus();
+            lastnoticeTime = millis();
         }
 
         taskYIELD();
@@ -220,29 +241,53 @@ void initializeCLI()
     cmdMove1.addArg("p", "30.0");
     cmdMove1.setDescription(" Rotate motor[1] 1 by 360 degrees");
 
+    cmdMove2 = cli.addCmd("move2");
+    cmdMove2.addArg("p", "30.0");
+    cmdMove2.setDescription(" Rotate motor[2] 1 by 360 degrees");
+
+    cmdMove3 = cli.addCmd("move3");
+    cmdMove3.addArg("p", "30.0");
+    cmdMove3.setDescription(" Rotate motor[3] 1 by 360 degrees");
+
+    cmdMove4 = cli.addCmd("move4");
+    cmdMove4.addArg("p", "30.0");
+    cmdMove4.setDescription(" Rotate motor[4] 1 by 360 degrees");
+
     cmdStop1 = cli.addCmd("stop1");
     cmdStop1.setDescription(" Stop motor[1]");
 
-    cmdEcho = cli.addCmd("echo");
-    cmdEcho.addPosArg("text", "something");
-    cmdEcho.setDescription(" Echos what you said");
+    cmdStop2 = cli.addCmd("stop2");
+    cmdStop2.setDescription(" Stop motor[2]");
 
-    cmdRm = cli.addCmd("rm");
-    cmdRm.addPosArg("file");
-    cmdRm.setDescription(" Removes specified file (but not actually)");
+    cmdStop3 = cli.addCmd("stop3");
+    cmdStop3.setDescription(" Stop motor[3]");
 
-    cmdLs = cli.addCmd("ls");
-    cmdLs.addFlagArg("a");
-    cmdLs.setDescription(" Lists files in directory (-a for all)");
+    cmdStop4 = cli.addCmd("stop4");
+    cmdStop4.setDescription(" Stop motor[4]");
 
-    cmdBoundless = cli.addBoundlessCmd("boundless");
-    cmdBoundless.setDescription(" A boundless command that echos your input");
+    if (0)
+    {
+        cmdEcho = cli.addCmd("echo");
+        cmdEcho.addPosArg("text", "something");
+        cmdEcho.setDescription(" Echos what you said");
 
-    cmdSingle = cli.addSingleArgCmd("single");
-    cmdSingle.setDescription(" A single command that echos your input");
+        cmdRm = cli.addCmd("rm");
+        cmdRm.addPosArg("file");
+        cmdRm.setDescription(" Removes specified file (but not actually)");
 
-    cmdHelp = cli.addCommand("help");
-    cmdHelp.setDescription(" Get help!");
+        cmdLs = cli.addCmd("ls");
+        cmdLs.addFlagArg("a");
+        cmdLs.setDescription(" Lists files in directory (-a for all)");
+
+        cmdBoundless = cli.addBoundlessCmd("boundless");
+        cmdBoundless.setDescription(" A boundless command that echos your input");
+
+        cmdSingle = cli.addSingleArgCmd("single");
+        cmdSingle.setDescription(" A single command that echos your input");
+
+        cmdHelp = cli.addCommand("help");
+        cmdHelp.setDescription(" Get help!");
+    }
 }
 
 void setup()
