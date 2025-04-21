@@ -1,5 +1,6 @@
 #include "MAE3Encoder.h"
-#include "Config/System_Config.h"
+#include "ObjectInstances.h"
+
 // Array to store encoder instances for interrupt handling
 static MAE3Encoder* encoderInstances[4] = {nullptr};  // Support up to NUM_MOTORS encoders
 static uint8_t      numEncoders         = 0;

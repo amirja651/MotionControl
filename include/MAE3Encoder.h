@@ -2,7 +2,6 @@
 #define MAE3_ENCODER_H
 
 #include <Arduino.h>
-#include "Config/System_Config.h"
 
 class MAE3Encoder
 {

@@ -1,10 +1,16 @@
 #ifndef MOTOR_INSTANCES_H
 #define MOTOR_INSTANCES_H
 
-#include "Config/System_Config.h"
 #include "MAE3Encoder.h"
 #include "MotorController.h"
 #include "PIDController.h"
+
+// Number of motors in the system
+#define NUM_MOTORS  1
+#define MOTOR_NAME1 "Motor 1"
+#define MOTOR_NAME2 "Motor 2"
+#define MOTOR_NAME3 "Motor 3"
+#define MOTOR_NAME4 "Motor 4"
 
 extern MotorController motors[NUM_MOTORS];
 extern MAE3Encoder     encoders[NUM_MOTORS];

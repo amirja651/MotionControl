@@ -3,13 +3,6 @@
 
 #include <stdint.h>
 
-// Number of motors in the system
-#define NUM_MOTORS  1
-#define MOTOR_NAME1 "Motor 1"
-#define MOTOR_NAME2 "Motor 2"
-#define MOTOR_NAME3 "Motor 3"
-#define MOTOR_NAME4 "Motor 4"
-
 namespace CONFIG
 {
     // System Configuration
@@ -25,10 +18,13 @@ namespace CONFIG
         static const uint16_t MAX_CURRENT_MA  = 2000;  // Maximum allowed current in mA
 
         // Speed control settings
-        static const uint32_t SPEED_STEP = 100;    // Speed adjustment step size in steps/sec
-        static const uint32_t ACCEL_STEP = 50;     // Acceleration adjustment step size in steps/sec²
-        static const uint32_t MIN_SPEED  = 100;    // Minimum speed in steps/sec
-        static const uint32_t MAX_SPEED  = 10000;  // Maximum speed in steps/sec
+        static const uint32_t SPEED_STEP = 100;   // Speed adjustment step size in steps/sec
+        static const uint32_t ACCEL_STEP = 50;    // Acceleration adjustment step size in steps/sec²
+        static const uint32_t MIN_SPEED  = 100;   // Minimum speed in steps/sec
+        static const uint32_t MAX_SPEED  = 500;   // Maximum speed in steps/sec
+        static const uint32_t MIN_ACCEL  = 100;   // Minimum acceleration in steps/sec²
+        static const uint32_t MAX_ACCEL  = 1000;  // Maximum acceleration in steps/sec²
+        static const uint32_t MAX_DECEL  = 1000;  // Maximum deceleration in steps/sec²
 
         // Temperature monitoring settings
         static const uint8_t  TEMP_WARNING_THRESHOLD = 80;    // Temperature warning threshold in °C
@@ -47,7 +43,6 @@ namespace CONFIG
         // StallGuard and CoolStep settings
         static const int8_t   SGTHRS                 = 10;    // StallGuard threshold
         static const uint8_t  CURRENT_SCALING        = 32;    // Current scaling factor
-        static const uint8_t  IRUNDELAY              = 5;     // Run current delay
         static const uint8_t  PWM_OFS                = 36;    // PWM offset
         static const uint8_t  PWM_GRAD               = 14;    // PWM gradient
         static const uint8_t  PWM_FREQ               = 1;     // PWM frequency
@@ -56,6 +51,20 @@ namespace CONFIG
         static const uint32_t LOAD_THRESHOLD         = 1000;  // Load threshold
         static const uint32_t LOAD_WARNING_THRESHOLD = 1500;  // Load warning threshold
     };
+
+    namespace MotorSpecs
+    {
+        // Electrical specifications
+        struct Electrical
+        {
+            static constexpr float RATED_VOLTAGE    = 7.25f;  // V
+            static constexpr float RATED_CURRENT    = 0.5f;   // A
+            static constexpr float PHASE_RESISTANCE = 3.5f;   // Ω ±10%
+            static constexpr float PHASE_INDUCTANCE = 0.90f;  // mH ±20%
+            static constexpr float HOLDING_TORQUE   = 16.0f;  // mN·m
+            static constexpr float DETENT_TORQUE    = 2.0f;   // mN·m
+        };
+    }  // namespace MotorSpecs
 }  // namespace CONFIG
 
 #endif  // SYSTEM_CONFIG_H

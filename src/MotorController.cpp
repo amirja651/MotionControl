@@ -1,37 +1,26 @@
 #include "MotorController.h"
 #include <ArduinoLog.h>
 #include "Config/SPI.h"
-#include "Config/System_Config.h"
 #include "Config/TMC5160T_Driver.h"
 
 MotorController::MotorController(String name, DriverConfig dc)
     : driver(dc.csPin, 0.075),
+
       csPin(dc.csPin),
       stepPin(dc.stepPin),
       dirPin(dc.dirPin),
       enPin(dc.enPin),
 
-      isMoving(false),
+      runCurrent(200),    // Default 1000mA
+      holdCurrent(200),   // Default 500mA
+      speed(200),         // Default 1000 steps/sec
+      acceleration(500),  // Default 1000 steps/sec²
+      maxSpeed(250),
+      maxAcceleration(1000),
+      maxDeceleration(1000),
+
       instanceName(name),
-
-      runCurrent(CONFIG::MotorSpecs::Operation::RUN_CURRENT),    // Default 1000mA
-      holdCurrent(CONFIG::MotorSpecs::Operation::HOLD_CURRENT),  // Default 500mA
-
-      speed(CONFIG::MotorSpecs::Operation::SPEED),                // Default 1000 steps/sec
-      acceleration(CONFIG::MotorSpecs::Operation::ACCELERATION),  // Default 1000 steps/sec²
-
-      coolStepThreshold(CONFIG::SYSTEM::TCOOLTHRS),
-      stallGuardThreshold(CONFIG::SYSTEM::SGTHRS),
-      stallGuardFilter(true),
-      spreadCycleEnabled(false),
-      microstepInterpolation(true),
-
-      currentHoldDelay(CONFIG::SYSTEM::IHOLDDELAY),
-
-      rampMode(0),  // Default to positioning mode
-      maxSpeed(CONFIG::MotorSpecs::Operation::SPEED),
-      maxAcceleration(CONFIG::MotorSpecs::Operation::ACCELERATION),
-      maxDeceleration(CONFIG::MotorSpecs::Operation::ACCELERATION)
+      isMoving(false)
 {
 }
 
@@ -60,26 +49,26 @@ void MotorController::begin()
 void MotorController::optimizeForPancake()
 {
     // Set optimal parameters for pancake motor
-    driver.intpol(true);                          // Enable microstep interpolation
-    driver.sfilt(true);                           // Enable StallGuard filter
-    driver.sgt(CONFIG::SYSTEM::SGTHRS);           // Set StallGuard threshold
-    driver.TCOOLTHRS(CONFIG::SYSTEM::TCOOLTHRS);  // Set CoolStep threshold
+    driver.intpol(true);     // Enable microstep interpolation
+    driver.sfilt(true);      // Enable StallGuard filter
+    driver.sgt(10);          // Set StallGuard threshold
+    driver.TCOOLTHRS(1000);  // Set CoolStep threshold
 
     // Configure for high precision
     driver.microsteps(16);  // Maximum microstepping for smooth motion
     driver.intpol(true);    // Enable microstep interpolation
 
     // Optimize current control
-    driver.ihold(holdCurrent * CONFIG::SYSTEM::CURRENT_SCALING / 32);  // Set hold current
-    driver.irun(runCurrent * CONFIG::SYSTEM::CURRENT_SCALING / 32);    // Set run current
+    driver.ihold(holdCurrent * 32 / 32);  // Set hold current
+    driver.irun(runCurrent * 32 / 32);    // Set run current
 
-    driver.iholddelay(CONFIG::SYSTEM::IHOLDDELAY);  // Set hold current delay
+    driver.iholddelay(6);  // Set hold current delay
 
     // Configure motion control
-    driver.RAMPMODE(0);                                          // Positioning mode for precise control
-    driver.VMAX(CONFIG::MotorSpecs::Operation::MAX_SPEED);       // Set maximum speed
-    driver.a1(CONFIG::MotorSpecs::Operation::MAX_ACCELERATION);  // Set maximum acceleration
-    driver.d1(CONFIG::MotorSpecs::Operation::MAX_DECELERATION);  // Set maximum deceleration
+    driver.RAMPMODE(0);  // Positioning mode for precise control
+    driver.VMAX(500);    // Set maximum speed
+    driver.a1(500);      // Set maximum acceleration
+    driver.d1(500);      // Set maximum deceleration
 }
 
 void MotorController::moveForward()
@@ -123,116 +112,6 @@ void MotorController::update()
     if (isMoving)
     {
         step();
-    }
-}
-
-void MotorController::increaseRunCurrent()
-{
-    if (runCurrent < MAX_RUN_CURRENT)
-    {
-        runCurrent += CURRENT_STEP;
-        driver.rms_current(runCurrent);
-        Log.noticeln(F("%s - Run current increased to: %d mA (Max: 1000mA)"), instanceName, runCurrent);
-    }
-    else
-    {
-        Log.warningln(F("%s - Run current at maximum (1000mA)"), instanceName);
-    }
-}
-
-void MotorController::decreaseRunCurrent()
-{
-    if (runCurrent > MIN_CURRENT)
-    {
-        runCurrent -= CURRENT_STEP;
-        driver.rms_current(runCurrent);
-        Log.noticeln(F("%s - Run current decreased to: %d mA (Min: 100mA)"), instanceName, runCurrent);
-    }
-    else
-    {
-        Log.warningln(F("Run current at minimum (100mA)"));
-    }
-}
-
-void MotorController::increaseHoldCurrent()
-{
-    if (holdCurrent < MAX_HOLD_CURRENT)
-    {
-        holdCurrent += CURRENT_STEP;
-        driver.ihold(holdCurrent);
-        Log.noticeln(F("%s - Hold current increased to: %d mA (Max: 500mA)"), instanceName, holdCurrent);
-    }
-    else
-    {
-        Log.warningln(F("Hold current at maximum (500mA)"));
-    }
-}
-
-void MotorController::decreaseHoldCurrent()
-{
-    if (holdCurrent > MIN_CURRENT)
-    {
-        holdCurrent -= CURRENT_STEP;
-        driver.ihold(holdCurrent);
-        Log.noticeln(F("%s - Hold current decreased to: %d mA (Min: 100mA)"), instanceName, holdCurrent);
-    }
-    else
-    {
-        Log.warningln(F("Hold current at minimum (100mA)"));
-    }
-}
-
-void MotorController::increaseSpeed()
-{
-    if (speed < MAX_SPEED)
-    {
-        speed += SPEED_STEP;
-        Log.noticeln(F("%s - Speed increased to: %d steps/sec"), instanceName, speed);
-    }
-    else
-    {
-        Log.warningln(F("Speed at maximum (10000 steps/sec)"));
-    }
-}
-
-void MotorController::decreaseSpeed()
-{
-    if (speed > MIN_SPEED)
-    {
-        speed -= SPEED_STEP;
-        Log.noticeln(F("%s - Speed decreased to: %d steps/sec"), instanceName, speed);
-    }
-    else
-    {
-        Log.warningln(F("Speed at minimum (100 steps/sec)"));
-    }
-}
-
-void MotorController::increaseAcceleration()
-{
-    if (acceleration < MAX_ACCEL)
-    {
-        acceleration += ACCEL_STEP;
-        driver.AMAX(acceleration);
-        Log.noticeln(F("%s - Acceleration increased to: %d steps/sec²"), instanceName, acceleration);
-    }
-    else
-    {
-        Log.warningln(F("Acceleration at maximum (10000 steps/sec²)"));
-    }
-}
-
-void MotorController::decreaseAcceleration()
-{
-    if (acceleration > MIN_ACCEL)
-    {
-        acceleration -= ACCEL_STEP;
-        driver.AMAX(acceleration);
-        Log.noticeln(F("%s - Acceleration decreased to: %d steps/sec²"), instanceName, acceleration);
-    }
-    else
-    {
-        Log.warningln(F("Acceleration at minimum (100 steps/sec²)"));
     }
 }
 
@@ -306,11 +185,6 @@ bool MotorController::testCommunication()
     return true;
 }
 
-String MotorController::motorName() const
-{
-    return instanceName;
-}
-
 // Private Methods
 void MotorController::configureDriver()
 {
@@ -349,39 +223,39 @@ void MotorController::configureDriver()
     driver.GCONF(gconf);
 
     // Set current control parameters
-    driver.rms_current(runCurrent);                 // Set motor RMS current
-    driver.ihold(holdCurrent);                      // Set hold current
-    driver.irun(runCurrent);                        // Set run current
-    driver.iholddelay(currentHoldDelay);            // Set hold delay
-    driver.TPOWERDOWN(CONFIG::SYSTEM::TPOWERDOWN);  // Set power down time
+    driver.rms_current(runCurrent);  // Set motor RMS current
+    driver.ihold(holdCurrent);       // Set hold current
+    driver.irun(runCurrent);         // Set run current
+    driver.iholddelay(6);            // Set hold delay
+    driver.TPOWERDOWN(10);           // Set power down time
 
     // Configure microstepping
-    driver.microsteps(CONFIG::SYSTEM::MICROSTEPS);  // Set microsteps
-    driver.intpol(microstepInterpolation);          // Set microstep interpolation
+    driver.microsteps(16);  // Set microsteps
+    driver.intpol(true);    // Set microstep interpolation
 
     // Configure CoolStep
-    driver.TCOOLTHRS(coolStepThreshold);  // Set CoolStep threshold
-    driver.sgt(stallGuardThreshold);      // Set StallGuard threshold
-    driver.sfilt(stallGuardFilter);       // Set StallGuard filter
-    driver.sgt(stallGuardThreshold);      // Set StallGuard threshold
+    driver.TCOOLTHRS(1000);  // Set CoolStep threshold
+    driver.sgt(10);          // Set StallGuard threshold
+    driver.sfilt(true);      // Set StallGuard filter
+    driver.sgt(10);          // Set StallGuard threshold
 
     // Configure stealthChop
-    driver.TPWMTHRS(0);                         // Enable stealthChop by default
-    driver.pwm_autoscale(true);                 // Enable PWM autoscale
-    driver.pwm_autograd(true);                  // Enable PWM autograd
-    driver.pwm_ofs(CONFIG::SYSTEM::PWM_OFS);    // Set PWM offset
-    driver.pwm_grad(CONFIG::SYSTEM::PWM_GRAD);  // Set PWM gradient
-    driver.pwm_freq(CONFIG::SYSTEM::PWM_FREQ);  // Set PWM frequency
+    driver.TPWMTHRS(0);          // Enable stealthChop by default
+    driver.pwm_autoscale(true);  // Enable PWM autoscale
+    driver.pwm_autograd(true);   // Enable PWM autograd
+    driver.pwm_ofs(36);          // Set PWM offset
+    driver.pwm_grad(14);         // Set PWM gradient
+    driver.pwm_freq(1);          // Set PWM frequency
 
     // Configure spreadCycle
-    driver.en_pwm_mode(!spreadCycleEnabled);         // 0 for spread cycle, 1 for stealthChop
-    driver.toff(CONFIG::SYSTEM::TOFF);               // Set turn-off time
-    driver.blank_time(CONFIG::SYSTEM::BLANK_TIME);   // Set blank time
-    driver.hysteresis_start(CONFIG::SYSTEM::HSTRT);  // Set hysteresis start
-    driver.hysteresis_end(CONFIG::SYSTEM::HEND);     // Set hysteresis end
+    driver.en_pwm_mode(1);       // 0 for spread cycle, 1 for stealthChop
+    driver.toff(3);              // Set turn-off time
+    driver.blank_time(24);       // Set blank time
+    driver.hysteresis_start(5);  // Set hysteresis start
+    driver.hysteresis_end(3);    // Set hysteresis end
 
     // Configure motion control
-    driver.RAMPMODE(rampMode);     // Set ramp mode
+    driver.RAMPMODE(0);            // Set ramp mode
     driver.VMAX(maxSpeed);         // Set maximum speed
     driver.AMAX(maxAcceleration);  // Set maximum acceleration
     driver.DMAX(maxDeceleration);  // Set maximum deceleration
