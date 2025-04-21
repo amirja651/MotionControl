@@ -13,8 +13,6 @@ static bool lastShowMotorStatus[3] = {false, false, false};
 static bool lastShowMotorStatus[4] = {false, false, false, false};
 #endif
 
-static bool wasAtTarget = false;
-
 // Task handles
 TaskHandle_t motorUpdateTaskHandle0 = NULL;
 TaskHandle_t serialReadTaskHandle0  = NULL;
@@ -45,48 +43,16 @@ void motorUpdateTask0(void* pvParameters)
 
     while (1)
     {
-        for (uint8_t i = 0; i < NUM_MOTORS; i++)
+        if (pids[0].getPositionError(encoders[0].getPositionDegrees()) > 0.3f)
         {
-            motors[i].step();
-            encoders[i].update();
+            motors[0].step();
+            encoders[0].update();
+            pids[0].setInput(encoders[0].getPositionDegrees());
+            pids[0].pid->Compute();
 
-            if (pids[i].isAtTarget())
-            {
-                motors[i].stop();
-            }
-            else
-            {
-                // Compute PID
-                bool computed = pids[i].pid->Compute();
-
-                if (computed)
-                {
-                    // Apply output to motor
-                    if (pids[i].output > 0)
-                    {
-                        motors[i].moveForward();
-                    }
-                    else if (pids[i].output < 0)
-                    {
-                        motors[i].moveReverse();
-                    }
-                    else
-                    {
-                        motors[i].stop();
-                    }
-                }
-            }
-            // Check if we just reached target
-            if (!wasAtTarget && pids[i].isAtTarget())
-            {
-                Log.noticeln(F("Target reached!"));
-                motors[i].step();
-                wasAtTarget = true;
-            }
-            else if (!pids[i].isAtTarget())
-            {
-                wasAtTarget = false;
-            }
+            (pids[0].output > 0)   ? motors[0].moveForward()
+            : (pids[0].output < 0) ? motors[0].moveReverse()
+                                   : motors[0].stop();
         }
 
         taskYIELD();
@@ -112,45 +78,49 @@ void parseCLIInput()
 {
     if (cli.available())
     {
-        Command c         = cli.getCmd();
-        int     argNum    = c.countArgs();
-        String  argString = "";
+        Command c = cli.getCmd();
+
+        int argNum = c.countArgs();
+
+        Serial.print("> ");
+        Serial.print(c.getName());
+        Serial.print(' ');
 
         for (int i = 0; i < argNum; ++i)
         {
             Argument arg = c.getArgument(i);
-            argString += arg.toString() + ' ';
+            // if(arg.isSet()) {
+            Serial.print(arg.toString());
+            Serial.print(' ');
+            // }
         }
 
-        Log.noticeln(F("> %s %s"), c.getName().c_str(), argString.c_str());
+        Serial.println();
 
-        if (c == cmdMove1 || c == cmdMove2 || c == cmdMove3 || c == cmdMove4)
+        if (c == cmdMove1)
         {
-            _motorIndex = c.getName().c_str()[4] - '0';
-
             Argument a = c.getArgument("p");
             // bool     set = a.isSet();
             if (a.isSet())
             {
                 String p = c.getArgument("p").getValue();
-                float  f = p.toFloat();
-                pids[_motorIndex].setTarget(f);  // Target 180 degrees
-                Log.notice(F(" %f deg Rotated!"), f);
+                double f = p.toDouble();
+                pids[0].setTarget(f);
+                Serial.print(p + " deg Rotated!");
             }
             else
             {
-                Log.noticeln(F("Parameter p (degrees) is not set"));
+                Serial.println("Parameter p (degrees) is not set");
             }
         }
-        else if (c == cmdStop1 || c == cmdStop2 || c == cmdStop3 || c == cmdStop4)
+        else if (c == cmdStop1)
         {
-            _motorIndex = c.getName().c_str()[4] - '0';
-            motors[_motorIndex].stop();
+            motors[0].stop();
         }
         else if (c == cmdHelp)
         {
-            Log.noticeln(F("Help:"));
-            Log.noticeln(F("%s"), cli.toString());
+            Serial.println("Help:");
+            Serial.println(cli.toString());
         }
     }
 
@@ -158,55 +128,53 @@ void parseCLIInput()
     {
         CommandError cmdError = cli.getError();
 
-        Log.noticeln(F("ERROR: %s"), cmdError.toString());
+        Serial.print("ERROR: ");
+        Serial.println(cmdError.toString());
 
         if (cmdError.hasCommand())
         {
-            Log.notice(F("Did you mean \"%s\"?"), cmdError.getCommand().toString());
+            Serial.print("Did you mean \"");
+            Serial.print(cmdError.getCommand().toString());
+            Serial.println("\"?");
         }
     }
 }
 
 void showMotorStatus(uint8_t motorIndex)
 {
-    float currentPosition = encoders[motorIndex].getPositionDegrees();
-    float currentVelocity = encoders[motorIndex].getVelocityDPS();
-    float targetPosition  = pids[motorIndex].getTarget();
-    float positionError   = abs(currentPosition - targetPosition);
+    double currentPosition = encoders[motorIndex].getPositionDegrees();
+    double targetPosition  = pids[motorIndex].getTarget();
+    double positionError   = pids[motorIndex].getPositionError(currentPosition);
 
     if (positionError > 180.0f)
     {
         positionError = 360.0f - positionError;
     }
 
-    Log.noticeln(F("Position: %s°, Velocity: %s°/s, Target: %s°, Error: %s°"), String(currentPosition).c_str(),
-                 String(currentVelocity).c_str(), String(targetPosition).c_str(), String(positionError).c_str());
+    if (positionError != 0.0)
+    {
+        Log.noticeln(F("Position: %s°, Target: %s°, Error: %s°"), String(currentPosition).c_str(),
+                     String(targetPosition).c_str(), String(positionError).c_str());
+    }
 }
 
 void showStatus()
 {
-    for (uint8_t i = 0; i < NUM_MOTORS; i++)
+    if (!motors[0].testCommunication())
     {
-        if (!motors[i].testCommunication())
+        Log.errorln(F("Motor 1 communication test: FAILED"));
+    }
+    else if (pids[0].getPositionError(encoders[0].getPositionDegrees()) <= 0.3f)
+    {
+        showMotorStatus(0);
+        lastShowMotorStatus[0] = false;
+    }
+    else
+    {
+        if (!lastShowMotorStatus[0])
         {
-            Log.errorln(F("Motor %d communication test: FAILED"), i + 1);
-            Log.errorln(F("Please check the motor connections and try again."));
-
-            while (!motors[i].testCommunication())
-                ;
-        }
-        else if (!pids[i].isAtTarget())
-        {
-            showMotorStatus(i);
-            lastShowMotorStatus[i] = false;
-        }
-        else
-        {
-            if (!lastShowMotorStatus[i])
-            {
-                showMotorStatus(i);
-                lastShowMotorStatus[i] = true;
-            }
+            showMotorStatus(0);
+            lastShowMotorStatus[0] = true;
         }
     }
 }

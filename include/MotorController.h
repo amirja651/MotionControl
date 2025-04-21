@@ -48,7 +48,6 @@ public:
     void configureDriver();                // Configure driver parameters
     void optimizeForPancake();             // Optimize the motor controller for pancake motor
 
-private:
     // Pin assignments
     const uint8_t csPin;    // Chip select pin
     const uint8_t stepPin;  // Step pin
@@ -65,6 +64,7 @@ private:
 
     String instanceName;  // Name of this motor controller instance
     bool   isMoving;      // Current movement state
+private:
 };
 
 #endif

@@ -15,7 +15,7 @@ MotorController motors[1] = {MotorController(MOTOR_NAME1, dc1)};
 
 MAE3Encoder encoders[1] = {MAE3Encoder(CONFIG::ENCODER::ENC1, CONFIG::ENCODER::ENC1)};
 
-PIDController pids[1] = {PIDController(&motors[0], &encoders[0], pidConfig)};
+PIDController pids[1] = {PIDController(pidConfig)};
 
 #elif NUM_MOTORS == 2
 
@@ -27,8 +27,7 @@ MotorController motors[2] = {MotorController(MOTOR_NAME1, dc1), MotorController(
 MAE3Encoder encoders[2] = {MAE3Encoder(CONFIG::ENCODER::ENC1, CONFIG::ENCODER::ENC1),
                            MAE3Encoder(CONFIG::ENCODER::ENC2, CONFIG::ENCODER::ENC2)};
 
-PIDController pids[2] = {PIDController(&motors[0], &encoders[0], pidConfig),
-                         PIDController(&motors[1], &encoders[1], pidConfig)};
+PIDController pids[2] = {PIDController(pidConfig), PIDController(pidConfig)};
 
 #elif NUM_MOTORS == 3
 
@@ -43,9 +42,7 @@ MAE3Encoder encoders[3] = {MAE3Encoder(CONFIG::ENCODER::ENC1, CONFIG::ENCODER::E
                            MAE3Encoder(CONFIG::ENCODER::ENC2, CONFIG::ENCODER::ENC2),
                            MAE3Encoder(CONFIG::ENCODER::ENC3, CONFIG::ENCODER::ENC3)};
 
-PIDController pids[3] = {PIDController(&motors[0], &encoders[0], pidConfig),
-                         PIDController(&motors[1], &encoders[1], pidConfig),
-                         PIDController(&motors[2], &encoders[2], pidConfig)};
+PIDController pids[3] = {PIDController(pidConfig), PIDController(pidConfig), PIDController(pidConfig)};
 
 #elif NUM_MOTORS == 4
 
@@ -62,9 +59,8 @@ MAE3Encoder encoders[4] = {MAE3Encoder(CONFIG::ENCODER::ENC1, CONFIG::ENCODER::E
                            MAE3Encoder(CONFIG::ENCODER::ENC3, CONFIG::ENCODER::ENC3),
                            MAE3Encoder(CONFIG::ENCODER::ENC4, CONFIG::ENCODER::ENC4)};
 
-PIDController pids[4] = {
-    PIDController(&motors[0], &encoders[0], pidConfig), PIDController(&motors[1], &encoders[1], pidConfig),
-    PIDController(&motors[2], &encoders[2], pidConfig), PIDController(&motors[3], &encoders[3], pidConfig)};
+PIDController pids[4] = {PIDController(pidConfig), PIDController(pidConfig), PIDController(pidConfig),
+                         PIDController(pidConfig)};
 
 #endif
 
@@ -98,8 +94,6 @@ void initializeSystem()
         encoders[i].begin();
 
         pids[i].begin();
-        pids[i].setPositionThreshold(0.5f);  // 0.5 degrees threshold
-        pids[i].setOutputLimits(-180.0f, 180.0f);
-        // pids[i].setTarget(5.0f);
+        pids[i].pid->SetOutputLimits(-180.0, 180.0);
     }
 }
