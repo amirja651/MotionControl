@@ -43,11 +43,18 @@ void motorUpdateTask0(void* pvParameters)
 
     while (1)
     {
-        if (pids[0].getPositionError(encoders[0].getPositionDegrees()) > 0.3f)
+        double currentPosition = encoders[0].getPositionDegrees();
+        // Serial.println(currentPosition);
+        double positionError = pids[0].getPositionError(currentPosition);
+        if (positionError > 0)
+            Serial.println(positionError);
+
+        if (positionError > 0.2)
         {
             motors[0].step();
             encoders[0].update();
-            pids[0].setInput(encoders[0].getPositionDegrees());
+            currentPosition = encoders[0].getPositionDegrees();
+            pids[0].setInput(currentPosition);
             pids[0].pid->Compute();
 
             (pids[0].output > 0)   ? motors[0].moveForward()
@@ -106,7 +113,7 @@ void parseCLIInput()
                 String p = c.getArgument("p").getValue();
                 double f = p.toDouble();
                 pids[0].setTarget(f);
-                Serial.print(p + " deg Rotated!");
+                Serial.println(p + " deg Rotated!");
             }
             else
             {
@@ -146,9 +153,9 @@ void showMotorStatus(uint8_t motorIndex)
     double targetPosition  = pids[motorIndex].getTarget();
     double positionError   = pids[motorIndex].getPositionError(currentPosition);
 
-    if (positionError > 180.0f)
+    if (positionError > 180.0)
     {
-        positionError = 360.0f - positionError;
+        positionError = 360.0 - positionError;
     }
 
     if (positionError != 0.0)
@@ -164,17 +171,22 @@ void showStatus()
     {
         Log.errorln(F("Motor 1 communication test: FAILED"));
     }
-    else if (pids[0].getPositionError(encoders[0].getPositionDegrees()) <= 0.3f)
-    {
-        showMotorStatus(0);
-        lastShowMotorStatus[0] = false;
-    }
     else
     {
-        if (!lastShowMotorStatus[0])
+        double currentPosition = encoders[0].getPositionDegrees();
+        double positionError   = pids[0].getPositionError(currentPosition);
+        showMotorStatus(0);
+
+        if (positionError > 0.2)
         {
-            showMotorStatus(0);
-            lastShowMotorStatus[0] = true;
+            lastShowMotorStatus[0] = false;
+        }
+        else
+        {
+            if (!lastShowMotorStatus[0])
+            {
+                lastShowMotorStatus[0] = true;
+            }
         }
     }
 }
@@ -209,53 +221,8 @@ void initializeCLI()
     cmdMove1.addArg("p", "30.0");
     cmdMove1.setDescription(" Rotate motor[1] 1 by 360 degrees");
 
-    cmdMove2 = cli.addCmd("move2");
-    cmdMove2.addArg("p", "30.0");
-    cmdMove2.setDescription(" Rotate motor[2] 1 by 360 degrees");
-
-    cmdMove3 = cli.addCmd("move3");
-    cmdMove3.addArg("p", "30.0");
-    cmdMove3.setDescription(" Rotate motor[3] 1 by 360 degrees");
-
-    cmdMove4 = cli.addCmd("move4");
-    cmdMove4.addArg("p", "30.0");
-    cmdMove4.setDescription(" Rotate motor[4] 1 by 360 degrees");
-
     cmdStop1 = cli.addCmd("stop1");
     cmdStop1.setDescription(" Stop motor[1]");
-
-    cmdStop2 = cli.addCmd("stop2");
-    cmdStop2.setDescription(" Stop motor[2]");
-
-    cmdStop3 = cli.addCmd("stop3");
-    cmdStop3.setDescription(" Stop motor[3]");
-
-    cmdStop4 = cli.addCmd("stop4");
-    cmdStop4.setDescription(" Stop motor[4]");
-
-    if (0)
-    {
-        cmdEcho = cli.addCmd("echo");
-        cmdEcho.addPosArg("text", "something");
-        cmdEcho.setDescription(" Echos what you said");
-
-        cmdRm = cli.addCmd("rm");
-        cmdRm.addPosArg("file");
-        cmdRm.setDescription(" Removes specified file (but not actually)");
-
-        cmdLs = cli.addCmd("ls");
-        cmdLs.addFlagArg("a");
-        cmdLs.setDescription(" Lists files in directory (-a for all)");
-
-        cmdBoundless = cli.addBoundlessCmd("boundless");
-        cmdBoundless.setDescription(" A boundless command that echos your input");
-
-        cmdSingle = cli.addSingleArgCmd("single");
-        cmdSingle.setDescription(" A single command that echos your input");
-
-        cmdHelp = cli.addCommand("help");
-        cmdHelp.setDescription(" Get help!");
-    }
 }
 
 void setup()

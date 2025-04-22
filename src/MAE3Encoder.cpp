@@ -31,8 +31,8 @@ static void encoderInterruptHandler3()
 static void (*interruptHandlers[4])() = {encoderInterruptHandler0, encoderInterruptHandler1, encoderInterruptHandler2,
                                          encoderInterruptHandler3};
 
-// doubleing-point map function
-double mapf(double x, double in_min, double in_max, double out_min, double out_max)
+// Floating-point map function
+float mapf(float x, float in_min, float in_max, float out_min, float out_max)
 {
     return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
 }
@@ -125,10 +125,10 @@ bool MAE3Encoder::update()
     uint32_t filteredPulse = medianFilter();
 
     // Update position and velocity
-    double newPosition = filteredPulse * PULSE_TO_DEGREE;
+    float newPosition = filteredPulse * PULSE_TO_DEGREE;
 
     // Check if position change exceeds threshold
-    double positionChange = abs(newPosition - lastValidPosition);
+    float positionChange = abs(newPosition - lastValidPosition);
 
     // Handle wrap-around at 0/360 degrees
     if (positionChange > 180.0f)
@@ -140,19 +140,19 @@ bool MAE3Encoder::update()
     if (positionChange >= POSITION_THRESHOLD)
     {
         unsigned long currentTime = micros();
-        double        deltaTime   = (currentTime - velocityUpdateTime) * 1e-6f;
+        float         deltaTime   = (currentTime - velocityUpdateTime) * 1e-6f;
 
         if (deltaTime > 0)
         {
             // Calculate velocity based on the shortest path
-            double shortestPath = positionChange;
+            float shortestPath = positionChange;
             if (abs(newPosition - lastValidPosition) > 180.0f)
             {
                 shortestPath = 360.0f - shortestPath;
             }
 
             // Determine direction of movement
-            double direction = (newPosition > lastValidPosition) ? 1.0f : -1.0f;
+            float direction = (newPosition > lastValidPosition) ? 1.0f : -1.0f;
             if (abs(newPosition - lastValidPosition) > 180.0f)
             {
                 direction *= -1.0f;

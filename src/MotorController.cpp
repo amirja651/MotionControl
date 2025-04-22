@@ -12,10 +12,10 @@ MotorController::MotorController(String name, DriverConfig dc)
       enPin(dc.enPin),
 
       runCurrent(200),    // Default 1000mA
-      holdCurrent(200),   // Default 500mA
-      speed(200),         // Default 1000 steps/sec
+      holdCurrent(100),   // Default 500mA
+      speed(500),         // Default 1000 steps/sec
       acceleration(500),  // Default 1000 steps/sec²
-      maxSpeed(250),
+      maxSpeed(500),
       maxAcceleration(1000),
       maxDeceleration(1000),
 
