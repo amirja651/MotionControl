@@ -37,13 +37,11 @@ void MotorController::begin()
     digitalWrite(dirPin, LOW);
 
     pinMode(enPin, OUTPUT);
-    digitalWrite(enPin, HIGH);
+    disable();
 
     driver.begin();
 
     configureDriver();
-
-    digitalWrite(enPin, LOW);
 
     optimizeForPancake();
 }
@@ -77,12 +75,14 @@ void MotorController::moveForward()
 {
     isMoving = true;
     digitalWrite(dirPin, HIGH);
+    enable();
 }
 
 void MotorController::moveReverse()
 {
     isMoving = true;
     digitalWrite(dirPin, LOW);
+    enable();
 }
 
 void MotorController::stop()
@@ -100,6 +100,7 @@ void MotorController::stop()
 
     driver.ihold(holdCurrent);  // Reduce to hold current
     isMoving = false;
+    disable();
 }
 
 void MotorController::update() {}
@@ -240,4 +241,14 @@ void MotorController::step()
         digitalWrite(stepPin, LOW);
         delayMicroseconds(160);
     }
+}
+
+void MotorController::enable()
+{
+    digitalWrite(enPin, LOW);
+}
+
+void MotorController::disable()
+{
+    digitalWrite(enPin, HIGH);
 }

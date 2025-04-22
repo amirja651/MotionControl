@@ -128,7 +128,7 @@ bool MAE3Encoder::update()
     float newPosition = filteredPulse * PULSE_TO_DEGREE;
 
     // Check if position change exceeds threshold
-    float positionChange = abs(newPosition - lastValidPosition);
+    float positionChange = fabs(newPosition - lastValidPosition);
 
     // Handle wrap-around at 0/360 degrees
     if (positionChange > 180.0f)
@@ -146,14 +146,14 @@ bool MAE3Encoder::update()
         {
             // Calculate velocity based on the shortest path
             float shortestPath = positionChange;
-            if (abs(newPosition - lastValidPosition) > 180.0f)
+            if (fabs(newPosition - lastValidPosition) > 180.0f)
             {
                 shortestPath = 360.0f - shortestPath;
             }
 
             // Determine direction of movement
             float direction = (newPosition > lastValidPosition) ? 1.0f : -1.0f;
-            if (abs(newPosition - lastValidPosition) > 180.0f)
+            if (fabs(newPosition - lastValidPosition) > 180.0f)
             {
                 direction *= -1.0f;
             }

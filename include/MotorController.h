@@ -47,6 +47,8 @@ public:
     bool testCommunication();              // Performs a basic SPI communication test
     void configureDriver();                // Configure driver parameters
     void optimizeForPancake();             // Optimize the motor controller for pancake motor
+    void enable();                         // Enable the motor controller
+    void disable();                        // Disable the motor controller
 
     // Pin assignments
     const uint8_t csPin;    // Chip select pin

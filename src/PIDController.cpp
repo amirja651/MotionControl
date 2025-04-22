@@ -23,7 +23,7 @@ double PIDController::getTarget() const
 
 double PIDController::getPositionError(double currentPosition) const
 {
-    double positionError = abs(currentPosition - setpoint);
+    double positionError = fabs(currentPosition - setpoint);
 
     // Handle wrap-around at 0/360 degrees
     if (positionError > 180.0f)

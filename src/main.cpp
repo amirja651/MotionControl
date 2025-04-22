@@ -38,7 +38,7 @@ uint8_t _motorIndex = 0;
 // Task for updating motor states
 void motorUpdateTask0(void* pvParameters)
 {
-    const TickType_t xFrequency    = pdMS_TO_TICKS(10);  // Changed from 1ms to 10ms
+    const TickType_t xFrequency    = pdMS_TO_TICKS(5);  // Changed from 1ms to 10ms
     TickType_t       xLastWakeTime = xTaskGetTickCount();
 
     while (1)
@@ -46,10 +46,8 @@ void motorUpdateTask0(void* pvParameters)
         double currentPosition = encoders[0].getPositionDegrees();
         // Serial.println(currentPosition);
         double positionError = pids[0].getPositionError(currentPosition);
-        if (positionError > 0)
-            Serial.println(positionError);
 
-        if (positionError > 0.2)
+        if (positionError > 0.5)
         {
             motors[0].step();
             encoders[0].update();
@@ -60,6 +58,10 @@ void motorUpdateTask0(void* pvParameters)
             (pids[0].output > 0)   ? motors[0].moveForward()
             : (pids[0].output < 0) ? motors[0].moveReverse()
                                    : motors[0].stop();
+        }
+        else
+        {
+            motors[0].stop();
         }
 
         taskYIELD();
@@ -158,10 +160,19 @@ void showMotorStatus(uint8_t motorIndex)
         positionError = 360.0 - positionError;
     }
 
-    if (positionError != 0.0)
+    if (positionError > 0.5)
     {
-        Log.noticeln(F("Position: %s°, Target: %s°, Error: %s°"), String(currentPosition).c_str(),
-                     String(targetPosition).c_str(), String(positionError).c_str());
+        Serial.printf("Position: %.2f°, Target: %.2f°, Error: %.2f°\n", currentPosition, targetPosition, positionError);
+        lastShowMotorStatus[0] = false;
+    }
+    else
+    {
+        if (!lastShowMotorStatus[0])
+        {
+            Log.noticeln(F("Position: %s°, Target: %s°, Error: %s°"), String(currentPosition).c_str(),
+                         String(targetPosition).c_str(), String(positionError).c_str());
+            lastShowMotorStatus[0] = true;
+        }
     }
 }
 
@@ -173,21 +184,7 @@ void showStatus()
     }
     else
     {
-        double currentPosition = encoders[0].getPositionDegrees();
-        double positionError   = pids[0].getPositionError(currentPosition);
         showMotorStatus(0);
-
-        if (positionError > 0.2)
-        {
-            lastShowMotorStatus[0] = false;
-        }
-        else
-        {
-            if (!lastShowMotorStatus[0])
-            {
-                lastShowMotorStatus[0] = true;
-            }
-        }
     }
 }
 
