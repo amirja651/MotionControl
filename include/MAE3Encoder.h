@@ -9,7 +9,6 @@ public:
     // Constants
     static constexpr uint32_t MIN_PULSE_WIDTH    = 5;     // Minimum valid pulse width in microseconds
     static constexpr uint32_t MAX_PULSE_WIDTH    = 4121;  // Maximum valid pulse width in microseconds
-    static constexpr float    POSITION_THRESHOLD = 0.1f;  // Minimum position change in degrees
     static constexpr uint32_t FILTER_SIZE        = 4;     // Size of the median filter
     static constexpr float    PULSE_TO_DEGREE    = 360.0f / MAX_PULSE_WIDTH;  // Conversion factor
     static constexpr float    DEGREE_TO_PULSE    = MAX_PULSE_WIDTH / 360.0f;  // Conversion factor

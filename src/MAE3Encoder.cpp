@@ -137,7 +137,7 @@ bool MAE3Encoder::update()
     }
 
     // Only update if position change exceeds threshold
-    if (positionChange >= POSITION_THRESHOLD)
+    if (positionChange >= 0.1f)
     {
         unsigned long currentTime = micros();
         float         deltaTime   = (currentTime - velocityUpdateTime) * 1e-6f;
