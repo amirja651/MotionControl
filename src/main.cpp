@@ -14,6 +14,8 @@ static bool lastShowMotorStatus[3] = {false, false, false};
 static bool lastShowMotorStatus[4] = {false, false, false, false};
 #endif
 
+MAE3Encoder2 encoder2(36, 36, 0);  // signalPin, interruptPin, encoderId
+
 // Task handles
 TaskHandle_t motorUpdateTaskHandle0 = NULL;
 TaskHandle_t serialReadTaskHandle0  = NULL;
@@ -189,8 +191,6 @@ void showStatus()
     }
 }
 
-MAE3Encoder2 encoder2(36, 36, 0);  // signalPin, interruptPin, encoderId
-
 // Task for handling serial input and PID tuning
 void serialTask(void* pvParameters)
 {
@@ -206,34 +206,37 @@ void serialTask(void* pvParameters)
         // notice status periodically (every 800ms)
         if (millis() - lastnoticeTime >= 800)
         {
-            if (encoder2.update())
+            if (0)
             {
-                // Get current state
-                const auto& state = encoder2.getState();
-
-                // Access data
-                float     position      = encoder2.getPositionDegrees();
-                float     totalRotation = encoder2.getTotalRotationDegrees();
-                float     velocity      = encoder2.getVelocityDPS();
-                Direction dir           = state.direction;
-
-                Serial.printf(
-                    "currentPulse: %d°, totalPulses: %d°, laps: %d°, Position: %.2f°, Total Rotation: %.2f°, Velocity: "
-                    "%.2f°/s, Direction: %s\n",
-                    state.currentPulse, state.totalPulses, state.laps, position, totalRotation, velocity,
-                    dir == Direction::CLOCKWISE ? "Clockwise" : "Counterclockwise");
-                // Check for errors
-                if (state.error != EncoderError::NONE)
+                if (encoder2.update())
                 {
-                    // Handle error
-                    /*Serial.printf("Encoder error: %s\n",
-                                  state.error == EncoderError::INVALID_PULSE_WIDTH ? "Invalid pulse width"
-                                  : state.error == EncoderError::SIGNAL_LOST       ? "Signal lost"
-                                  : state.error == EncoderError::NOISE_DETECTED    ? "Noise detected"
-                                                                                   : "Unknown error");*/
+                    // Get current state
+                    const auto& state = encoder2.getState();
+
+                    // Access data
+                    float     position      = encoder2.getPositionDegrees();
+                    float     totalRotation = encoder2.getTotalRotationDegrees();
+                    float     velocity      = encoder2.getVelocityDPS();
+                    Direction dir           = state.direction;
+
+                    Serial.printf(
+                        "currentPulse: %d°, totalPulses: %d°, laps: %d°, Position: %.2f°, Total Rotation: %.2f°, "
+                        "Velocity: "
+                        "%.2f°/s, Direction: %s\n",
+                        state.currentPulse, state.totalPulses, state.laps, position, totalRotation, velocity,
+                        dir == Direction::CLOCKWISE ? "Clockwise" : "Counterclockwise");
+                    // Check for errors
+                    if (state.error != EncoderError::NONE)
+                    {
+                        // Handle error
+                        /*Serial.printf("Encoder error: %s\n",
+                                      state.error == EncoderError::INVALID_PULSE_WIDTH ? "Invalid pulse width"
+                                      : state.error == EncoderError::SIGNAL_LOST       ? "Signal lost"
+                                      : state.error == EncoderError::NOISE_DETECTED    ? "Noise detected"
+                                                                                       : "Unknown error");*/
+                    }
                 }
             }
-
             showStatus();
             lastnoticeTime = millis();
         }
@@ -270,7 +273,7 @@ void setup()
 
     initializeSystem();
     initializeCLI();
-    encoder2.begin();
+    // encoder2.begin();
     xTaskCreate(motorUpdateTask0, "MotorUpdateTask0", 4096, NULL, 3, &motorUpdateTaskHandle0);
     xTaskCreate(serialTask, "SerialReadTask0", 4096, NULL, 3, &serialReadTaskHandle0);
 }

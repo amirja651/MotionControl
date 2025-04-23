@@ -7,25 +7,25 @@ namespace CONFIG
 {
     struct MOTOR
     {
-        static const uint8_t DIR1 = ESP32W::RIGHTPINS::GPIO17;
-        static const uint8_t DIR2 = ESP32W::RIGHTPINS::GPIO16;
+        static const uint8_t DIR1 = ESP32W::RIGHTPINS::GPIO22;
+        static const uint8_t DIR2 = ESP32W::RIGHTPINS::GPIO15;
         static const uint8_t DIR3 = ESP32W::LEFTPINS::GPIO32;
-        static const uint8_t DIR4 = ESP32W::LEFTPINS::GPIO13;
+        static const uint8_t DIR4 = ESP32W::LEFTPINS::GPIO27;
 
-        static const uint8_t STEP1 = ESP32W::RIGHTPINS::GPIO5;
-        static const uint8_t STEP2 = ESP32W::RIGHTPINS::GPIO4;
+        static const uint8_t STEP1 = ESP32W::RIGHTPINS::GPIO21;
+        static const uint8_t STEP2 = ESP32W::RIGHTPINS::GPIO2;
         static const uint8_t STEP3 = ESP32W::LEFTPINS::GPIO33;
-        static const uint8_t STEP4 = ESP32W::LEFTPINS::GPIO12;
+        static const uint8_t STEP4 = ESP32W::LEFTPINS::GPIO14;
 
-        static const uint8_t EN1 = ESP32W::RIGHTPINS::GPIO21;
-        static const uint8_t EN2 = ESP32W::RIGHTPINS::GPIO2;
-        static const uint8_t EN3 = ESP32W::LEFTPINS::GPIO25;
-        static const uint8_t EN4 = ESP32W::LEFTPINS::GPIO14;
+        static const uint8_t CS1 = ESP32W::RIGHTPINS::GPIO5;
+        static const uint8_t CS2 = ESP32W::RIGHTPINS::GPIO4;
+        static const uint8_t CS3 = ESP32W::LEFTPINS::GPIO25;
+        static const uint8_t CS4 = ESP32W::LEFTPINS::GPIO13;
 
-        static const uint8_t CS1 = ESP32W::RIGHTPINS::GPIO22;
-        static const uint8_t CS2 = ESP32W::RIGHTPINS::GPIO15;
-        static const uint8_t CS3 = ESP32W::LEFTPINS::GPIO26;
-        static const uint8_t CS4 = ESP32W::LEFTPINS::GPIO27;
+        static const uint8_t EN1 = ESP32W::RIGHTPINS::GPIO17;
+        static const uint8_t EN2 = ESP32W::RIGHTPINS::GPIO16;
+        static const uint8_t EN3 = ESP32W::LEFTPINS::GPIO26;
+        static const uint8_t EN4 = ESP32W::LEFTPINS::GPIO12;
     };
 
     struct ENCODER
