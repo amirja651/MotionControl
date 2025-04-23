@@ -16,14 +16,16 @@ static void IRAM_ATTR staticInterruptHandler()
     }
 }
 
-MAE3Encoder2::MAE3Encoder2(uint8_t signalPin, uint8_t interruptPin, uint8_t encoderId)
+MAE3Encoder2::MAE3Encoder2(uint8_t signalPin, uint8_t interruptPin, uint8_t encoderId, EncoderResolution resolution)
     : signalPin(signalPin),
       interruptPin(interruptPin),
       encoderId(encoderId),
       state{},
       lastPulseTime(0),
       newPulseAvailable(false),
-      pulseStartTime(0)
+      pulseStartTime(0),
+      resolution(resolution),
+      constants(getConstants(resolution))
 {
 }
 
@@ -65,24 +67,47 @@ void MAE3Encoder2::processInterrupt()
     {
         // Calculate t_on and total period
         uint32_t t_on         = currentTime - pulseStartTime;
-        uint32_t total_period = PULSE_PERIOD;  // 4098 μs
+        uint32_t total_period = constants.PULSE_PERIOD;
 
-        // Implement the PWM formula: x = ((t_on * 4098) / (t_on + t_off)) - 1
-        uint32_t x = ((t_on * PULSE_PERIOD) / total_period) - 1;
-
-        // Apply position mapping rules
+        // Implement PWM formula based on resolution
         uint32_t position;
-        if (x <= 4094)
+        if (resolution == EncoderResolution::BITS_10)
         {
-            position = x;
-        }
-        else if (x == 4096)
-        {
-            position = 4095;
+            // 10-bit PWM formula: x = ((t_on * 1026) / (t_on + t_off)) - 1
+            uint32_t x = ((t_on * constants.PULSE_PERIOD) / total_period) - 1;
+
+            // Apply 10-bit position mapping rules
+            if (x <= 1022)
+            {
+                position = x;
+            }
+            else if (x == 1024)
+            {
+                position = 1023;
+            }
+            else
+            {
+                position = x;
+            }
         }
         else
         {
-            position = x;
+            // 12-bit PWM formula: x = ((t_on * 4098) / (t_on + t_off)) - 1
+            uint32_t x = ((t_on * constants.PULSE_PERIOD) / total_period) - 1;
+
+            // Apply 12-bit position mapping rules
+            if (x <= 4094)
+            {
+                position = x;
+            }
+            else if (x == 4096)
+            {
+                position = 4095;
+            }
+            else
+            {
+                position = x;
+            }
         }
 
         state.currentPulse = position;
@@ -97,7 +122,9 @@ bool MAE3Encoder2::update()
         return false;
     }
 
-    if (std::abs(static_cast<int32_t>(state.currentPulse - state.lastPulse)) < 6)
+    // Adjust noise threshold based on resolution (0.6% of full scale)
+    uint32_t noiseThreshold = constants.PULSE_PER_REV * 6 / 1000;
+    if (std::abs(static_cast<int32_t>(state.currentPulse - state.lastPulse)) < noiseThreshold)
     {
         return false;
     }
@@ -111,7 +138,8 @@ bool MAE3Encoder2::update()
         // Check for clockwise lap completion
         if (newDirection == Direction::CLOCKWISE)
         {
-            if (state.lastPulse > (PULSE_PER_REV * 3 / 4) && state.currentPulse < (PULSE_PER_REV / 4))
+            if (state.lastPulse > (constants.PULSE_PER_REV * 3 / 4) &&
+                state.currentPulse < (constants.PULSE_PER_REV / 4))
             {
                 state.laps++;
             }
@@ -119,7 +147,8 @@ bool MAE3Encoder2::update()
         // Check for counter-clockwise lap completion
         else if (newDirection == Direction::COUNTER_CLOCKWISE)
         {
-            if (state.lastPulse < (PULSE_PER_REV / 4) && state.currentPulse > (PULSE_PER_REV * 3 / 4))
+            if (state.lastPulse < (constants.PULSE_PER_REV / 4) &&
+                state.currentPulse > (constants.PULSE_PER_REV * 3 / 4))
             {
                 state.laps--;
             }
@@ -135,7 +164,8 @@ bool MAE3Encoder2::update()
 
 Direction MAE3Encoder2::detectDirection()
 {
-    if (std::abs(static_cast<int32_t>(state.currentPulse - state.lastPulse)) < 6)
+    uint32_t noiseThreshold = constants.PULSE_PER_REV * 6 / 1000;
+    if (std::abs(static_cast<int32_t>(state.currentPulse - state.lastPulse)) < noiseThreshold)
     {
         return state.direction;
     }
@@ -145,7 +175,7 @@ Direction MAE3Encoder2::detectDirection()
     if (state.currentPulse > state.lastPulse)
     {
         diff = state.currentPulse - state.lastPulse;
-        if (diff > (PULSE_PER_REV / 2))
+        if (diff > (constants.PULSE_PER_REV / 2))
         {
             return Direction::COUNTER_CLOCKWISE;
         }
@@ -154,7 +184,7 @@ Direction MAE3Encoder2::detectDirection()
     else
     {
         diff = state.lastPulse - state.currentPulse;
-        if (diff > (PULSE_PER_REV / 2))
+        if (diff > (constants.PULSE_PER_REV / 2))
         {
             return Direction::CLOCKWISE;
         }

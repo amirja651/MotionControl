@@ -16,7 +16,7 @@ static bool lastShowMotorStatus[3] = {false, false, false};
 static bool lastShowMotorStatus[4] = {false, false, false, false};
 #endif
 
-MAE3Encoder2 encoder2(36, 36, 0);  // signalPin, interruptPin, encoderId
+MAE3Encoder2 encoder2(36, 36, 0, EncoderResolution::BITS_12);  // signalPin, interruptPin, encoderId
 
 // Task handles
 TaskHandle_t motorUpdateTaskHandle0 = NULL;

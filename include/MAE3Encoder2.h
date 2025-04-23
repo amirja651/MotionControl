@@ -8,12 +8,40 @@
 // Maximum number of encoders supported
 constexpr uint8_t MAX_ENCODERS = 4;
 
-// Constants for MAE3-P10-157-220-12-1
-constexpr uint32_t MIN_PULSE_WIDTH   = 1;     // Minimum valid pulse width in microseconds
-constexpr uint32_t MAX_PULSE_WIDTH   = 4098;  // Maximum valid pulse width in microseconds
-constexpr uint32_t PULSE_PERIOD      = 4098;  // Total period in microseconds
-constexpr uint32_t PULSE_PER_REV     = 4096;  // 12-bit resolution (2^12)
-constexpr float    DEGREES_PER_PULSE = 360.0f / PULSE_PER_REV;
+// Encoder resolution configuration
+enum class EncoderResolution
+{
+    BITS_10 = 10,
+    BITS_12 = 12
+};
+
+// Constants for both 10-bit and 12-bit versions
+struct EncoderConstants
+{
+    uint32_t MIN_PULSE_WIDTH;  // Minimum valid pulse width in microseconds
+    uint32_t MAX_PULSE_WIDTH;  // Maximum valid pulse width in microseconds
+    uint32_t PULSE_PERIOD;     // Total period in microseconds
+    uint32_t PULSE_PER_REV;    // Resolution (1024 for 10-bit, 4096 for 12-bit)
+    float    PWM_FREQUENCY;    // PWM frequency in kHz
+};
+
+// Constants for 10-bit encoder (MAE3-P10)
+constexpr EncoderConstants ENCODER_10BIT = {
+    .MIN_PULSE_WIDTH = 1,      // 1 μs
+    .MAX_PULSE_WIDTH = 1025,   // 1025 μs
+    .PULSE_PERIOD    = 1026,   // Total period
+    .PULSE_PER_REV   = 1024,   // 10-bit resolution (2^10)
+    .PWM_FREQUENCY   = 0.975f  // 975 Hz
+};
+
+// Constants for 12-bit encoder (MAE3-P12)
+constexpr EncoderConstants ENCODER_12BIT = {
+    .MIN_PULSE_WIDTH = 1,      // 1 μs
+    .MAX_PULSE_WIDTH = 4098,   // 4098 μs
+    .PULSE_PERIOD    = 4098,   // Total period
+    .PULSE_PER_REV   = 4096,   // 12-bit resolution (2^12)
+    .PWM_FREQUENCY   = 0.244f  // 244 Hz
+};
 
 // Linear motion constants
 constexpr float    LEAD_SCREW_PITCH = 0.5f;   // Lead screw pitch in mm
@@ -22,7 +50,7 @@ constexpr uint8_t  MICROSTEPS       = 16;     // Microstepping configuration
 constexpr uint16_t STEPS_PER_REV    = 200;    // Motor steps per revolution
 
 // Calculate linear distance per pulse
-constexpr float MM_PER_PULSE = LEAD_SCREW_PITCH / (PULSE_PER_REV * MICROSTEPS);
+constexpr float MM_PER_PULSE = LEAD_SCREW_PITCH / (ENCODER_10BIT.PULSE_PER_REV * MICROSTEPS);
 constexpr float UM_PER_PULSE = MM_PER_PULSE * 1000.0f;  // Convert to micrometers
 
 // Direction enum
@@ -35,7 +63,7 @@ enum class Direction
 
 struct EncoderState
 {
-    uint32_t  currentPulse;  // Current pulse value (0-4095)
+    uint32_t  currentPulse;  // Current pulse value
     int32_t   laps;          // Number of complete rotations
     Direction direction;     // Current direction of rotation
     uint32_t  lastPulse;     // Last valid pulse value
@@ -49,8 +77,10 @@ public:
      * @param signalPin GPIO pin connected to encoder PWM output
      * @param interruptPin GPIO pin for interrupt
      * @param encoderId Unique identifier for this encoder (0-3)
+     * @param resolution Encoder resolution (10-bit or 12-bit)
      */
-    MAE3Encoder2(uint8_t signalPin, uint8_t interruptPin, uint8_t encoderId);
+    MAE3Encoder2(uint8_t signalPin, uint8_t interruptPin, uint8_t encoderId,
+                 EncoderResolution resolution = EncoderResolution::BITS_10);
 
     /**
      * @brief Initialize the encoder
@@ -79,7 +109,7 @@ public:
      */
     float getPositionDegrees() const
     {
-        return state.currentPulse * DEGREES_PER_PULSE;
+        return state.currentPulse * getDegreesPerPulse();
     }
 
     /**
@@ -154,6 +184,22 @@ private:
     // Interrupt handling
     volatile bool          newPulseAvailable;
     volatile unsigned long pulseStartTime;
+
+    // Encoder configuration
+    const EncoderResolution resolution;
+    const EncoderConstants& constants;
+
+    // Helper method to get constants based on resolution
+    static const EncoderConstants& getConstants(EncoderResolution res)
+    {
+        return (res == EncoderResolution::BITS_10) ? ENCODER_10BIT : ENCODER_12BIT;
+    }
+
+    // Calculate degrees per pulse based on resolution
+    float getDegreesPerPulse() const
+    {
+        return 360.0f / constants.PULSE_PER_REV;
+    }
 };
 
 #endif  // MAE3_ENCODER2_H
