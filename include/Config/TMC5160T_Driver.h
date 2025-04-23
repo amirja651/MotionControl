@@ -20,12 +20,12 @@ namespace CONFIG
         static const uint8_t CS1 = ESP32W::RIGHTPINS::GPIO5;
         static const uint8_t CS2 = ESP32W::RIGHTPINS::GPIO4;
         static const uint8_t CS3 = ESP32W::LEFTPINS::GPIO25;
-        static const uint8_t CS4 = ESP32W::LEFTPINS::GPIO13;
+        static const uint8_t CS4 = ESP32W::LEFTPINS::GPIO12;
 
         static const uint8_t EN1 = ESP32W::RIGHTPINS::GPIO17;
         static const uint8_t EN2 = ESP32W::RIGHTPINS::GPIO16;
         static const uint8_t EN3 = ESP32W::LEFTPINS::GPIO26;
-        static const uint8_t EN4 = ESP32W::LEFTPINS::GPIO12;
+        static const uint8_t EN4 = ESP32W::LEFTPINS::GPIO13;
     };
 
     struct ENCODER
