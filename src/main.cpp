@@ -4,6 +4,8 @@
 #include "MAE3Encoder2.h"
 #include "ObjectInstances.h"
 
+#define ENCODER_TEST 1
+
 #if NUM_MOTORS == 1
 static bool lastShowMotorStatus[1] = {false};
 #elif NUM_MOTORS == 2
@@ -46,27 +48,29 @@ void motorUpdateTask0(void* pvParameters)
 
     while (1)
     {
-        double currentPosition = encoders[0].getPositionDegrees();
-        // Serial.println(currentPosition);
-        double positionError = pids[0].getPositionError(currentPosition);
-
-        if (positionError > 0.5)
+        if (!ENCODER_TEST)
         {
-            motors[0].step();
-            encoders[0].update();
-            currentPosition = encoders[0].getPositionDegrees();
-            pids[0].setInput(currentPosition);
-            pids[0].pid->Compute();
+            double currentPosition = encoders[0].getPositionDegrees();
+            // Serial.println(currentPosition);
+            double positionError = pids[0].getPositionError(currentPosition);
 
-            (pids[0].output > 0)   ? motors[0].moveForward()
-            : (pids[0].output < 0) ? motors[0].moveReverse()
-                                   : motors[0].stop();
-        }
-        else
-        {
-            motors[0].stop();
-        }
+            if (positionError > 0.5)
+            {
+                motors[0].step();
+                encoders[0].update();
+                currentPosition = encoders[0].getPositionDegrees();
+                pids[0].setInput(currentPosition);
+                pids[0].pid->Compute();
 
+                (pids[0].output > 0)   ? motors[0].moveForward()
+                : (pids[0].output < 0) ? motors[0].moveReverse()
+                                       : motors[0].stop();
+            }
+            else
+            {
+                motors[0].stop();
+            }
+        }
         taskYIELD();
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }
@@ -190,6 +194,7 @@ void showStatus()
         showMotorStatus(0);
     }
 }
+float lastPosition = 0;
 
 // Task for handling serial input and PID tuning
 void serialTask(void* pvParameters)
@@ -204,9 +209,9 @@ void serialTask(void* pvParameters)
         parseCLIInput();
 
         // notice status periodically (every 800ms)
-        if (millis() - lastnoticeTime >= 800)
+        if (millis() - lastnoticeTime >= 50)
         {
-            if (0)
+            if (ENCODER_TEST)
             {
                 if (encoder2.update())
                 {
@@ -215,29 +220,27 @@ void serialTask(void* pvParameters)
 
                     // Access data
                     float     position      = encoder2.getPositionDegrees();
-                    float     totalRotation = encoder2.getTotalRotationDegrees();
-                    float     velocity      = encoder2.getVelocityDPS();
                     Direction dir           = state.direction;
+                    float     totalTravelMM = encoder2.getTotalTravelMM();
+                    float     positionUM    = encoder2.getPositionUM();
 
-                    Serial.printf(
-                        "currentPulse: %d°, totalPulses: %d°, laps: %d°, Position: %.2f°, Total Rotation: %.2f°, "
-                        "Velocity: "
-                        "%.2f°/s, Direction: %s\n",
-                        state.currentPulse, state.totalPulses, state.laps, position, totalRotation, velocity,
-                        dir == Direction::CLOCKWISE ? "Clockwise" : "Counterclockwise");
-                    // Check for errors
-                    if (state.error != EncoderError::NONE)
+                    if (fabs(position - lastPosition) > 1)
                     {
-                        // Handle error
-                        /*Serial.printf("Encoder error: %s\n",
-                                      state.error == EncoderError::INVALID_PULSE_WIDTH ? "Invalid pulse width"
-                                      : state.error == EncoderError::SIGNAL_LOST       ? "Signal lost"
-                                      : state.error == EncoderError::NOISE_DETECTED    ? "Noise detected"
-                                                                                       : "Unknown error");*/
+                        Serial.printf(
+                            "Current P: %d,   Laps: %d,   Position: %.2f°,    Direction: %s,   Total Travel: %.3f "
+                            "mm,   Position: %.2f um\n\n\n\n\n\n\n\n\n\n\n\n",
+                            state.currentPulse, state.laps, position, dir == Direction::CLOCKWISE ? "CW" : "CCW",
+                            totalTravelMM, positionUM);
+                        lastPosition = position;
                     }
                 }
             }
-            showStatus();
+
+            if (!ENCODER_TEST)
+            {
+                showStatus();
+            }
+
             lastnoticeTime = millis();
         }
 
@@ -273,7 +276,10 @@ void setup()
 
     initializeSystem();
     initializeCLI();
-    // encoder2.begin();
+    if (ENCODER_TEST)
+    {
+        encoder2.begin();
+    }
     xTaskCreate(motorUpdateTask0, "MotorUpdateTask0", 4096, NULL, 3, &motorUpdateTaskHandle0);
     xTaskCreate(serialTask, "SerialReadTask0", 4096, NULL, 3, &serialReadTaskHandle0);
 }

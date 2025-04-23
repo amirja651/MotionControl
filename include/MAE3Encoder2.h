@@ -15,15 +15,15 @@ constexpr uint32_t PULSE_PERIOD      = 4098;  // Total period in microseconds
 constexpr uint32_t PULSE_PER_REV     = 4096;  // 12-bit resolution (2^12)
 constexpr float    DEGREES_PER_PULSE = 360.0f / PULSE_PER_REV;
 
-// Error codes
-enum class EncoderError
-{
-    NONE,
-    INVALID_PULSE_WIDTH,
-    SIGNAL_LOST,
-    NOISE_DETECTED,
-    COMMUNICATION_ERROR
-};
+// Linear motion constants
+constexpr float    LEAD_SCREW_PITCH = 0.5f;   // Lead screw pitch in mm
+constexpr float    TOTAL_TRAVEL_MM  = 30.0f;  // Total travel distance in mm
+constexpr uint8_t  MICROSTEPS       = 16;     // Microstepping configuration
+constexpr uint16_t STEPS_PER_REV    = 200;    // Motor steps per revolution
+
+// Calculate linear distance per pulse
+constexpr float MM_PER_PULSE = LEAD_SCREW_PITCH / (PULSE_PER_REV * MICROSTEPS);
+constexpr float UM_PER_PULSE = MM_PER_PULSE * 1000.0f;  // Convert to micrometers
 
 // Direction enum
 enum class Direction
@@ -35,13 +35,10 @@ enum class Direction
 
 struct EncoderState
 {
-    uint32_t      currentPulse;    // Current pulse value (0-4095)
-    uint32_t      totalPulses;     // Total number of pulses since start
-    int32_t       laps;            // Number of complete rotations
-    Direction     direction;       // Current direction of rotation
-    EncoderError  error;           // Current error state
-    uint32_t      lastValidPulse;  // Last valid pulse value
-    unsigned long lastUpdateTime;  // Timestamp of last update
+    uint32_t  currentPulse;  // Current pulse value (0-4095)
+    int32_t   laps;          // Number of complete rotations
+    Direction direction;     // Current direction of rotation
+    uint32_t  lastPulse;     // Last valid pulse value
 };
 
 class MAE3Encoder2
@@ -86,30 +83,41 @@ public:
     }
 
     /**
-     * @brief Get total rotation in degrees (including multiple laps)
-     * @return Total rotation in degrees
+     * @brief Get current position in millimeters
+     * @return Current position in millimeters
      */
-    float getTotalRotationDegrees() const
+    float getPositionMM() const
     {
-        return (state.laps * 360.0f) + getPositionDegrees();
+        return state.currentPulse * MM_PER_PULSE;
     }
 
     /**
-     * @brief Get current velocity in degrees per second
-     * @return Current velocity in degrees per second
+     * @brief Get current position in micrometers
+     * @return Current position in micrometers
      */
-    float getVelocityDPS() const
+    float getPositionUM() const
     {
-        return velocityDPS;
+        return state.currentPulse * UM_PER_PULSE;
     }
 
     /**
-     * @brief Get current error state
-     * @return Current error code
+     * @brief Get total travel distance in millimeters (including multiple laps)
+     * @return Total travel distance in millimeters
      */
-    EncoderError getError() const
+    float getTotalTravelMM() const
     {
-        return state.error;
+        float totalDistance = (state.laps * LEAD_SCREW_PITCH) + getPositionMM();
+        // Ensure we don't exceed total travel
+        return std::min(totalDistance, TOTAL_TRAVEL_MM);
+    }
+
+    /**
+     * @brief Get total travel distance in micrometers (including multiple laps)
+     * @return Total travel distance in micrometers
+     */
+    float getTotalTravelUM() const
+    {
+        return getTotalTravelMM() * 1000.0f;
     }
 
     /**
@@ -127,11 +135,7 @@ private:
     uint32_t medianFilter();
 
     // Direction detection
-    Direction detectDirection(uint32_t newPulse);
-
-    // Error detection and handling
-    bool validatePulse(uint32_t pulse);
-    void handleError(EncoderError error);
+    Direction detectDirection();
 
     // Performance optimization
     void optimizeInterrupt();
@@ -143,20 +147,11 @@ private:
 
     // State management
     EncoderState state;
-    float        velocityDPS;
 
     // Filtering and timing
-    std::array<uint32_t, 5> pulseFilter;  // Median filter buffer
-    uint8_t                 filterIndex;
-    unsigned long           lastPulseTime;
-    unsigned long           lastVelocityUpdate;
-
-    // Performance monitoring
-    uint32_t errorCount;
-    uint32_t validPulseCount;
+    unsigned long lastPulseTime;
 
     // Interrupt handling
-    volatile uint32_t      currentPulseWidth;
     volatile bool          newPulseAvailable;
     volatile unsigned long pulseStartTime;
 };
