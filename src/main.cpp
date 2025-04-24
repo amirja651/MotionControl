@@ -1,5 +1,6 @@
 #include <ArduinoLog.h>
 #include <SimpleCLI.h>
+#include <esp_system.h>  // Add this include for esp_reset_reason
 #include "Config/TMC5160T_Driver.h"
 #include "MAE3Encoder2.h"
 #include "ObjectInstances.h"
@@ -17,6 +18,37 @@ Command cmdRestart;  // New restart command
 
 float lastPosition    = 0;
 bool  commandReceived = false;  // Safety flag to prevent accidental movement
+
+const char* getResetReasonString(esp_reset_reason_t reason)
+{
+    switch (reason)
+    {
+        case ESP_RST_UNKNOWN:
+            return "Unknown";
+        case ESP_RST_POWERON:
+            return "Power On";
+        case ESP_RST_EXT:
+            return "Reset by external pin ";
+        case ESP_RST_SW:
+            return "Software reset";
+        case ESP_RST_PANIC:
+            return "Software reset due to exception/panic";
+        case ESP_RST_INT_WDT:
+            return "Interrupt Watchdog";
+        case ESP_RST_TASK_WDT:
+            return "Task Watchdog";
+        case ESP_RST_WDT:
+            return "Other watchdogs";
+        case ESP_RST_DEEPSLEEP:
+            return "Deep Sleep";
+        case ESP_RST_BROWNOUT:
+            return "Brownout";
+        case ESP_RST_SDIO:
+            return "SDIO";
+        default:
+            return "Unknown";
+    }
+}
 
 void initializeCLI()
 {
@@ -266,6 +298,8 @@ void setup()
     Log.begin(LOG_LEVEL_VERBOSE, &Serial);
     Log.noticeln(F("System Initialization..."));
     Log.noticeln(F("CPU Frequency : %d MHz" CR), F_CPU / 1000000);
+    Log.noticeln(F("Free RAM: %d bytes"), ESP.getFreeHeap());
+    Log.noticeln(F("Reset Reason: %s"), getResetReasonString(esp_reset_reason()));
 
     initializeSystem();
     initializeCLI();
