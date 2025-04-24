@@ -65,7 +65,14 @@ void initializeSystem()
         pids[i].begin();
     }
 
-    pids[0].setOutputLimits(-180.0, 180.0);  // 180 degrees
+    if (motors[0].isRotational())
+    {
+        pids[0].setOutputLimits(-180.0, 180.0);  // 180 degrees
+    }
+    else
+    {
+        pids[0].setOutputLimits(-15000.0, 15000.0);  // 15mm
+    }
     // pids[1].setOutputLimits(-180.0, 180.0);      // 180 degrees
     // pids[2].setOutputLimits(-180.0, 180.0);      // 180 degrees
     // pids[3].setOutputLimits(-15000.0, 15000.0);  // 15mm
