@@ -77,18 +77,19 @@ void motorUpdateTask_0(void* pvParameters)
     while (1)
     {
         float  positionDegrees = encoders2[0].getPositionDegrees();
-        float  positionUM      = encoders2[0].getPositionUM();
-        float  positionMM      = encoders2[0].getPositionMM();
-        double currentPosition = motors[0].isRotational() ? positionDegrees : (isMicrometerUnit ? positionUM : positionMM);
-        double positionError   = pids[0].getPositionError(currentPosition, motors[0].isRotational());
-        double teloranceError  = motors[0].isRotational() ? 0.5 : (isMicrometerUnit ? 2 : 0.02);
+        float  totalTravelMM   = encoders2[0].getTotalTravelMM();
+        double currentPosition =
+            motors[0].isRotational() ? positionDegrees : (isMicrometerUnit ? totalTravelMM * 1000.0f : totalTravelMM);
+        double positionError  = pids[0].getPositionError(currentPosition, motors[0].isRotational());
+        double teloranceError = motors[0].isRotational() ? 0.5 : (isMicrometerUnit ? 2 : 0.002);
 
         if (positionError > teloranceError && commandReceived)  // Only move if command was received
         {
             motors[0].step();
             encoders2[0].update();
 
-            currentPosition = motors[0].isRotational() ? positionDegrees : (isMicrometerUnit ? positionUM : positionMM);
+            currentPosition =
+                motors[0].isRotational() ? positionDegrees : (isMicrometerUnit ? totalTravelMM * 1000.0f : totalTravelMM);
 
             pids[0].setInput(currentPosition);
             pids[0].pid->Compute();
@@ -245,14 +246,11 @@ void serialPrintTask(void* pvParameters)
         {
             const auto& state           = encoders2[0].getState();
             float       positionDegrees = encoders2[0].getPositionDegrees();
-            float       positionUM      = encoders2[0].getPositionUM();
-            float       positionMM      = encoders2[0].getPositionMM();
             float       totalTravelMM   = encoders2[0].getTotalTravelMM();
+            double      currentPosition =
+                motors[0].isRotational() ? positionDegrees : (isMicrometerUnit ? totalTravelMM * 1000.0f : totalTravelMM);
 
-            double currentPosition = motors[0].isRotational() ? positionDegrees : (isMicrometerUnit ? positionUM : positionMM);
-            String unit            = motors[0].isRotational() ? "°" : (isMicrometerUnit ? "um" : "mm");
-            float  travelTemp      = motors[0].isRotational() ? 0.0f : isMicrometerUnit ? totalTravelMM * 1000.0f : totalTravelMM;
-
+            String unit           = motors[0].isRotational() ? "°" : (isMicrometerUnit ? "um" : "mm");
             double targetPosition = pids[0].getTarget();
             double positionError  = pids[0].getPositionError(currentPosition, motors[0].isRotational());
             String direction      = state.direction == Direction::CLOCKWISE ? "CW" : "CCW";
@@ -260,10 +258,9 @@ void serialPrintTask(void* pvParameters)
             if (fabs(currentPosition - lastPosition) > 1)
             {
                 Serial.printf(
-                    "Pulse\tLaps\tPosition (%s)\tTotal (%s)\tDirection\tTarget\tError\n"
-                    "%d\t%d\t%.2f\t\t%.2f\t\t%s\t\t%.2f\t%.2f\n\n\n\n\n\n\n\n\n\n\n\n\n\n",
-                    unit.c_str(), unit.c_str(), state.currentPulse, state.laps, currentPosition, travelTemp, direction.c_str(),
-                    targetPosition, positionError);
+                    "Pulse\tPosition (%s)\tDirection\tTarget\tError\n"
+                    "%d\t%.2f\t\t%s\t\t%.2f\t%.2f\n\n\n\n\n\n\n",
+                    unit.c_str(), state.currentPulse, currentPosition, direction.c_str(), targetPosition, positionError);
                 lastPosition = currentPosition;
             }
         }
