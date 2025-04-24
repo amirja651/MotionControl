@@ -9,7 +9,7 @@ PIDConfig pidConfig = {CONFIG::PID::KP, CONFIG::PID::KI, CONFIG::PID::KD};
 
 #if NUM_MOTORS == 1
 
-DriverConfig dc1 = {CONFIG::MOTOR::CS1, CONFIG::MOTOR::STEP1, CONFIG::MOTOR::DIR1, CONFIG::MOTOR::EN1, MotorType::ROTATIONAL};
+DriverConfig dc1 = {CONFIG::MOTOR::CS1, CONFIG::MOTOR::STEP1, CONFIG::MOTOR::DIR1, CONFIG::MOTOR::EN1, MotorType::LINEAR};
 
 MotorController motors[1] = {MotorController(MOTOR_NAME1, dc1)};
 

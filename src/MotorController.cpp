@@ -1,5 +1,6 @@
 #include "MotorController.h"
 #include <ArduinoLog.h>
+#include "Config/Motor_Specs.h"
 #include "Config/SPI.h"
 #include "Config/TMC5160T_Driver.h"
 
@@ -45,7 +46,15 @@ void MotorController::begin()
 
     configureDriver();
 
-    optimizeForPancake();
+    if (motorType == MotorType::ROTATIONAL)
+    {
+        optimizeForPancake();
+    }
+    else
+    {
+        // optimizeFor11HS13_1004H();
+        optimize2();
+    }
 }
 
 void MotorController::optimizeForPancake()
@@ -71,6 +80,125 @@ void MotorController::optimizeForPancake()
     driver.VMAX(500);    // Set maximum speed
     driver.a1(500);      // Set maximum acceleration
     driver.d1(500);      // Set maximum deceleration
+}
+
+void MotorController::optimize2()
+{
+    // Set optimal parameters for pancake motor
+    driver.intpol(true);     // Enable microstep interpolation
+    driver.sfilt(true);      // Enable StallGuard filter
+    driver.sgt(10);          // Set StallGuard threshold
+    driver.TCOOLTHRS(1000);  // Set CoolStep threshold
+
+    // Configure for high precision
+    driver.microsteps(16);  // Maximum microstepping for smooth motion
+    driver.intpol(true);    // Enable microstep interpolation
+
+    // Optimize current control
+    driver.ihold(holdCurrent * 32 / 32);  // Set hold current
+    driver.irun(runCurrent * 32 / 32);    // Set run current
+
+    driver.iholddelay(6);  // Set hold current delay
+
+    // Configure motion control
+    driver.RAMPMODE(0);  // Positioning mode for precise control
+    driver.VMAX(500);    // Set maximum speed
+    driver.a1(500);      // Set maximum acceleration
+    driver.d1(500);      // Set maximum deceleration
+}
+
+void MotorController::optimizeFor11HS13_1004H()
+{
+    // First, ensure the driver is enabled
+    enable();
+
+    // Configure current settings with proper scaling
+    driver.rms_current(1000);  // 1.0A in mA
+    driver.ihold(16);          // 0.5A (50% of run current)
+    driver.irun(32);           // 1.0A (full current)
+    driver.iholddelay(6);      // Set hold current delay
+
+    // Verify current settings
+    uint32_t irun  = driver.irun();
+    uint32_t ihold = driver.ihold();
+    Log.noticeln("Current Settings Verification:");
+    Log.noticeln("  IRUN: %d (should be 32)", irun);
+    Log.noticeln("  IHOLD: %d (should be 16)", ihold);
+
+    // Configure microstepping and interpolation
+    driver.microsteps(16);  // Use 16 microsteps for smooth motion
+    driver.intpol(true);    // Enable microstep interpolation
+
+    // Configure StallGuard and CoolStep
+    driver.sfilt(true);      // Enable StallGuard filter
+    driver.sgt(10);          // Set StallGuard threshold
+    driver.TCOOLTHRS(1000);  // Set CoolStep threshold
+
+    // Configure stealthChop for quiet operation
+    driver.TPWMTHRS(500);  // Switch to SpreadCycle above 500 steps/sec
+    driver.pwm_autoscale(true);
+    driver.pwm_autograd(true);
+    driver.pwm_ofs(36);
+    driver.pwm_grad(14);
+    driver.pwm_freq(1);
+
+    // Configure chopper for optimal performance
+    driver.toff(3);              // Set turn-off time
+    driver.blank_time(24);       // Set blank time
+    driver.hysteresis_start(5);  // Set hysteresis start
+    driver.hysteresis_end(3);    // Set hysteresis end
+
+    // Configure motion control
+    driver.RAMPMODE(0);                                                   // Positioning mode for precise control
+    driver.VMAX(CONFIG::Motor11HS13_1004H::Operation::MAX_SPEED);         // Set maximum speed
+    driver.AMAX(CONFIG::Motor11HS13_1004H::Operation::MAX_ACCELERATION);  // Set maximum acceleration
+    driver.DMAX(CONFIG::Motor11HS13_1004H::Operation::MAX_DECELERATION);  // Set maximum deceleration
+    driver.a1(CONFIG::Motor11HS13_1004H::Operation::ACCELERATION);        // Set acceleration
+    driver.v1(CONFIG::Motor11HS13_1004H::Operation::SPEED);               // Set speed
+    driver.d1(CONFIG::Motor11HS13_1004H::Operation::MAX_DECELERATION);    // Set deceleration
+    driver.VSTART(0);                                                     // Set start velocity
+    driver.VSTOP(10);                                                     // Set stop velocity
+
+    // Configure GCONF register for optimal performance
+    uint32_t gconf = 0;
+    gconf |= (1 << 0);  // Enable internal RSense
+    gconf |= (1 << 2);  // Enable stealthChop
+    gconf |= (1 << 3);  // Enable microstep interpolation
+    gconf |= (1 << 4);  // Enable double edge step
+    gconf |= (1 << 6);  // Enable multistep filtering
+    driver.GCONF(gconf);
+
+    // Set motion parameters with verification
+    driver.VMAX(1000);  // Set a reasonable speed
+    driver.AMAX(1000);  // Set a reasonable acceleration
+    driver.DMAX(1000);  // Set a reasonable deceleration
+
+    // Verify motion parameters
+    uint32_t vmax = driver.VMAX();
+    uint32_t amax = driver.AMAX();
+    Log.noticeln("Motion Parameters Verification:");
+    Log.noticeln("  VMAX: %d steps/sec", vmax);
+    Log.noticeln("  AMAX: %d steps/sec²", amax);
+
+    // Check driver status
+    uint32_t status = driver.DRV_STATUS();
+    Log.noticeln("Driver Status: 0x%08X", status);
+
+    // Check specific status bits
+    if (status & (1 << 13))
+        Log.errorln("Motor stalled");
+    if (status & (1 << 12))
+        Log.errorln("Motor overtemperature");
+    if (status & (1 << 11))
+        Log.errorln("Motor short to ground");
+    if (status & (1 << 10))
+        Log.errorln("Motor open load");
+
+    Log.noticeln("Motor Configuration:");
+    Log.noticeln("  Run Current: %d mA", driver.irun() * 31.25);
+    Log.noticeln("  Hold Current: %d mA", driver.ihold() * 31.25);
+    Log.noticeln("  Speed: %d steps/sec", driver.VMAX());
+    Log.noticeln("  Acceleration: %d steps/sec²", driver.AMAX());
 }
 
 void MotorController::moveForward()
