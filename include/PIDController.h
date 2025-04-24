@@ -14,7 +14,7 @@ struct PIDConfig
 class PIDController
 {
 public:
-    PIDController(PIDConfig config, unsigned long sampleTime = 100);
+    PIDController(PIDConfig config);
     double input;   // Process variable (current position)
     double output;  // Controller output
     PID*   pid;     // PID controller instance
@@ -22,9 +22,10 @@ public:
     void   begin();
     void   setTarget(double target);
     double getTarget() const;
-    double getPositionError(double currentPosition) const;
+    double getPositionError(double currentPosition, bool isRotational = false) const;
     void   setInput(float input);
     double getOutput() const;
+    void   setOutputLimits(double min, double max);
 
     double setpoint;  // Target position
 

@@ -3,6 +3,12 @@
 
 #include "ESP32.h"
 
+enum class MotorType
+{
+    LINEAR,
+    ROTATIONAL
+};
+
 namespace CONFIG
 {
     struct MOTOR

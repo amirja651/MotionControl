@@ -72,68 +72,33 @@ struct EncoderState
 class MAE3Encoder2
 {
 public:
-    /**
-     * @brief Constructor for MAE3Encoder2
-     * @param signalPin GPIO pin connected to encoder PWM output
-     * @param interruptPin GPIO pin for interrupt
-     * @param encoderId Unique identifier for this encoder (0-3)
-     * @param resolution Encoder resolution (10-bit or 12-bit)
-     */
     MAE3Encoder2(uint8_t signalPin, uint8_t interruptPin, uint8_t encoderId,
                  EncoderResolution resolution = EncoderResolution::BITS_10);
 
-    /**
-     * @brief Initialize the encoder
-     * @return true if initialization successful, false otherwise
-     */
     bool begin();
 
-    /**
-     * @brief Update encoder state and process new measurements
-     * @return true if update successful, false if error occurred
-     */
     bool update();
 
-    /**
-     * @brief Get current encoder state
-     * @return Current encoder state
-     */
     const EncoderState& getState() const
     {
         return state;
     }
 
-    /**
-     * @brief Get current position in degrees (0-360)
-     * @return Current position in degrees
-     */
     float getPositionDegrees() const
     {
         return state.currentPulse * getDegreesPerPulse();
     }
 
-    /**
-     * @brief Get current position in millimeters
-     * @return Current position in millimeters
-     */
     float getPositionMM() const
     {
         return state.currentPulse * MM_PER_PULSE;
     }
 
-    /**
-     * @brief Get current position in micrometers
-     * @return Current position in micrometers
-     */
     float getPositionUM() const
     {
         return state.currentPulse * UM_PER_PULSE;
     }
 
-    /**
-     * @brief Get total travel distance in millimeters (including multiple laps)
-     * @return Total travel distance in millimeters
-     */
     float getTotalTravelMM() const
     {
         float totalDistance = (state.laps * LEAD_SCREW_PITCH) + getPositionMM();
@@ -141,23 +106,13 @@ public:
         return std::min(totalDistance, TOTAL_TRAVEL_MM);
     }
 
-    /**
-     * @brief Get total travel distance in micrometers (including multiple laps)
-     * @return Total travel distance in micrometers
-     */
     float getTotalTravelUM() const
     {
         return getTotalTravelMM() * 1000.0f;
     }
 
-    /**
-     * @brief Reset encoder state
-     */
     void reset();
 
-    /**
-     * @brief Process interrupt for this encoder instance
-     */
     void processInterrupt();
 
 private:

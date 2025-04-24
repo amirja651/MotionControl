@@ -2,33 +2,19 @@
 #define MOTOR_CONTROLLER_H
 
 #include <TMCStepper.h>
+#include "Config/TMC5160T_Driver.h"
 
-constexpr uint16_t csPin = 10;
-// constexpr uint16_t enPin = 2;
-constexpr float r_sense = 0.075;
-
-/**
- * @brief Structure to hold communication test results
- */
-struct CommunicationResult
-{
-    bool   success;  // Whether the communication test was successful
-    String message;  // Status message
-};
+constexpr uint16_t csPin   = 10;
+constexpr float    r_sense = 0.075;
 
 struct DriverConfig
 {
-    uint8_t csPin;
-    uint8_t stepPin;
-    uint8_t dirPin;
-    uint8_t enPin;
+    uint8_t   csPin;
+    uint8_t   stepPin;
+    uint8_t   dirPin;
+    uint8_t   enPin;
+    MotorType motorType;
 };
-
-/**
- * Motor Controller class for managing TMC5160 stepper motor driver
- * This class implements a high-precision controller for the TMC5160 stepper motor driver,
- * optimized for medical-grade applications using pancake motors.
- */
 
 class MotorController
 {
@@ -49,7 +35,7 @@ public:
     void optimizeForPancake();             // Optimize the motor controller for pancake motor
     void enable();                         // Enable the motor controller
     void disable();                        // Disable the motor controller
-
+    bool isRotational();                   // Get the motor type
     // Pin assignments
     const uint8_t csPin;    // Chip select pin
     const uint8_t stepPin;  // Step pin
@@ -67,6 +53,7 @@ public:
     String instanceName;  // Name of this motor controller instance
     bool   isMoving;      // Current movement state
 private:
+    MotorType motorType;
 };
 
 #endif

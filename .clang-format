@@ -8,7 +8,7 @@ AccessModifierOffset: -4
 IndentWidth: 4
 TabWidth: 4
 UseTab: Never
-ColumnLimit: 120
+ColumnLimit: 130
 
 # Brackets
 BreakBeforeBraces: Allman

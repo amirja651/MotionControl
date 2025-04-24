@@ -20,7 +20,9 @@ MotorController::MotorController(String name, DriverConfig dc)
       maxDeceleration(1000),
 
       instanceName(name),
-      isMoving(false)
+      isMoving(false),
+
+      motorType(dc.motorType)
 {
 }
 
@@ -91,12 +93,20 @@ void MotorController::stop()
     driver.VMAX(0);
 
     // Wait for standstill
-    uint32_t status;
+    uint32_t       status;
+    const uint32_t timeout = 1000;  // 1000 ms
+    uint32_t       elapsed = 0;
     do
     {
         status = driver.DRV_STATUS();
-        delay(1);
-    } while (!((status & (1 << 31))));  // Wait for standstill bit
+        vTaskDelay(1);
+        elapsed++;
+        if (elapsed > timeout)
+        {
+            // Timeout handling: maybe log or break
+            break;
+        }
+    } while (!(status & (1 << 31)));
 
     driver.ihold(holdCurrent);  // Reduce to hold current
     isMoving = false;
@@ -251,4 +261,9 @@ void MotorController::enable()
 void MotorController::disable()
 {
     digitalWrite(enPin, HIGH);
+}
+
+bool MotorController::isRotational()
+{
+    return motorType == MotorType::ROTATIONAL;
 }

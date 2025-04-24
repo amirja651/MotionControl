@@ -76,6 +76,11 @@ void MAE3Encoder2::processInterrupt()
             // 10-bit PWM formula: x = ((t_on * 1026) / (t_on + t_off)) - 1
             uint32_t x = ((t_on * constants.PULSE_PERIOD) / total_period) - 1;
 
+            if (x > 1024)
+            {
+                return;
+            }
+
             // Apply 10-bit position mapping rules
             if (x <= 1022)
             {
@@ -94,6 +99,11 @@ void MAE3Encoder2::processInterrupt()
         {
             // 12-bit PWM formula: x = ((t_on * 4098) / (t_on + t_off)) - 1
             uint32_t x = ((t_on * constants.PULSE_PERIOD) / total_period) - 1;
+
+            if (x > 4096)
+            {
+                return;
+            }
 
             // Apply 12-bit position mapping rules
             if (x <= 4094)
@@ -138,8 +148,7 @@ bool MAE3Encoder2::update()
         // Check for clockwise lap completion
         if (newDirection == Direction::CLOCKWISE)
         {
-            if (state.lastPulse > (constants.PULSE_PER_REV * 3 / 4) &&
-                state.currentPulse < (constants.PULSE_PER_REV / 4))
+            if (state.lastPulse > (constants.PULSE_PER_REV * 3 / 4) && state.currentPulse < (constants.PULSE_PER_REV / 4))
             {
                 state.laps++;
             }
@@ -147,8 +156,7 @@ bool MAE3Encoder2::update()
         // Check for counter-clockwise lap completion
         else if (newDirection == Direction::COUNTER_CLOCKWISE)
         {
-            if (state.lastPulse < (constants.PULSE_PER_REV / 4) &&
-                state.currentPulse > (constants.PULSE_PER_REV * 3 / 4))
+            if (state.lastPulse < (constants.PULSE_PER_REV / 4) && state.currentPulse > (constants.PULSE_PER_REV * 3 / 4))
             {
                 state.laps--;
             }

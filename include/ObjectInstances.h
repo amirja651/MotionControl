@@ -1,7 +1,7 @@
 #ifndef MOTOR_INSTANCES_H
 #define MOTOR_INSTANCES_H
 
-#include "MAE3Encoder.h"
+#include "MAE3Encoder2.h"
 #include "MotorController.h"
 #include "PIDController.h"
 
@@ -13,7 +13,7 @@
 #define MOTOR_NAME4 "Motor 4"
 
 extern MotorController motors[NUM_MOTORS];
-extern MAE3Encoder     encoders[NUM_MOTORS];
+extern MAE3Encoder2    encoders2[NUM_MOTORS];
 extern PIDController   pids[NUM_MOTORS];
 
 // Function to initialize motor instances
