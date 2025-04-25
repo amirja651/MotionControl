@@ -46,11 +46,48 @@ bool MAE3Encoder2::begin()
     // Configure interrupt
     attachInterrupt(digitalPinToInterrupt(interruptPin), staticInterruptHandler, CHANGE);
 
-    // Initialize state
-    state.currentPulse = 0;
+    // Read initial position from absolute encoder
+    unsigned long startTime = micros();
+    while (digitalRead(interruptPin) == LOW)
+    {
+        // Wait for the start of a pulse
+        if (micros() - startTime > 1000000)
+        {  // 1 second timeout
+            return false;
+        }
+    }
+
+    // Read the pulse width to get initial position
+    unsigned long pulseStart = micros();
+    while (digitalRead(interruptPin) == HIGH)
+    {
+        if (micros() - pulseStart > constants.MAX_PULSE_WIDTH)
+        {
+            return false;
+        }
+    }
+    unsigned long pulseWidth = micros() - pulseStart;
+
+    // Calculate initial position based on pulse width
+    uint32_t initialPosition;
+    if (resolution == EncoderResolution::BITS_10)
+    {
+        initialPosition = ((pulseWidth * constants.PULSE_PERIOD) / (pulseWidth + (constants.PULSE_PERIOD - pulseWidth))) - 1;
+        if (initialPosition > 1024)
+            initialPosition = 1023;
+    }
+    else
+    {
+        initialPosition = ((pulseWidth * constants.PULSE_PERIOD) / (pulseWidth + (constants.PULSE_PERIOD - pulseWidth))) - 1;
+        if (initialPosition > 4096)
+            initialPosition = 4095;
+    }
+
+    // Initialize state with actual position
+    state.currentPulse = initialPosition;
     state.laps         = 0;
     state.direction    = Direction::UNKNOWN;
-    state.lastPulse    = 0;
+    state.lastPulse    = initialPosition;
 
     return true;
 }

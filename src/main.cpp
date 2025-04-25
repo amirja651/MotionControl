@@ -67,6 +67,11 @@ void initializeCLI()
 
     cmdRestart = cli.addCmd("restart");
     cmdRestart.setDescription("Restart the ESP32 system");
+
+    // Add new command to show current position
+    Command cmdPosition = cli.addCmd("position");
+    cmdPosition.addArg("n", "1");  // motor number argument
+    cmdPosition.setDescription("Show current position of specified motor [n: motor number]");
 }
 
 void motorUpdateTask_0(void* pvParameters)
@@ -82,6 +87,7 @@ void motorUpdateTask_0(void* pvParameters)
             motors[0].isRotational() ? positionDegrees : (isMicrometerUnit ? totalTravelMM * 1000.0f : totalTravelMM);
         double positionError  = pids[0].getPositionError(currentPosition, motors[0].isRotational());
         double teloranceError = motors[0].isRotational() ? 0.5 : (isMicrometerUnit ? 2 : 0.002);
+        double targetPosition = pids[0].getTarget();
 
         if (positionError > teloranceError && commandReceived)  // Only move if command was received
         {
@@ -94,7 +100,9 @@ void motorUpdateTask_0(void* pvParameters)
             pids[0].setInput(currentPosition);
             pids[0].pid->Compute();
 
-            (pids[0].output > 0) ? motors[0].moveForward() : (pids[0].output < 0) ? motors[0].moveReverse() : motors[0].stop();
+            (targetPosition > currentPosition)   ? motors[0].moveForward()
+            : (targetPosition < currentPosition) ? motors[0].moveReverse()
+                                                 : motors[0].stop();
         }
         else
         {
@@ -214,12 +222,38 @@ void serialReadTask(void* pvParameters)
                 delay(100);  // Give time for motors to stop
                 ESP.restart();
             }
+            else if (c.getName() == "position")
+            {
+                // Get motor number
+                Argument motorNumArg = c.getArgument("n");
+                uint8_t  motorIndex  = motorNumArg.getValue().toInt() - 1;  // Convert to 0-based index
+
+                if (motorIndex >= NUM_MOTORS)
+                {
+                    Log.errorln(F("Invalid motor number"));
+                    continue;
+                }
+
+                // Get current position
+                float positionDegrees = encoders2[motorIndex].getPositionDegrees();
+                float totalTravelMM   = encoders2[motorIndex].getTotalTravelMM();
+
+                // Format output based on motor type
+                if (motors[motorIndex].isRotational())
+                {
+                    Serial.printf("Motor %d current position: %.2f degrees\n", motorIndex + 1, positionDegrees);
+                }
+                else
+                {
+                    Serial.printf("Motor %d current position: %.3f mm (%.1f um)\n", motorIndex + 1, totalTravelMM,
+                                  totalTravelMM * 1000.0f);
+                }
+            }
         }
 
         if (cli.errored())
         {
             CommandError cmdError = cli.getError();
-
             Serial.print("ERROR: ");
             Serial.println(cmdError.toString());
 
@@ -255,12 +289,16 @@ void serialPrintTask(void* pvParameters)
             double positionError  = pids[0].getPositionError(currentPosition, motors[0].isRotational());
             String direction      = state.direction == Direction::CLOCKWISE ? "CW" : "CCW";
 
-            if (fabs(currentPosition - lastPosition) > 1)
+            double teloranceError = motors[0].isRotational() ? 0.5 : (isMicrometerUnit ? 2 : 0.002);
+
+            if (fabs(currentPosition - lastPosition) > teloranceError)
             {
                 Serial.printf(
                     "Pulse\tPosition (%s)\tDirection\tTarget\tError\n"
-                    "%d\t%.2f\t\t%s\t\t%.2f\t%.2f\n\n\n\n\n\n\n",
+                    "%d\t%.2f\t\t%s\t\t%.2f\t%.2f\n",
                     unit.c_str(), state.currentPulse, currentPosition, direction.c_str(), targetPosition, positionError);
+
+                Serial.printf("Output: %f, Current Position: %f\n\n\n\n\n\n\n", pids[0].output, currentPosition);
                 lastPosition = currentPosition;
             }
         }
