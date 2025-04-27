@@ -4,22 +4,14 @@
 #include <TMCStepper.h>
 #include "Config/TMC5160T_Driver.h"
 
-constexpr uint16_t csPin   = 10;
-constexpr float    r_sense = 0.075;
-
-struct DriverConfig
-{
-    uint8_t   csPin;
-    uint8_t   stepPin;
-    uint8_t   dirPin;
-    uint8_t   enPin;
-    MotorType motorType;
-};
+static constexpr float default_RS = 0.075;
 
 class MotorController
 {
 public:
-    MotorController(String name, DriverConfig config);
+    MotorController(uint16_t pinDIR, uint16_t pinSTEP, uint16_t pinEN, uint16_t pinCS, int8_t link_index = -1);
+    MotorController(uint16_t pinDIR, uint16_t pinSTEP, uint16_t pinEN, uint16_t pinCS, uint16_t pinMOSI, uint16_t pinMISO,
+                    uint16_t pinSCK, int8_t link_index = -1);
     TMC5160Stepper driver;  // TMC5160 driver instance
 
     void begin();                          // Initialize the motor controller
@@ -27,7 +19,6 @@ public:
     void moveReverse();                    // Move motor in reverse direction
     void step();                           // Execute single step
     void stop();                           // Stop motor movement
-    void update();                         // Update motor state and check status
     void toggleStealthChop();              // Toggle stealth chop mode
     void setStealthChopMode(bool enable);  // Set stealth chop mode
     bool testCommunication();              // Performs a basic SPI communication test
@@ -39,7 +30,6 @@ public:
     void disable();                        // Disable the motor controller
     bool isRotational();                   // Get the motor type
     // Pin assignments
-    const uint8_t csPin;    // Chip select pin
     const uint8_t stepPin;  // Step pin
     const uint8_t dirPin;   // Direction pin
     const uint8_t enPin;    // Enable pin
@@ -52,8 +42,7 @@ public:
     uint32_t maxAcceleration;  // Maximum acceleration
     uint32_t maxDeceleration;  // Maximum deceleration
 
-    String instanceName;  // Name of this motor controller instance
-    bool   isMoving;      // Current movement state
+    bool isMoving;  // Current movement state
 private:
     MotorType motorType;
 };

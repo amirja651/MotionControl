@@ -6,11 +6,7 @@
 #include "PIDController.h"
 
 // Number of motors in the system
-#define NUM_MOTORS  1
-#define MOTOR_NAME1 "Motor 1"
-#define MOTOR_NAME2 "Motor 2"
-#define MOTOR_NAME3 "Motor 3"
-#define MOTOR_NAME4 "Motor 4"
+#define NUM_MOTORS 1
 
 extern MotorController motors[NUM_MOTORS];
 extern MAE3Encoder2    encoders2[NUM_MOTORS];

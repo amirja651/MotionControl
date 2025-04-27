@@ -4,35 +4,43 @@
 #include "Config/SPI.h"
 #include "Config/TMC5160T_Driver.h"
 
-MotorController::MotorController(String name, DriverConfig dc)
-    : driver(dc.csPin, 0.075),
-
-      csPin(dc.csPin),
-      stepPin(dc.stepPin),
-      dirPin(dc.dirPin),
-      enPin(dc.enPin),
-
-      runCurrent(200),    // Default 1000mA
-      holdCurrent(100),   // Default 500mA
-      speed(500),         // Default 1000 steps/sec
-      acceleration(500),  // Default 1000 steps/sec²
+MotorController::MotorController(uint16_t pinDIR, uint16_t pinSTEP, uint16_t pinEN, uint16_t pinCS, int8_t link_index)
+    : driver(pinCS, default_RS, link_index),
+      stepPin(pinSTEP),
+      dirPin(pinDIR),
+      enPin(pinEN),
+      runCurrent(200),
+      holdCurrent(100),
+      speed(500),
+      acceleration(500),
       maxSpeed(500),
       maxAcceleration(1000),
       maxDeceleration(1000),
-
-      instanceName(name),
       isMoving(false),
+      motorType(MotorType::ROTATIONAL)
+{
+}
 
-      motorType(dc.motorType)
+MotorController::MotorController(uint16_t pinDIR, uint16_t pinSTEP, uint16_t pinEN, uint16_t pinCS, uint16_t pinMOSI,
+                                 uint16_t pinMISO, uint16_t pinSCK, int8_t link_index)
+    : driver(pinCS, pinMOSI, pinMISO, pinSCK, link_index),
+      stepPin(pinSTEP),
+      dirPin(pinDIR),
+      enPin(pinEN),
+      runCurrent(200),
+      holdCurrent(100),
+      speed(500),
+      acceleration(500),
+      maxSpeed(500),
+      maxAcceleration(1000),
+      maxDeceleration(1000),
+      isMoving(false),
+      motorType(MotorType::ROTATIONAL)
 {
 }
 
 void MotorController::begin()
 {
-    // Setup pins
-    pinMode(csPin, OUTPUT);
-    digitalWrite(csPin, HIGH);
-
     pinMode(stepPin, OUTPUT);
     digitalWrite(stepPin, LOW);
 
@@ -241,8 +249,6 @@ void MotorController::stop()
     disable();
 }
 
-void MotorController::update() {}
-
 void MotorController::toggleStealthChop()
 {
     uint32_t currentThreshold = driver.TPWMTHRS();
@@ -300,8 +306,6 @@ bool MotorController::testCommunication()
 
     if (0)
     {
-        digitalWrite(csPin, LOW);
-
         uint32_t gconf  = driver.GCONF();
         uint32_t status = driver.DRV_STATUS();
 
