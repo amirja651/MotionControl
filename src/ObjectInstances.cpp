@@ -1,38 +1,42 @@
 #include "ObjectInstances.h"
 #include "ArduinoLog.h"
 #include "Config/TMC5160T_Driver.h"
-#include "MAE3Encoder.h"
 #include "MotorController.h"
 #include "PIDController.h"
 
-PIDConfig pidConfig = {CONFIG::PID::KP, CONFIG::PID::KI, CONFIG::PID::KD};
+PIDConfig    pidConfig = {CONFIG::PID::KP, CONFIG::PID::KI, CONFIG::PID::KD};
+DriverConfig dc1 = {CONFIG::MOTOR::DIR_A, CONFIG::MOTOR::STEP_A, CONFIG::MOTOR::CS_A, CONFIG::MOTOR::EN_A, MotorType::LINEAR};
+DriverConfig dc2 = {CONFIG::MOTOR::DIR_B, CONFIG::MOTOR::STEP_B, CONFIG::MOTOR::CS_B, CONFIG::MOTOR::EN_B, MotorType::ROTATIONAL};
+DriverConfig dc3 = {CONFIG::MOTOR::DIR_C, CONFIG::MOTOR::STEP_C, CONFIG::MOTOR::CS_C, CONFIG::MOTOR::EN_C, MotorType::ROTATIONAL};
+DriverConfig dc4 = {CONFIG::MOTOR::DIR_D, CONFIG::MOTOR::STEP_D, CONFIG::MOTOR::CS_D, CONFIG::MOTOR::EN_D, MotorType::ROTATIONAL};
 
 #if NUM_MOTORS == 1
 
-DriverConfig dc1 = {CONFIG::MOTOR::CS1, CONFIG::MOTOR::STEP1, CONFIG::MOTOR::DIR1, CONFIG::MOTOR::EN1, MotorType::LINEAR};
+MotorController motors[NUM_MOTORS]  = {MotorController(MOTOR_NAME1, dc1)};
+MAE3Encoder2  encoders2[NUM_MOTORS] = {MAE3Encoder2(CONFIG::ENCODER::ENC1, CONFIG::ENCODER::ENC1, 0, EncoderResolution::BITS_12)};
+PIDController pids[NUM_MOTORS]      = {PIDController(pidConfig)};
 
-MotorController motors[1] = {MotorController(MOTOR_NAME1, dc1)};
+#elif NUM_MOTORS == 2
 
-MAE3Encoder2 encoders2[1] = {MAE3Encoder2(CONFIG::ENCODER::ENC1, CONFIG::ENCODER::ENC1, 0, EncoderResolution::BITS_12)};
+MotorController motors[NUM_MOTORS] = {MotorController(MOTOR_NAME1, dc1), MotorController(MOTOR_NAME2, dc2)};
 
-PIDController pids[1] = {PIDController(pidConfig)};
+MAE3Encoder2 encoders2[NUM_MOTORS] = {MAE3Encoder2(CONFIG::ENCODER::ENC1, CONFIG::ENCODER::ENC1, 0, EncoderResolution::BITS_12),
+                                      MAE3Encoder2(CONFIG::ENCODER::ENC2, CONFIG::ENCODER::ENC2, 1, EncoderResolution::BITS_12)};
+
+PIDController pids[NUM_MOTORS] = {PIDController(pidConfig), PIDController(pidConfig)};
 
 #elif NUM_MOTORS == 4
 
-DriverConfig dc1 = {CONFIG::MOTOR::CS1, CONFIG::MOTOR::STEP1, CONFIG::MOTOR::DIR1, CONFIG::MOTOR::EN1, MotorType::ROTATIONAL};
-DriverConfig dc2 = {CONFIG::MOTOR::CS2, CONFIG::MOTOR::STEP2, CONFIG::MOTOR::DIR2, CONFIG::MOTOR::EN2, MotorType::ROTATIONAL};
-DriverConfig dc3 = {CONFIG::MOTOR::CS3, CONFIG::MOTOR::STEP3, CONFIG::MOTOR::DIR3, CONFIG::MOTOR::EN3, MotorType::ROTATIONAL};
-DriverConfig dc4 = {CONFIG::MOTOR::CS4, CONFIG::MOTOR::STEP4, CONFIG::MOTOR::DIR4, CONFIG::MOTOR::EN4, MotorType::LINEAR};
+MotorController motors[NUM_MOTORS] = {MotorController(MOTOR_NAME1, dc1), MotorController(MOTOR_NAME2, dc2),
+                                      MotorController(MOTOR_NAME3, dc3), MotorController(MOTOR_NAME4, dc4)};
 
-MotorController motors[4] = {MotorController(MOTOR_NAME1, dc1), MotorController(MOTOR_NAME2, dc2),
-                             MotorController(MOTOR_NAME3, dc3), MotorController(MOTOR_NAME4, dc4)};
+MAE3Encoder2 encoders2[NUM_MOTORS] = {MAE3Encoder2(CONFIG::ENCODER::ENC1, CONFIG::ENCODER::ENC1, 0, EncoderResolution::BITS_12),
+                                      MAE3Encoder2(CONFIG::ENCODER::ENC2, CONFIG::ENCODER::ENC2, 1, EncoderResolution::BITS_12),
+                                      MAE3Encoder2(CONFIG::ENCODER::ENC3, CONFIG::ENCODER::ENC3, 2, EncoderResolution::BITS_12),
+                                      MAE3Encoder2(CONFIG::ENCODER::ENC4, CONFIG::ENCODER::ENC4, 3, EncoderResolution::BITS_12)};
 
-MAE3Encoder2 encoders2[4] = {MAE3Encoder2(CONFIG::ENCODER::ENC1, CONFIG::ENCODER::ENC1, 0, EncoderResolution::BITS_12),
-                             MAE3Encoder2(CONFIG::ENCODER::ENC2, CONFIG::ENCODER::ENC2, 1, EncoderResolution::BITS_12),
-                             MAE3Encoder2(CONFIG::ENCODER::ENC3, CONFIG::ENCODER::ENC3, 2, EncoderResolution::BITS_12),
-                             MAE3Encoder2(CONFIG::ENCODER::ENC4, CONFIG::ENCODER::ENC4, 3, EncoderResolution::BITS_10)};
-
-PIDController pids[4] = {PIDController(pidConfig), PIDController(pidConfig), PIDController(pidConfig), PIDController(pidConfig)};
+PIDController pids[NUM_MOTORS] = {PIDController(pidConfig), PIDController(pidConfig), PIDController(pidConfig),
+                                  PIDController(pidConfig)};
 
 #endif
 
@@ -50,7 +54,7 @@ void initializeSystem()
         {
             Log.noticeln(F("Driver %d firmware version: %d"), i + 1, motors[i].driver.version());
 
-            if (motors[i].driver.sd_mode())
+            /*if (motors[i].driver.sd_mode())
             {
                 Log.noticeln(F("Driver %d is hardware configured for Step & Dir mode"), i + 1);
             }
@@ -58,22 +62,19 @@ void initializeSystem()
             if (motors[i].driver.drv_enn())
             {
                 Log.noticeln(F("Driver %d is not hardware enabled"), i + 1);
-            }
+            }*/
         }
 
         encoders2[i].begin();
         pids[i].begin();
-    }
 
-    if (motors[0].isRotational())
-    {
-        pids[0].setOutputLimits(-180.0, 180.0);  // 180 degrees
+        if (i == 0)
+        {
+            pids[i].setOutputLimits(-15000.0, 15000.0);  // 15mm
+        }
+        else if (i > 0)
+        {
+            pids[i].setOutputLimits(-180.0, 180.0);  // 180 degrees
+        }
     }
-    else
-    {
-        pids[0].setOutputLimits(-15000.0, 15000.0);  // 15mm
-    }
-    // pids[1].setOutputLimits(-180.0, 180.0);      // 180 degrees
-    // pids[2].setOutputLimits(-180.0, 180.0);      // 180 degrees
-    // pids[3].setOutputLimits(-15000.0, 15000.0);  // 15mm
 }

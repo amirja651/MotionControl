@@ -5,20 +5,24 @@
 #include "MAE3Encoder2.h"
 #include "ObjectInstances.h"
 
+uint8_t _MotorIndex = 0;
+
 // Task handles
 TaskHandle_t motorUpdateTaskHandle_0 = NULL;
 TaskHandle_t serialReadTaskHandle    = NULL;
 TaskHandle_t serialPrintTaskHandle   = NULL;
 
 SimpleCLI cli;
+Command   cmdMotor;
+Command   cmdHelp;
+Command   cmdRestart;  // New restart command
+Command   cmdX1;
+Command   cmdX2;
+Command   cmdX3;
+Command   cmdX4;
 
-Command cmdMotor;
-Command cmdHelp;
-Command cmdRestart;  // New restart command
-
-float lastPosition     = 0;
-bool  commandReceived  = false;  // Safety flag to prevent accidental movement
-bool  isMicrometerUnit = false;
+float lastPosition    = 0;
+bool  commandReceived = false;  // Safety flag to prevent accidental movement
 
 const char* getResetReasonString(esp_reset_reason_t reason)
 {
@@ -68,10 +72,16 @@ void initializeCLI()
     cmdRestart = cli.addCmd("restart");
     cmdRestart.setDescription("Restart the ESP32 system");
 
-    // Add new command to show current position
-    Command cmdPosition = cli.addCmd("position");
-    cmdPosition.addArg("n", "1");  // motor number argument
-    cmdPosition.setDescription("Show current position of specified motor [n: motor number]");
+    cmdX1 = cli.addCmd("x1");
+    cmdX2 = cli.addCmd("x2");
+    cmdX3 = cli.addCmd("x3");
+    cmdX4 = cli.addCmd("x4");
+}
+
+void motorStop()
+{
+    motors[_MotorIndex].stop();
+    commandReceived = false;  // Reset command flag when target is reached or no command
 }
 
 void motorUpdateTask_0(void* pvParameters)
@@ -81,33 +91,31 @@ void motorUpdateTask_0(void* pvParameters)
 
     while (1)
     {
-        float  positionDegrees = encoders2[0].getPositionDegrees();
-        float  totalTravelMM   = encoders2[0].getTotalTravelMM();
-        double currentPosition =
-            motors[0].isRotational() ? positionDegrees : (isMicrometerUnit ? totalTravelMM * 1000.0f : totalTravelMM);
-        double positionError  = pids[0].getPositionError(currentPosition, motors[0].isRotational());
-        double teloranceError = motors[0].isRotational() ? 0.5 : (isMicrometerUnit ? 2 : 0.002);
-        double targetPosition = pids[0].getTarget();
+        encoders2[_MotorIndex].update();
 
-        if (positionError > teloranceError && commandReceived)  // Only move if command was received
+        bool  isRotational    = motors[_MotorIndex].isRotational();
+        float currentPosition = encoders2[_MotorIndex].getPosition(isRotational);
+
+        pids[_MotorIndex].setInput(currentPosition);
+        pids[_MotorIndex].pid->Compute();
+
+        double positionError = pids[_MotorIndex].getPositionError(currentPosition, isRotational);
+
+        if (positionError > 0.5 && commandReceived)  // Only move if command was received
         {
-            motors[0].step();
-            encoders2[0].update();
+            motors[_MotorIndex].step();
 
-            currentPosition =
-                motors[0].isRotational() ? positionDegrees : (isMicrometerUnit ? totalTravelMM * 1000.0f : totalTravelMM);
+            currentPosition = encoders2[_MotorIndex].getPosition(isRotational);
+            pids[_MotorIndex].setInput(currentPosition);
+            pids[_MotorIndex].pid->Compute();
 
-            pids[0].setInput(currentPosition);
-            pids[0].pid->Compute();
-
-            (targetPosition > currentPosition)   ? motors[0].moveForward()
-            : (targetPosition < currentPosition) ? motors[0].moveReverse()
-                                                 : motors[0].stop();
+            (pids[_MotorIndex].output > currentPosition)   ? motors[_MotorIndex].moveForward()
+            : (pids[_MotorIndex].output < currentPosition) ? motors[_MotorIndex].moveReverse()
+                                                           : motorStop();
         }
         else
         {
-            motors[0].stop();
-            commandReceived = false;  // Reset command flag when target is reached or no command
+            motorStop();
         }
 
         taskYIELD();
@@ -160,6 +168,7 @@ void serialReadTask(void* pvParameters)
                 // Handle stop command
                 if (c.getArgument("s").isSet())
                 {
+                    _MotorIndex = motorIndex;
                     motors[motorIndex].stop();
                     commandReceived = false;  // Explicitly stop movement
                     Serial.printf("Motor %d stopped\n", motorIndex + 1);
@@ -175,21 +184,21 @@ void serialReadTask(void* pvParameters)
                     // Convert position to degrees based on unit flag
                     if (c.getArgument("d").isSet())
                     {
-                        isMicrometerUnit = false;
+                        _MotorIndex = motorIndex;
                         pids[motorIndex].setTarget(position);
                         Serial.printf("Motor %d moving to %.2f degrees\n", motorIndex + 1, position);
                         commandReceived = true;  // Set flag only after valid command
                     }
                     else if (c.getArgument("m").isSet())
                     {
-                        isMicrometerUnit = false;
-                        pids[motorIndex].setTarget(position);
-                        Serial.printf("Motor %d moving to %.2f mm\n", motorIndex + 1, position);
+                        _MotorIndex = motorIndex;
+                        pids[motorIndex].setTarget(position * 1000);
+                        Serial.printf("Motor %d moving to %.2f um\n", motorIndex + 1, position);
                         commandReceived = true;  // Set flag only after valid command
                     }
                     else if (c.getArgument("u").isSet())
                     {
-                        isMicrometerUnit = true;
+                        _MotorIndex = motorIndex;
                         pids[motorIndex].setTarget(position);
                         Serial.printf("Motor %d moving to %.2f um\n", motorIndex + 1, position);
                         commandReceived = true;  // Set flag only after valid command
@@ -222,32 +231,33 @@ void serialReadTask(void* pvParameters)
                 delay(100);  // Give time for motors to stop
                 ESP.restart();
             }
-            else if (c.getName() == "position")
+            else if (c == cmdX1)
             {
-                // Get motor number
-                Argument motorNumArg = c.getArgument("n");
-                uint8_t  motorIndex  = motorNumArg.getValue().toInt() - 1;  // Convert to 0-based index
-
-                if (motorIndex >= NUM_MOTORS)
-                {
-                    Log.errorln(F("Invalid motor number"));
-                    continue;
-                }
-
-                // Get current position
-                float positionDegrees = encoders2[motorIndex].getPositionDegrees();
-                float totalTravelMM   = encoders2[motorIndex].getTotalTravelMM();
-
-                // Format output based on motor type
-                if (motors[motorIndex].isRotational())
-                {
-                    Serial.printf("Motor %d current position: %.2f degrees\n", motorIndex + 1, positionDegrees);
-                }
-                else
-                {
-                    Serial.printf("Motor %d current position: %.3f mm (%.1f um)\n", motorIndex + 1, totalTravelMM,
-                                  totalTravelMM * 1000.0f);
-                }
+                _MotorIndex = 0;
+                pids[0].setTarget(100);
+                Serial.printf("Motor %d moving to %.2f um\n", 1, 100.0f);
+                commandReceived = true;  // Set flag only after valid command
+            }
+            else if (c == cmdX2)
+            {
+                _MotorIndex = 0;
+                pids[0].setTarget(20);
+                Serial.printf("Motor %d moving to %.2f um\n", 1, 20.0f);
+                commandReceived = true;  // Set flag only after valid command
+            }
+            else if (c == cmdX3)
+            {
+                _MotorIndex = 1;
+                pids[1].setTarget(500);
+                Serial.printf("Motor %d moving to %.2f um\n", 1, 500.0f);
+                commandReceived = true;  // Set flag only after valid command
+            }
+            else if (c == cmdX4)
+            {
+                _MotorIndex = 1;
+                pids[1].setTarget(70);
+                Serial.printf("Motor %d moving to %.2f um\n", 1, 70.0f);
+                commandReceived = true;  // Set flag only after valid command
             }
         }
 
@@ -256,13 +266,6 @@ void serialReadTask(void* pvParameters)
             CommandError cmdError = cli.getError();
             Serial.print("ERROR: ");
             Serial.println(cmdError.toString());
-
-            if (cmdError.hasCommand())
-            {
-                Serial.print("Did you mean \"");
-                Serial.print(cmdError.getCommand().toString());
-                Serial.println("\"?");
-            }
         }
 
         taskYIELD();
@@ -278,32 +281,26 @@ void serialPrintTask(void* pvParameters)
     while (1)
     {
         {
-            const auto& state           = encoders2[0].getState();
-            float       positionDegrees = encoders2[0].getPositionDegrees();
-            float       totalTravelMM   = encoders2[0].getTotalTravelMM();
-            double      currentPosition =
-                motors[0].isRotational() ? positionDegrees : (isMicrometerUnit ? totalTravelMM * 1000.0f : totalTravelMM);
+            bool        isRotational    = motors[_MotorIndex].isRotational();
+            String      unit            = isRotational ? "°" : "um";
+            const auto& state           = encoders2[_MotorIndex].getState();
+            float       currentPosition = encoders2[_MotorIndex].getPosition(isRotational);
+            String      direction       = state.direction == Direction::CLOCKWISE ? "CW" : "CCW";
+            double      targetPosition  = pids[_MotorIndex].getTarget();
+            double      positionError   = pids[_MotorIndex].getPositionError(currentPosition, isRotational);
 
-            String unit           = motors[0].isRotational() ? "°" : (isMicrometerUnit ? "um" : "mm");
-            double targetPosition = pids[0].getTarget();
-            double positionError  = pids[0].getPositionError(currentPosition, motors[0].isRotational());
-            String direction      = state.direction == Direction::CLOCKWISE ? "CW" : "CCW";
-
-            double teloranceError = motors[0].isRotational() ? 0.5 : (isMicrometerUnit ? 2 : 0.002);
-
-            if (fabs(currentPosition - lastPosition) > teloranceError)
+            if (fabs(currentPosition - lastPosition) > 0.5)
             {
                 Serial.printf(
-                    "Pulse\tPosition (%s)\tDirection\tTarget\tError\n"
+                    "Laps\tPosition (%s)\tDirection\tTarget\tError\n"
                     "%d\t%.2f\t\t%s\t\t%.2f\t%.2f\n",
-                    unit.c_str(), state.currentPulse, currentPosition, direction.c_str(), targetPosition, positionError);
+                    unit.c_str(), state.laps, currentPosition, direction.c_str(), targetPosition, positionError);
 
-                Serial.printf("Output: %f, Current Position: %f\n\n\n\n\n\n\n", pids[0].output, currentPosition);
                 lastPosition = currentPosition;
             }
         }
 
-        if (!motors[0].testCommunication())
+        if (!motors[_MotorIndex].testCommunication())
         {
             Log.errorln(F("Motor 1 communication test: FAILED"));
             commandReceived = false;  // Stop movement if communication fails

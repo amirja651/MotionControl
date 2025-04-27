@@ -2,6 +2,7 @@
     "editor.formatOnSave": true,
     "C_Cpp.clang_format_style": "file",
     "C_Cpp.clang_format_fallbackStyle": "Google",
+    "clang-format.executable": "C:/Program Files/LLVM/bin/clang-format.exe",
     "files.associations": {
         "*.tcc": "cpp",
         "ostream": "cpp",

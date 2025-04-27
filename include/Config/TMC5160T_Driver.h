@@ -11,35 +11,35 @@ enum class MotorType
 
 namespace CONFIG
 {
-    struct MOTOR
-    {
-        static const uint8_t DIR1 = ESP32W::RIGHTPINS::GPIO22;
-        static const uint8_t DIR2 = ESP32W::RIGHTPINS::GPIO15;
-        static const uint8_t DIR3 = ESP32W::LEFTPINS::GPIO32;
-        static const uint8_t DIR4 = ESP32W::LEFTPINS::GPIO27;
-
-        static const uint8_t STEP1 = ESP32W::RIGHTPINS::GPIO21;
-        static const uint8_t STEP2 = ESP32W::RIGHTPINS::GPIO2;
-        static const uint8_t STEP3 = ESP32W::LEFTPINS::GPIO33;
-        static const uint8_t STEP4 = ESP32W::LEFTPINS::GPIO14;
-
-        static const uint8_t CS1 = ESP32W::RIGHTPINS::GPIO5;
-        static const uint8_t CS2 = ESP32W::RIGHTPINS::GPIO4;
-        static const uint8_t CS3 = ESP32W::LEFTPINS::GPIO25;
-        static const uint8_t CS4 = ESP32W::LEFTPINS::GPIO12;
-
-        static const uint8_t EN1 = ESP32W::RIGHTPINS::GPIO17;
-        static const uint8_t EN2 = ESP32W::RIGHTPINS::GPIO16;
-        static const uint8_t EN3 = ESP32W::LEFTPINS::GPIO26;
-        static const uint8_t EN4 = ESP32W::LEFTPINS::GPIO13;
-    };
-
     struct ENCODER
     {
-        static const uint8_t ENC1 = ESP32W::LEFTPINS::GPIO36;
-        static const uint8_t ENC2 = ESP32W::LEFTPINS::GPIO39;
-        static const uint8_t ENC3 = ESP32W::LEFTPINS::GPIO34;
-        static const uint8_t ENC4 = ESP32W::LEFTPINS::GPIO35;
+        static const uint8_t ENC1 = ESP32W::LEFTPINS::D36_ENC1;
+        static const uint8_t ENC2 = ESP32W::LEFTPINS::D39_ENC2;
+        static const uint8_t ENC3 = ESP32W::LEFTPINS::D34_ENC3;
+        static const uint8_t ENC4 = ESP32W::LEFTPINS::D35_ENC4;
+    };
+
+    struct MOTOR
+    {
+        static const uint8_t DIR_A  = ESP32W::RIGHTPINS::D22_A1;  // Blue
+        static const uint8_t STEP_A = ESP32W::RIGHTPINS::D21_A2;  // Red
+        static const uint8_t CS_A   = ESP32W::RIGHTPINS::D5_A3;   // Green
+        static const uint8_t EN_A   = ESP32W::RIGHTPINS::D17_A4;  // Black
+
+        static const uint8_t EN_B   = ESP32W::RIGHTPINS::D16_B1;  // Blue
+        static const uint8_t CS_B   = ESP32W::RIGHTPINS::D4_B2;   // Red
+        static const uint8_t STEP_B = ESP32W::RIGHTPINS::D2_B3;   // Green
+        static const uint8_t DIR_B  = ESP32W::RIGHTPINS::D15_B4;  // Black
+
+        static const uint8_t EN_C   = ESP32W::LEFTPINS::D26_C4;  // Blue
+        static const uint8_t CS_C   = ESP32W::LEFTPINS::D25_C3;  // Red
+        static const uint8_t STEP_C = ESP32W::LEFTPINS::D33_C2;  // Green
+        static const uint8_t DIR_C  = ESP32W::LEFTPINS::D32_C1;  // Black
+
+        static const uint8_t EN_D   = ESP32W::LEFTPINS::D13_D4;  // Blue
+        static const uint8_t CS_D   = ESP32W::LEFTPINS::D12_D3;  // Red
+        static const uint8_t STEP_D = ESP32W::LEFTPINS::D14_D2;  // Green
+        static const uint8_t DIR_D  = ESP32W::LEFTPINS::D27_D1;  // Black
     };
 
     struct PID

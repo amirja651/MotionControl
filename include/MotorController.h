@@ -9,9 +9,9 @@ constexpr float    r_sense = 0.075;
 
 struct DriverConfig
 {
-    uint8_t   csPin;
-    uint8_t   stepPin;
     uint8_t   dirPin;
+    uint8_t   stepPin;
+    uint8_t   csPin;
     uint8_t   enPin;
     MotorType motorType;
 };

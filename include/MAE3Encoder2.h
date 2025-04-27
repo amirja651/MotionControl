@@ -84,6 +84,11 @@ public:
         return state;
     }
 
+    float getPosition(bool isRotational) const
+    {
+        return (isRotational ? getPositionDegrees() : getTotalTravelUM());
+    }
+
     float getPositionDegrees() const
     {
         return state.currentPulse * getDegreesPerPulse();
