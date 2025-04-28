@@ -30,8 +30,6 @@ void setup()
 
     printSystemInfo();
 
-    initializeDriversAndTest();
-
     initializeCLI();
 
     initializeDriversAndTest();
@@ -253,6 +251,7 @@ void serialPrintTask(void* pvParameters)
                 lastPosition = currentPosition;
             }
         }
+        disableDrivers();
 
         if (!driverCommunicationTest(_motorIndex, false))
         {

@@ -158,6 +158,8 @@ uint8_t selectDriver(uint8_t i)
 
 void optimizeForPancake(uint8_t i)
 {
+    disableDrivers();
+
     digitalWrite(selectDriver(i), LOW);
     delayMicroseconds(50);
 
@@ -189,6 +191,8 @@ void optimizeForPancake(uint8_t i)
 
 void optimize2(uint8_t i)
 {
+    disableDrivers();
+
     digitalWrite(selectDriver(i), LOW);
     delayMicroseconds(50);
 
@@ -220,6 +224,8 @@ void optimize2(uint8_t i)
 
 void configureDriver(uint8_t i)
 {
+    disableDrivers();
+
     digitalWrite(selectDriver(i), LOW);
     delayMicroseconds(50);
 
@@ -281,6 +287,8 @@ void configureDriver(uint8_t i)
 
 bool driverCommunicationTest(uint8_t i, bool print = true)
 {
+    disableDrivers();
+
     uint8_t  version  = 0;
     uint32_t gconf    = 0;
     uint32_t status   = 0;
@@ -471,6 +479,8 @@ void driverTest(uint8_t i)
 
 void initializeDriver(uint8_t i)
 {
+    disableDrivers();
+
     digitalWrite(selectDriver(i), LOW);
     delayMicroseconds(50);
 
@@ -569,6 +579,8 @@ void motorMoveReverse(uint8_t i)
 
 void motorStop(uint8_t i)
 {
+    disableDrivers();
+
     digitalWrite(selectDriver(i), LOW);
     delayMicroseconds(50);
     driver[i].VMAX(0);  // Set target velocity to zero
@@ -645,6 +657,8 @@ void motorStep(uint8_t i)
 
 void toggleStealthChop(uint8_t i)
 {
+    disableDrivers();
+
     uint32_t currentThreshold = driver[i].TPWMTHRS();
     if (currentThreshold == 0)
     {
@@ -660,6 +674,8 @@ void toggleStealthChop(uint8_t i)
 
 void setStealthChopMode(uint8_t i, bool enable)
 {
+    disableDrivers();
+
     if (enable)
     {
         // Enable StealthChop mode
