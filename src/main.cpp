@@ -55,6 +55,7 @@ void motorUpdateTask(void* pvParameters)
 
     while (1)
     {
+        encoders2[_motorIndex].update();
         bool   isRotational    = motorType[_motorIndex] == MotorType::ROTATIONAL;
         float  positionDegrees = encoders2[_motorIndex].getPositionDegrees();
         float  totalTravelUM   = encoders2[_motorIndex].getTotalTravelUM();
@@ -64,7 +65,6 @@ void motorUpdateTask(void* pvParameters)
         if (positionError > 0.5 && commandReceived)  // Only move if command was received
         {
             motorStep(_motorIndex);
-            encoders2[_motorIndex].update();
 
             currentPosition = isRotational ? positionDegrees : totalTravelUM;
 
@@ -237,10 +237,10 @@ void serialPrintTask(void* pvParameters)
 
             if (fabs(currentPosition - lastPosition) > 1)
             {
-                Serial.print(F("Pulse\tPosition ("));
+                Serial.print(F("Laps\tPosition ("));
                 Serial.print(unit);
                 Serial.println(F(")\tDirection\tTarget\tError"));
-                Serial.print(state.currentPulse);
+                Serial.print(state.laps);
                 Serial.print(F("\t"));
                 Serial.print(currentPosition, 2);
                 Serial.print(F("\t\t"));

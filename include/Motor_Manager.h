@@ -68,6 +68,11 @@ void driversPinSetup()
 
     pinMode(MISO, INPUT_PULLUP);
 
+    digitalWrite(EN_A, HIGH);
+    digitalWrite(EN_B, HIGH);
+    digitalWrite(EN_C, HIGH);
+    digitalWrite(EN_D, HIGH);
+
     digitalWrite(DIR_A, LOW);
     digitalWrite(DIR_B, LOW);
     digitalWrite(DIR_C, LOW);
@@ -77,11 +82,6 @@ void driversPinSetup()
     digitalWrite(STEP_B, LOW);
     digitalWrite(STEP_C, LOW);
     digitalWrite(STEP_D, LOW);
-
-    digitalWrite(EN_A, HIGH);
-    digitalWrite(EN_B, HIGH);
-    digitalWrite(EN_C, HIGH);
-    digitalWrite(EN_D, HIGH);
 }
 
 void disableDrivers()
@@ -154,6 +154,129 @@ uint8_t selectDriver(uint8_t i)
     {
         return 0;
     }
+}
+
+void optimizeForPancake(uint8_t i)
+{
+    digitalWrite(selectDriver(i), LOW);
+    delayMicroseconds(50);
+
+    // Set optimal parameters for pancake motor
+    driver[i].intpol(true);     // Enable microstep interpolation
+    driver[i].sfilt(true);      // Enable StallGuard filter
+    driver[i].sgt(10);          // Set StallGuard threshold
+    driver[i].TCOOLTHRS(1000);  // Set CoolStep threshold
+
+    // Configure for high precision
+    driver[i].microsteps(16);  // Maximum microstepping for smooth motion
+    driver[i].intpol(true);    // Enable microstep interpolation
+
+    // Optimize current control
+    driver[i].ihold(100 * 32 / 32);  // Set hold current
+    driver[i].irun(200 * 32 / 32);   // Set run current
+
+    driver[i].iholddelay(6);  // Set hold current delay
+
+    // Configure motion control
+    driver[i].RAMPMODE(0);  // Positioning mode for precise control
+    driver[i].VMAX(500);    // Set maximum speed
+    driver[i].a1(500);      // Set maximum acceleration
+    driver[i].d1(500);      // Set maximum deceleration
+
+    delayMicroseconds(50);
+    digitalWrite(selectDriver(i), HIGH);
+}
+
+void optimize2(uint8_t i)
+{
+    digitalWrite(selectDriver(i), LOW);
+    delayMicroseconds(50);
+
+    // Set optimal parameters for pancake motor
+    driver[i].intpol(true);     // Enable microstep interpolation
+    driver[i].sfilt(true);      // Enable StallGuard filter
+    driver[i].sgt(10);          // Set StallGuard threshold
+    driver[i].TCOOLTHRS(1000);  // Set CoolStep threshold
+
+    // Configure for high precision
+    driver[i].microsteps(16);  // Maximum microstepping for smooth motion
+    driver[i].intpol(true);    // Enable microstep interpolation
+
+    // Optimize current control
+    driver[i].ihold(100 * 32 / 32);  // Set hold current
+    driver[i].irun(200 * 32 / 32);   // Set run current
+
+    driver[i].iholddelay(6);  // Set hold current delay
+
+    // Configure motion control
+    driver[i].RAMPMODE(0);  // Positioning mode for precise control
+    driver[i].VMAX(500);    // Set maximum speed
+    driver[i].a1(500);      // Set maximum acceleration
+    driver[i].d1(500);      // Set maximum deceleration
+
+    delayMicroseconds(50);
+    digitalWrite(selectDriver(i), HIGH);
+}
+
+void configureDriver(uint8_t i)
+{
+    digitalWrite(selectDriver(i), LOW);
+    delayMicroseconds(50);
+
+    // Configure GCONF register for optimal performance
+    uint32_t gconf = 0;
+    gconf |= (1 << 0);  // Enable internal RSense
+    gconf |= (1 << 2);  // Enable stealthChop
+    gconf |= (1 << 3);  // Enable microstep interpolation
+    gconf |= (1 << 4);  // Enable double edge step
+    gconf |= (1 << 6);  // Enable multistep filtering
+    driver[i].GCONF(gconf);
+
+    // Set current control parameters
+    driver[i].rms_current(200);  // Set motor RMS current
+    driver[i].ihold(100);        // Set hold current
+    driver[i].irun(200);         // Set run current
+    driver[i].iholddelay(6);     // Set hold delay
+    driver[i].TPOWERDOWN(10);    // Set power down time
+
+    // Configure microstepping
+    driver[i].microsteps(16);  // Set microsteps
+    driver[i].intpol(true);    // Set microstep interpolation
+
+    // Configure CoolStep
+    driver[i].TCOOLTHRS(1000);  // Set CoolStep threshold
+    driver[i].sgt(10);          // Set StallGuard threshold
+    driver[i].sfilt(true);      // Set StallGuard filter
+    driver[i].sgt(10);          // Set StallGuard threshold
+
+    // Configure stealthChop
+    driver[i].TPWMTHRS(0);          // Enable stealthChop by default
+    driver[i].pwm_autoscale(true);  // Enable PWM autoscale
+    driver[i].pwm_autograd(true);   // Enable PWM autograd
+    driver[i].pwm_ofs(36);          // Set PWM offset
+    driver[i].pwm_grad(14);         // Set PWM gradient
+    driver[i].pwm_freq(1);          // Set PWM frequency
+
+    // Configure spreadCycle
+    driver[i].en_pwm_mode(1);       // 0 for spread cycle, 1 for stealthChop
+    driver[i].toff(3);              // Set turn-off time
+    driver[i].blank_time(24);       // Set blank time
+    driver[i].hysteresis_start(5);  // Set hysteresis start
+    driver[i].hysteresis_end(3);    // Set hysteresis end
+
+    // Configure motion control
+    driver[i].RAMPMODE(0);  // Set ramp mode
+    driver[i].VMAX(500);    // Set maximum speed
+    driver[i].AMAX(500);    // Set maximum acceleration
+    driver[i].DMAX(500);    // Set maximum deceleration
+    driver[i].a1(500);      // Set minimum acceleration
+    driver[i].v1(500 / 2);  // Set minimum speed
+    driver[i].d1(500);      // Set minimum deceleration
+    driver[i].VSTART(0);    // Set start velocity
+    driver[i].VSTOP(10);    // Set stop velocity
+
+    delayMicroseconds(50);
+    digitalWrite(selectDriver(i), HIGH);
 }
 
 bool driverCommunicationTest(uint8_t i, bool print = true)
@@ -360,6 +483,9 @@ void initializeDriver(uint8_t i)
     delayMicroseconds(50);
     digitalWrite(selectDriver(i), HIGH);
 
+    configureDriver(i);
+    optimizeForPancake(i);
+
     isMoving[i] = false;
 }
 
@@ -391,129 +517,6 @@ void initializeDriversAndTest()
     driverTest(3);
     initializeDriver(3);
     Serial.println(F("--------------------------------"));
-}
-
-void optimizeForPancake(uint8_t i)
-{
-    digitalWrite(selectDriver(i), LOW);
-    delayMicroseconds(50);
-
-    // Set optimal parameters for pancake motor
-    driver[i].intpol(true);     // Enable microstep interpolation
-    driver[i].sfilt(true);      // Enable StallGuard filter
-    driver[i].sgt(10);          // Set StallGuard threshold
-    driver[i].TCOOLTHRS(1000);  // Set CoolStep threshold
-
-    // Configure for high precision
-    driver[i].microsteps(16);  // Maximum microstepping for smooth motion
-    driver[i].intpol(true);    // Enable microstep interpolation
-
-    // Optimize current control
-    driver[i].ihold(100 * 32 / 32);  // Set hold current
-    driver[i].irun(200 * 32 / 32);   // Set run current
-
-    driver[i].iholddelay(6);  // Set hold current delay
-
-    // Configure motion control
-    driver[i].RAMPMODE(0);  // Positioning mode for precise control
-    driver[i].VMAX(500);    // Set maximum speed
-    driver[i].a1(500);      // Set maximum acceleration
-    driver[i].d1(500);      // Set maximum deceleration
-
-    delayMicroseconds(50);
-    digitalWrite(selectDriver(i), HIGH);
-}
-
-void optimize2(uint8_t i)
-{
-    digitalWrite(selectDriver(i), LOW);
-    delayMicroseconds(50);
-
-    // Set optimal parameters for pancake motor
-    driver[i].intpol(true);     // Enable microstep interpolation
-    driver[i].sfilt(true);      // Enable StallGuard filter
-    driver[i].sgt(10);          // Set StallGuard threshold
-    driver[i].TCOOLTHRS(1000);  // Set CoolStep threshold
-
-    // Configure for high precision
-    driver[i].microsteps(16);  // Maximum microstepping for smooth motion
-    driver[i].intpol(true);    // Enable microstep interpolation
-
-    // Optimize current control
-    driver[i].ihold(100 * 32 / 32);  // Set hold current
-    driver[i].irun(200 * 32 / 32);   // Set run current
-
-    driver[i].iholddelay(6);  // Set hold current delay
-
-    // Configure motion control
-    driver[i].RAMPMODE(0);  // Positioning mode for precise control
-    driver[i].VMAX(500);    // Set maximum speed
-    driver[i].a1(500);      // Set maximum acceleration
-    driver[i].d1(500);      // Set maximum deceleration
-
-    delayMicroseconds(50);
-    digitalWrite(selectDriver(i), HIGH);
-}
-
-void configureDriver(uint8_t i)
-{
-    digitalWrite(selectDriver(i), LOW);
-    delayMicroseconds(50);
-
-    // Configure GCONF register for optimal performance
-    uint32_t gconf = 0;
-    gconf |= (1 << 0);  // Enable internal RSense
-    gconf |= (1 << 2);  // Enable stealthChop
-    gconf |= (1 << 3);  // Enable microstep interpolation
-    gconf |= (1 << 4);  // Enable double edge step
-    gconf |= (1 << 6);  // Enable multistep filtering
-    driver[i].GCONF(gconf);
-
-    // Set current control parameters
-    driver[i].rms_current(200);  // Set motor RMS current
-    driver[i].ihold(100);        // Set hold current
-    driver[i].irun(200);         // Set run current
-    driver[i].iholddelay(6);     // Set hold delay
-    driver[i].TPOWERDOWN(10);    // Set power down time
-
-    // Configure microstepping
-    driver[i].microsteps(16);  // Set microsteps
-    driver[i].intpol(true);    // Set microstep interpolation
-
-    // Configure CoolStep
-    driver[i].TCOOLTHRS(1000);  // Set CoolStep threshold
-    driver[i].sgt(10);          // Set StallGuard threshold
-    driver[i].sfilt(true);      // Set StallGuard filter
-    driver[i].sgt(10);          // Set StallGuard threshold
-
-    // Configure stealthChop
-    driver[i].TPWMTHRS(0);          // Enable stealthChop by default
-    driver[i].pwm_autoscale(true);  // Enable PWM autoscale
-    driver[i].pwm_autograd(true);   // Enable PWM autograd
-    driver[i].pwm_ofs(36);          // Set PWM offset
-    driver[i].pwm_grad(14);         // Set PWM gradient
-    driver[i].pwm_freq(1);          // Set PWM frequency
-
-    // Configure spreadCycle
-    driver[i].en_pwm_mode(1);       // 0 for spread cycle, 1 for stealthChop
-    driver[i].toff(3);              // Set turn-off time
-    driver[i].blank_time(24);       // Set blank time
-    driver[i].hysteresis_start(5);  // Set hysteresis start
-    driver[i].hysteresis_end(3);    // Set hysteresis end
-
-    // Configure motion control
-    driver[i].RAMPMODE(0);  // Set ramp mode
-    driver[i].VMAX(500);    // Set maximum speed
-    driver[i].AMAX(500);    // Set maximum acceleration
-    driver[i].DMAX(500);    // Set maximum deceleration
-    driver[i].a1(500);      // Set minimum acceleration
-    driver[i].v1(500 / 2);  // Set minimum speed
-    driver[i].d1(500);      // Set minimum deceleration
-    driver[i].VSTART(0);    // Set start velocity
-    driver[i].VSTOP(10);    // Set stop velocity
-
-    delayMicroseconds(50);
-    digitalWrite(selectDriver(i), HIGH);
 }
 
 void motorMoveForward(uint8_t i)
