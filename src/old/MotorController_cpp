@@ -5,7 +5,7 @@
 #include "Config/TMC5160T_Driver.h"
 
 MotorController::MotorController(String name, DriverConfig dc)
-    : driver(dc.csPin, 0.075, dc.link_index),
+    : driver(dc.csPin, 0.075, CONFIG::SPI::MOSI, CONFIG::SPI::MISO, CONFIG::SPI::SCK),
 
       csPin(dc.csPin),
       stepPin(dc.stepPin),
@@ -31,7 +31,7 @@ void MotorController::begin()
 {
     // Setup pins
     pinMode(csPin, OUTPUT);
-    digitalWrite(csPin, HIGH);
+    digitalWrite(csPin, HIGH);  // Deselect the chip
 
     pinMode(stepPin, OUTPUT);
     digitalWrite(stepPin, LOW);
@@ -40,20 +40,55 @@ void MotorController::begin()
     digitalWrite(dirPin, LOW);
 
     pinMode(enPin, OUTPUT);
-    disable();
+    digitalWrite(enPin, HIGH);  // Start with motor disabled
 
+    // Initialize SPI bus if not already initialized
+    static bool spiInitialized = false;
+    if (!spiInitialized)
+    {
+        SPI.begin();
+        SPI.setFrequency(100000);  // Start with very low frequency
+        SPI.setDataMode(SPI_MODE3);
+        SPI.setBitOrder(MSBFIRST);
+        spiInitialized = true;
+        Log.noticeln("SPI initialized with frequency: 100kHz");
+    }
+
+    // Add delay to ensure proper power-up
+    delay(500);
+
+    // Initialize driver with proper CS handling
+    digitalWrite(csPin, LOW);
+    delayMicroseconds(50);  // Increased CS setup time
     driver.begin();
+    delayMicroseconds(50);  // Increased CS hold time
+    digitalWrite(csPin, HIGH);
 
+    // Add delay between driver initializations
+    delay(200);
+
+    // Configure driver with proper CS handling
+    digitalWrite(csPin, LOW);
+    delayMicroseconds(50);
     configureDriver();
+    delayMicroseconds(50);
+    digitalWrite(csPin, HIGH);
 
     if (motorType == MotorType::ROTATIONAL)
     {
+        digitalWrite(csPin, LOW);
+        delayMicroseconds(50);
         optimizeForPancake();
+        delayMicroseconds(50);
+        digitalWrite(csPin, HIGH);
     }
     else
     {
-        // optimizeFor11HS13_1004H();
+        digitalWrite(csPin, LOW);
+        delayMicroseconds(50);
         optimize2();
+        delayMicroseconds(50);
+        digitalWrite(csPin, HIGH);
     }
 }
 
@@ -293,24 +328,102 @@ void MotorController::setStealthChopMode(bool enable)
 
 bool MotorController::testCommunication()
 {
-    if (driver.version() == 0xFF || driver.version() == 0)
+    uint8_t  version  = 0;
+    uint32_t gconf    = 0;
+    uint32_t status   = 0;
+    uint32_t chopconf = 0;
+
+    // Try to read version multiple times
+    for (int attempt = 0; attempt < 3; attempt++)
     {
+        digitalWrite(csPin, LOW);
+        delayMicroseconds(50);
+        version = driver.version();
+        delayMicroseconds(50);
+        digitalWrite(csPin, HIGH);
+
+        if (version != 0xFF && version != 0)
+        {
+            break;
+        }
+        delay(100);
+    }
+
+    Log.noticeln("Motor %s: Version read attempt: 0x%02X", instanceName.c_str(), version);
+
+    if (version == 0xFF || version == 0)
+    {
+        Log.errorln("Motor %s: Invalid version (0x%02X)", instanceName.c_str(), version);
         return false;
     }
 
-    if (0)
+    // Test GCONF register
+    digitalWrite(csPin, LOW);
+    delayMicroseconds(50);
+    gconf = driver.GCONF();
+    delayMicroseconds(50);
+    digitalWrite(csPin, HIGH);
+
+    Log.noticeln("Motor %s: GCONF read: 0x%08X", instanceName.c_str(), gconf);
+
+    if (gconf == 0xFFFFFFFF)
     {
-        digitalWrite(csPin, LOW);
-
-        uint32_t gconf  = driver.GCONF();
-        uint32_t status = driver.DRV_STATUS();
-
-        if (gconf == 0xFFFFFFFF || status == 0xFFFFFFFF)
-        {
-            return false;
-        }
+        Log.errorln("Motor %s: GCONF register read failed", instanceName.c_str());
+        return false;
     }
 
+    // Test DRV_STATUS register
+    digitalWrite(csPin, LOW);
+    delayMicroseconds(50);
+    status = driver.DRV_STATUS();
+    delayMicroseconds(50);
+    digitalWrite(csPin, HIGH);
+
+    Log.noticeln("Motor %s: DRV_STATUS read: 0x%08X", instanceName.c_str(), status);
+
+    if (status == 0xFFFFFFFF)
+    {
+        Log.errorln("Motor %s: DRV_STATUS register read failed", instanceName.c_str());
+        return false;
+    }
+
+    // Test CHOPCONF register
+    digitalWrite(csPin, LOW);
+    delayMicroseconds(50);
+    chopconf = driver.CHOPCONF();
+    delayMicroseconds(50);
+    digitalWrite(csPin, HIGH);
+
+    Log.noticeln("Motor %s: CHOPCONF read: 0x%08X", instanceName.c_str(), chopconf);
+
+    if (chopconf == 0xFFFFFFFF)
+    {
+        Log.errorln("Motor %s: CHOPCONF register read failed", instanceName.c_str());
+        return false;
+    }
+
+    // Test if driver is responding to commands
+    digitalWrite(csPin, LOW);
+    delayMicroseconds(50);
+    driver.GCONF(gconf);  // Write back the same value
+    delayMicroseconds(50);
+    digitalWrite(csPin, HIGH);
+
+    digitalWrite(csPin, LOW);
+    delayMicroseconds(50);
+    uint32_t readback = driver.GCONF();
+    delayMicroseconds(50);
+    digitalWrite(csPin, HIGH);
+
+    Log.noticeln("Motor %s: GCONF write/read test: Original=0x%08X, Readback=0x%08X", instanceName.c_str(), gconf, readback);
+
+    if (readback != gconf)
+    {
+        Log.errorln("Motor %s: GCONF register write/read mismatch", instanceName.c_str());
+        return false;
+    }
+
+    Log.noticeln("Motor %s: Communication test passed (Version: 0x%02X)", instanceName.c_str(), version);
     return true;
 }
 

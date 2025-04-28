@@ -1,60 +1,40 @@
-#include "ObjectInstances.h"
-#include "ArduinoLog.h"
-#include "Config/TMC5160T_Driver.h"
-#include "MAE3Encoder.h"
-#include "MotorController.h"
+#include "MAE3Encoder2.h"
+#include "Object_Manager.h"
 #include "PIDController.h"
+
+static const uint16_t ENC_A = 36;
+static const uint16_t ENC_B = 39;
+static const uint16_t ENC_C = 34;
+static const uint16_t ENC_D = 35;
+
+static constexpr double _KP = 2.0;
+static constexpr double _KI = 0.5;
+static constexpr double _KD = 0.1;
 
 PIDConfig pidConfig = {_KP, _KI, _KD};
 
-DriverConfig dc1 = {CS_A, STEP_A, DIR_A, EN_A, MotorType::LINEAR, 0};
-DriverConfig dc2 = {CS_B, STEP_B, DIR_B, EN_A, MotorType::LINEAR, 1};
+MAE3Encoder2 encoders2[NUM_MOTORS] = {
+    MAE3Encoder2(ENC_A, ENC_A, 0, EncoderResolution::BITS_12), MAE3Encoder2(ENC_B, ENC_B, 1, EncoderResolution::BITS_12),
+    MAE3Encoder2(ENC_C, ENC_C, 2, EncoderResolution::BITS_12), MAE3Encoder2(ENC_D, ENC_D, 3, EncoderResolution::BITS_12)};
 
-MotorController motors[2] = {MotorController(MOTOR_NAME1, dc1), MotorController(MOTOR_NAME2, dc2)};
+PIDController pids[NUM_MOTORS] = {PIDController(pidConfig), PIDController(pidConfig), PIDController(pidConfig),
+                                  PIDController(pidConfig)};
 
-MAE3Encoder2 encoders2[2] = {MAE3Encoder2(ENC_A, ENC_A, 0, EncoderResolution::BITS_12),
-                             MAE3Encoder2(ENC_B, ENC_B, 1, EncoderResolution::BITS_12)};
-
-PIDController pids[2] = {PIDController(pidConfig), PIDController(pidConfig)};
-
-void initializeSystem()
+void initializeOtherObjects()
 {
-    for (uint8_t i = 0; i < NUM_MOTORS; i++)
-    {
-        motors[i].begin();
-        delay(1000);
-        if (!motors[i].testCommunication())
-        {
-            Log.errorln(F("Motor %d communication test: FAILED"), i + 1);
-        }
-        else
-        {
-            Log.noticeln(F("Driver %d firmware version: %d"), i + 1, motors[i].driver.version());
+    encoders2[0].begin();
+    pids[0].begin();
+    pids[0].setOutputLimits(-15000.0, 15000.0);  // 15mm
 
-            if (motors[i].driver.sd_mode())
-            {
-                Log.noticeln(F("Driver %d is hardware configured for Step & Dir mode"), i + 1);
-            }
+    encoders2[1].begin();
+    pids[1].begin();
+    pids[1].setOutputLimits(-180.0, 180.0);  // 15mm
 
-            if (motors[i].driver.drv_enn())
-            {
-                Log.noticeln(F("Driver %d is not hardware enabled"), i + 1);
-            }
-        }
-        delay(1000);
-        encoders2[i].begin();
-        pids[i].begin();
-    }
+    encoders2[2].begin();
+    pids[2].begin();
+    pids[2].setOutputLimits(-180.0, 180.0);  // 15mm
 
-    if (motors[0].isRotational())
-    {
-        pids[0].setOutputLimits(-180.0, 180.0);  // 180 degrees
-    }
-    else
-    {
-        pids[0].setOutputLimits(-15000.0, 15000.0);  // 15mm
-    }
-    // pids[1].setOutputLimits(-180.0, 180.0);      // 180 degrees
-    // pids[2].setOutputLimits(-180.0, 180.0);      // 180 degrees
-    // pids[3].setOutputLimits(-15000.0, 15000.0);  // 15mm
+    encoders2[3].begin();
+    pids[3].begin();
+    pids[3].setOutputLimits(-180.0, 180.0);  // 15mm
 }

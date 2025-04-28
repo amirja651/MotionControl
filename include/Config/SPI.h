@@ -7,9 +7,9 @@ namespace CONFIG
 {
     struct SPI
     {
-        static const uint8_t MOSI = ESP32W::RIGHTPINS::GPIO23;
-        static const uint8_t MISO = ESP32W::RIGHTPINS::GPIO19;
-        static const uint8_t SCK  = ESP32W::RIGHTPINS::GPIO18;
+        static const uint16_t MOSI = 23;
+        static const uint16_t MISO = 19;
+        static const uint16_t SCK  = 18;
     };
 }  // namespace CONFIG
 

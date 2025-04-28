@@ -1,54 +1,75 @@
-#include <SPI.h>
-#include "CLI_Manager.h"
-#include "ESP32_Manager.h"
-#include "Motor_Manager.h"
-#include "Object_Manager.h"
-
-float lastPosition    = 0;
-bool  commandReceived = false;
+#include <ArduinoLog.h>
+#include <SimpleCLI.h>
+#include <esp_system.h>  // Add this include for esp_reset_reason
+#include "Config/TMC5160T_Driver.h"
+#include "MAE3Encoder2.h"
+#include "ObjectInstances_h"
 
 // Task handles
-TaskHandle_t motorUpdateTaskHandle = NULL;
-TaskHandle_t serialReadTaskHandle  = NULL;
-TaskHandle_t serialPrintTaskHandle = NULL;
+TaskHandle_t motorUpdateTaskHandle_0 = NULL;
+TaskHandle_t serialReadTaskHandle    = NULL;
+TaskHandle_t serialPrintTaskHandle   = NULL;
 
-void motorUpdateTask(void* pvParameters);
-void serialReadTask(void* pvParameters);
-void serialPrintTask(void* pvParameters);
+SimpleCLI cli;
 
-void setup()
+Command cmdMotor;
+Command cmdHelp;
+Command cmdRestart;  // New restart command
+
+float lastPosition     = 0;
+bool  commandReceived  = false;  // Safety flag to prevent accidental movement
+bool  isMicrometerUnit = false;
+
+const char* getResetReasonString(esp_reset_reason_t reason)
 {
-    SPI.begin();
-
-    Serial.begin(115200);
-    delay(1000);
-    while (!Serial)
+    switch (reason)
     {
-        delay(10);
+        case ESP_RST_UNKNOWN:
+            return "Unknown";
+        case ESP_RST_POWERON:
+            return "Power On";
+        case ESP_RST_EXT:
+            return "Reset by external pin ";
+        case ESP_RST_SW:
+            return "Software reset";
+        case ESP_RST_PANIC:
+            return "Software reset due to exception/panic";
+        case ESP_RST_INT_WDT:
+            return "Interrupt Watchdog";
+        case ESP_RST_TASK_WDT:
+            return "Task Watchdog";
+        case ESP_RST_WDT:
+            return "Other watchdogs";
+        case ESP_RST_DEEPSLEEP:
+            return "Deep Sleep";
+        case ESP_RST_BROWNOUT:
+            return "Brownout";
+        case ESP_RST_SDIO:
+            return "SDIO";
+        default:
+            return "Unknown";
     }
-
-    printSystemInfo();
-
-    DriverPinSetup();
-    pinMode(MISO, INPUT_PULLUP);
-
-    initializeCLI();
-
-    initializeDriversAndTest();
-
-    initializeOtherObjects();
-
-    xTaskCreatePinnedToCore(motorUpdateTask, "MotorUpdateTask", 4096, NULL, 5, &motorUpdateTaskHandle, 1);  // Core 1
-    xTaskCreatePinnedToCore(serialReadTask, "SerialReadTask", 4096, NULL, 4, &serialReadTaskHandle, 0);     // Core 0
-    xTaskCreatePinnedToCore(serialPrintTask, "SerialPrintTask", 4096, NULL, 2, &serialPrintTaskHandle, 0);  // Core 0
 }
 
-void loop()
+void initializeCLI()
 {
-    delay(100);
+    cmdMotor = cli.addCmd("motor");
+    cmdMotor.addArg("n", "1");     // motor number argument
+    cmdMotor.addArg("p", "30.0");  // positional argument
+    cmdMotor.addFlagArg("d");      // degree flag
+    cmdMotor.addFlagArg("m");      // mm     flag
+    cmdMotor.addFlagArg("u");      // um     flag
+    cmdMotor.addFlagArg("s");      // stop flag
+    cmdMotor.setDescription(" motor1 p 3.0 [n: motor number] [-d: degree] [-m: millimeters] [-u: micrometers] [-s: stop]");
+
+    cmdHelp = cli.addCmd("help");
+    cmdHelp.setDescription("Show help information");
+
+    cmdRestart = cli.addCmd("restart");
+    cmdRestart.setDescription("Restart the ESP32 system");
 }
 
-void motorUpdateTask(void* pvParameters)
+void motorUpdateTask_0(void* pvParameters)
 {
     const TickType_t xFrequency    = pdMS_TO_TICKS(5);
     TickType_t       xLastWakeTime = xTaskGetTickCount();
@@ -101,8 +122,7 @@ void serialReadTask(void* pvParameters)
             {
                 if (inputBuffer.length() > 0)
                 {
-                    Serial.print(F("# "));
-                    Serial.println(inputBuffer.c_str());
+                    Log.noticeln(F("# %s"), inputBuffer.c_str());
                     cli.parse(inputBuffer);
                     inputBuffer = "";  // Clear the buffer
                 }
@@ -125,7 +145,7 @@ void serialReadTask(void* pvParameters)
 
                 if (motorIndex >= NUM_MOTORS)
                 {
-                    Serial.println(F("Invalid motor number"));
+                    Log.errorln(F("Invalid motor number"));
                     continue;
                 }
 
@@ -134,9 +154,7 @@ void serialReadTask(void* pvParameters)
                 {
                     motors[motorIndex].stop();
                     commandReceived = false;  // Explicitly stop movement
-                    Serial.print(F("Motor "));
-                    Serial.print(motorIndex + 1);
-                    Serial.println(F(" stopped\n"));
+                    Serial.printf("Motor %d stopped\n", motorIndex + 1);
                     continue;
                 }
 
@@ -149,46 +167,45 @@ void serialReadTask(void* pvParameters)
                     // Convert position to degrees based on unit flag
                     if (c.getArgument("d").isSet())
                     {
+                        isMicrometerUnit = false;
                         pids[motorIndex].setTarget(position);
-                        Serial.print(F("Motor "));
-                        Serial.print(motorIndex + 1);
-                        Serial.print(F(" moving to "));
-                        Serial.print(position, 2);
-                        Serial.println(F(" degrees\n"));
+                        Serial.printf("Motor %d moving to %.2f degrees\n", motorIndex + 1, position);
+                        commandReceived = true;  // Set flag only after valid command
+                    }
+                    else if (c.getArgument("m").isSet())
+                    {
+                        isMicrometerUnit = false;
+                        pids[motorIndex].setTarget(position);
+                        Serial.printf("Motor %d moving to %.2f mm\n", motorIndex + 1, position);
                         commandReceived = true;  // Set flag only after valid command
                     }
                     else if (c.getArgument("u").isSet())
                     {
+                        isMicrometerUnit = true;
                         pids[motorIndex].setTarget(position);
-                        Serial.print(F("Motor "));
-                        Serial.print(motorIndex + 1);
-                        Serial.print(F(" moving to "));
-                        Serial.print(position, 2);
-                        Serial.println(F(" um\n"));
+                        Serial.printf("Motor %d moving to %.2f um\n", motorIndex + 1, position);
                         commandReceived = true;  // Set flag only after valid command
                     }
                     else
                     {
-                        Serial.println(F("Please specify a unit flag (-d, -m, or -u)"));
+                        Log.errorln(F("Please specify a unit flag (-d, -m, or -u)"));
                         commandReceived = false;  // Ensure no movement without proper unit
                     }
                 }
                 else
                 {
-                    Serial.print(F("Motor "));
-                    Serial.print(motorIndex + 1);
-                    Serial.println(F(" selected\n"));
+                    Serial.printf("Motor %d selected\n", motorIndex + 1);
                     commandReceived = false;  // No position command, no movement
                 }
             }
             else if (c == cmdHelp)
             {
-                Serial.print(F("Help:"));
+                Serial.println("Help:");
                 Serial.println(cli.toString());
             }
             else if (c == cmdRestart)
             {
-                Serial.println(F("System restarting..."));
+                Serial.println("System restarting...");
                 // Ensure motors are stopped before restart
                 for (int i = 0; i < NUM_MOTORS; i++)
                 {
@@ -203,8 +220,15 @@ void serialReadTask(void* pvParameters)
         {
             CommandError cmdError = cli.getError();
 
-            Serial.print(F("ERROR: "));
+            Serial.print("ERROR: ");
             Serial.println(cmdError.toString());
+
+            if (cmdError.hasCommand())
+            {
+                Serial.print("Did you mean \"");
+                Serial.print(cmdError.getCommand().toString());
+                Serial.println("\"?");
+            }
         }
 
         taskYIELD();
@@ -233,30 +257,54 @@ void serialPrintTask(void* pvParameters)
 
             if (fabs(currentPosition - lastPosition) > 1)
             {
-                Serial.print(F("Pulse\tPosition ("));
-                Serial.print(unit);
-                Serial.println(F(")\tDirection\tTarget\tError"));
-                Serial.print(state.currentPulse);
-                Serial.print(F("\t"));
-                Serial.print(currentPosition, 2);
-                Serial.print(F("\t\t"));
-                Serial.print(direction);
-                Serial.print(F("\t\t"));
-                Serial.print(targetPosition, 2);
-                Serial.print(F("\t"));
-                Serial.println(positionError, 2);
-                Serial.println(F("\n\n\n\n\n\n"));
+                Serial.printf(
+                    "Pulse\tPosition (%s)\tDirection\tTarget\tError\n"
+                    "%d\t%.2f\t\t%s\t\t%.2f\t%.2f\n\n\n\n\n\n\n",
+                    unit.c_str(), state.currentPulse, currentPosition, direction.c_str(), targetPosition, positionError);
                 lastPosition = currentPosition;
             }
         }
 
         if (!motors[0].testCommunication())
         {
-            Serial.println(F("Motor 1 communication test: FAILED"));
+            Log.errorln(F("Motor 1 communication test: FAILED"));
             commandReceived = false;  // Stop movement if communication fails
         }
 
         taskYIELD();
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }
+}
+
+void setup()
+{
+    SPI.begin();
+
+    Serial.begin(115200);
+    delay(1000);
+    while (!Serial)
+    {
+        delay(10);
+    }
+
+    Log.begin(LOG_LEVEL_VERBOSE, &Serial);
+    Log.noticeln(F("System Initialization..."));
+    Log.noticeln(F("CPU Frequency : %d MHz" CR), F_CPU / 1000000);
+    Log.noticeln(F("Free RAM: %d bytes"), ESP.getFreeHeap());
+    Log.noticeln(F("Reset Reason: %s"), getResetReasonString(esp_reset_reason()));
+
+    initializeSystem();
+    initializeCLI();
+    //    xTaskCreate(motorUpdateTask_0, "MotorUpdateTask_0", 4096, NULL, 5, &motorUpdateTaskHandle_0);
+    //   xTaskCreate(serialReadTask, "SerialReadTask", 4096, NULL, 4, &serialReadTaskHandle);
+    //   xTaskCreate(serialPrintTask, "SerialPrintTask", 4096, NULL, 2, &serialPrintTaskHandle);
+
+    xTaskCreatePinnedToCore(motorUpdateTask_0, "MotorUpdateTask", 4096, NULL, 5, &motorUpdateTaskHandle_0, 1);  // Core 1
+    xTaskCreatePinnedToCore(serialReadTask, "SerialReadTask", 4096, NULL, 4, &serialReadTaskHandle, 0);         // Core 0
+    xTaskCreatePinnedToCore(serialPrintTask, "SerialPrintTask", 4096, NULL, 2, &serialPrintTaskHandle, 0);      // Core 0
+}
+
+void loop()
+{
+    vTaskDelay(pdMS_TO_TICKS(10));  // Prevent watchdog timer issues
 }
