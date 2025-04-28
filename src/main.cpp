@@ -120,6 +120,7 @@ void serialReadTask(void* pvParameters)
                 // Get motor number
                 Argument motorNumArg = c.getArgument("n");
                 uint8_t  motorIndex  = motorNumArg.getValue().toInt() - 1;  // Convert to 0-based index
+                _motorIndex          = motorIndex;
 
                 if (motorIndex >= NUM_MOTORS)
                 {
@@ -130,12 +131,9 @@ void serialReadTask(void* pvParameters)
                 // Handle stop command
                 if (c.getArgument("s").isSet())
                 {
-                    _motorIndex = motorIndex;
-                    motorStop(_motorIndex);
                     commandReceived = false;  // Explicitly stop movement
-
                     Serial.print(F("Motor "));
-                    Serial.print(_motorIndex + 1);
+                    Serial.print(_motorIndex);
                     Serial.println(F(" stopped\n"));
                     continue;
                 }
@@ -149,24 +147,22 @@ void serialReadTask(void* pvParameters)
                     // Convert position to degrees based on unit flag
                     if (c.getArgument("d").isSet())
                     {
-                        _motorIndex = motorIndex;
                         pids[_motorIndex].setTarget(position);
                         commandReceived = true;  // Set flag only after valid command
 
                         Serial.print(F("Motor "));
-                        Serial.print(_motorIndex + 1);
+                        Serial.print(_motorIndex);
                         Serial.print(F(" moving to "));
                         Serial.print(position, 2);
                         Serial.println(F(" degrees\n"));
                     }
                     else if (c.getArgument("u").isSet())
                     {
-                        _motorIndex = motorIndex;
                         pids[_motorIndex].setTarget(position);
                         commandReceived = true;  // Set flag only after valid command
 
                         Serial.print(F("Motor "));
-                        Serial.print(_motorIndex + 1);
+                        Serial.print(_motorIndex);
                         Serial.print(F(" moving to "));
                         Serial.print(position, 2);
                         Serial.println(F(" um\n"));
@@ -222,6 +218,7 @@ void serialPrintTask(void* pvParameters)
 
     while (1)
     {
+        if (encoders2[_motorIndex].update())
         {
             const auto& state           = encoders2[_motorIndex].getState();
             String      direction       = state.direction == Direction::CLOCKWISE ? "CW" : "CCW";
@@ -237,7 +234,7 @@ void serialPrintTask(void* pvParameters)
             {
                 Serial.print(F("Laps\tPosition ("));
                 Serial.print(unit);
-                Serial.println(F(")\tDirection\tTarget\tError"));
+                Serial.println(F(")\tDirection\tTarget\tError\tMotor"));
                 Serial.print(state.laps);
                 Serial.print(F("\t"));
                 Serial.print(currentPosition, 2);
@@ -246,20 +243,20 @@ void serialPrintTask(void* pvParameters)
                 Serial.print(F("\t\t"));
                 Serial.print(targetPosition, 2);
                 Serial.print(F("\t"));
-                Serial.println(positionError, 2);
-                Serial.println(F("\n\n\n\n\n\n"));
+                Serial.print(positionError, 2);
+                Serial.print(F("\t"));
+                Serial.println(_motorIndex + 1);
                 lastPosition = currentPosition;
             }
         }
-        disableDrivers();
 
-        if (!driverCommunicationTest(_motorIndex, false))
+        /**if (!driverCommunicationTest(_motorIndex, false))
         {
             Serial.print(F("Motor "));
             Serial.print(_motorIndex);
             Serial.println(F(" communication test: FAILED"));
             commandReceived = false;  // Stop movement if communication fails
-        }
+        }**/
 
         taskYIELD();
         vTaskDelayUntil(&xLastWakeTime, xFrequency);

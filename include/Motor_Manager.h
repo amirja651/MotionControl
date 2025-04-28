@@ -160,9 +160,6 @@ void optimizeForPancake(uint8_t i)
 {
     disableDrivers();
 
-    digitalWrite(selectDriver(i), LOW);
-    delayMicroseconds(50);
-
     // Set optimal parameters for pancake motor
     driver[i].intpol(true);     // Enable microstep interpolation
     driver[i].sfilt(true);      // Enable StallGuard filter
@@ -184,18 +181,12 @@ void optimizeForPancake(uint8_t i)
     driver[i].VMAX(500);    // Set maximum speed
     driver[i].a1(500);      // Set maximum acceleration
     driver[i].d1(500);      // Set maximum deceleration
-
-    delayMicroseconds(50);
-    digitalWrite(selectDriver(i), HIGH);
 }
 
 void optimize2(uint8_t i)
 {
     disableDrivers();
 
-    digitalWrite(selectDriver(i), LOW);
-    delayMicroseconds(50);
-
     // Set optimal parameters for pancake motor
     driver[i].intpol(true);     // Enable microstep interpolation
     driver[i].sfilt(true);      // Enable StallGuard filter
@@ -217,17 +208,11 @@ void optimize2(uint8_t i)
     driver[i].VMAX(500);    // Set maximum speed
     driver[i].a1(500);      // Set maximum acceleration
     driver[i].d1(500);      // Set maximum deceleration
-
-    delayMicroseconds(50);
-    digitalWrite(selectDriver(i), HIGH);
 }
 
 void configureDriver(uint8_t i)
 {
     disableDrivers();
-
-    digitalWrite(selectDriver(i), LOW);
-    delayMicroseconds(50);
 
     // Configure GCONF register for optimal performance
     uint32_t gconf = 0;
@@ -280,9 +265,6 @@ void configureDriver(uint8_t i)
     driver[i].d1(500);      // Set minimum deceleration
     driver[i].VSTART(0);    // Set start velocity
     driver[i].VSTOP(10);    // Set stop velocity
-
-    delayMicroseconds(50);
-    digitalWrite(selectDriver(i), HIGH);
 }
 
 bool driverCommunicationTest(uint8_t i, bool print = true)
@@ -294,17 +276,14 @@ bool driverCommunicationTest(uint8_t i, bool print = true)
     uint32_t status   = 0;
     uint32_t chopconf = 0;
 
-    digitalWrite(selectDriver(i), LOW);
-    delayMicroseconds(50);
     version = driver[i].version();
-    delayMicroseconds(50);
-    digitalWrite(selectDriver(i), HIGH);
+
     delay(100);
 
     if (print)
     {
         Serial.print(F("Driver "));
-        Serial.print(i);
+        Serial.print(i + 1);
         Serial.print(F(": Version read attempt: 0x"));
         Serial.println(version, HEX);
     }
@@ -314,7 +293,7 @@ bool driverCommunicationTest(uint8_t i, bool print = true)
         if (print)
         {
             Serial.print(F("Driver "));
-            Serial.print(i);
+            Serial.print(i + 1);
             Serial.print(F(": Invalid version (0x"));
             Serial.print(version, HEX);
             Serial.println(F(")"));
@@ -323,16 +302,13 @@ bool driverCommunicationTest(uint8_t i, bool print = true)
     }
 
     // Test GCONF register
-    digitalWrite(selectDriver(i), LOW);
-    delayMicroseconds(50);
+
     gconf = driver[i].GCONF();
-    delayMicroseconds(50);
-    digitalWrite(selectDriver(i), HIGH);
 
     if (print)
     {
         Serial.print(F("Driver "));
-        Serial.print(i);
+        Serial.print(i + 1);
         Serial.print(F(": GCONF read: 0x"));
         Serial.println(gconf, HEX);
     }
@@ -342,23 +318,20 @@ bool driverCommunicationTest(uint8_t i, bool print = true)
         if (print)
         {
             Serial.print(F("Driver "));
-            Serial.print(i);
+            Serial.print(i + 1);
             Serial.println(F(": GCONF register read failed"));
         }
         return false;
     }
 
     // Test DRV_STATUS register
-    digitalWrite(selectDriver(i), LOW);
-    delayMicroseconds(50);
+
     status = driver[i].DRV_STATUS();
-    delayMicroseconds(50);
-    digitalWrite(selectDriver(i), HIGH);
 
     if (print)
     {
         Serial.print(F("Driver "));
-        Serial.print(i);
+        Serial.print(i + 1);
         Serial.print(F(": DRV_STATUS read: 0x"));
         Serial.println(status, HEX);
     }
@@ -368,23 +341,20 @@ bool driverCommunicationTest(uint8_t i, bool print = true)
         if (print)
         {
             Serial.print(F("Driver "));
-            Serial.print(i);
+            Serial.print(i + 1);
             Serial.println(F(": DRV_STATUS register read failed"));
         }
         return false;
     }
 
     // Test CHOPCONF register
-    digitalWrite(selectDriver(i), LOW);
-    delayMicroseconds(50);
+
     chopconf = driver[i].CHOPCONF();
-    delayMicroseconds(50);
-    digitalWrite(selectDriver(i), HIGH);
 
     if (print)
     {
         Serial.print(F("Driver "));
-        Serial.print(i);
+        Serial.print(i + 1);
         Serial.print(F(": CHOPCONF read: 0x"));
         Serial.println(chopconf, HEX);
     }
@@ -394,29 +364,22 @@ bool driverCommunicationTest(uint8_t i, bool print = true)
         if (print)
         {
             Serial.print(F("Driver "));
-            Serial.print(i);
+            Serial.print(i + 1);
             Serial.println(F(": CHOPCONF register read failed"));
         }
         return false;
     }
 
     // Test if driver is responding to commands
-    digitalWrite(selectDriver(i), LOW);
-    delayMicroseconds(50);
-    driver[i].GCONF(gconf);  // Write back the same value
-    delayMicroseconds(50);
-    digitalWrite(selectDriver(i), HIGH);
 
-    digitalWrite(selectDriver(i), LOW);
-    delayMicroseconds(50);
+    driver[i].GCONF(gconf);  // Write back the same value
+
     uint32_t readback = driver[i].GCONF();
-    delayMicroseconds(50);
-    digitalWrite(selectDriver(i), HIGH);
 
     if (print)
     {
         Serial.print(F("Driver "));
-        Serial.print(i);
+        Serial.print(i + 1);
         Serial.print(F(": GCONF write/read test: Original=0x"));
         Serial.print(gconf, HEX);
         Serial.print(F(", Readback=0x"));
@@ -428,7 +391,7 @@ bool driverCommunicationTest(uint8_t i, bool print = true)
         if (print)
         {
             Serial.print(F("Driver "));
-            Serial.print(i);
+            Serial.print(i + 1);
             Serial.println(F(": GCONF register write/read mismatch"));
         }
         return false;
@@ -437,7 +400,7 @@ bool driverCommunicationTest(uint8_t i, bool print = true)
     if (print)
     {
         Serial.print(F("Driver "));
-        Serial.print(i);
+        Serial.print(i + 1);
         Serial.print(F(": Communication test passed (Version: 0x"));
         Serial.print(version, HEX);
         Serial.println(F(")"));
@@ -450,27 +413,27 @@ void driverTest(uint8_t i)
     if (!driverCommunicationTest(i))
     {
         Serial.print(F("Driver "));
-        Serial.print(i);
+        Serial.print(i + 1);
         Serial.println(F(" communication test: FAILED"));
     }
     else
     {
         Serial.print(F("Driver "));
-        Serial.print(i);
+        Serial.print(i + 1);
         Serial.print(F(" firmware version: "));
         Serial.println(driver[i].version());
 
         if (driver[i].sd_mode())
         {
             Serial.print(F("Driver "));
-            Serial.print(i);
+            Serial.print(i + 1);
             Serial.println(F(" is hardware configured for Step & Dir mode"));
         }
 
         if (driver[i].drv_enn())
         {
             Serial.print(F("Driver "));
-            Serial.print(i);
+            Serial.print(i + 1);
             Serial.println(F(" is not hardware enabled"));
         }
     }
@@ -481,17 +444,11 @@ void initializeDriver(uint8_t i)
 {
     disableDrivers();
 
-    digitalWrite(selectDriver(i), LOW);
-    delayMicroseconds(50);
-
     driver[i].irun(200);   // Default 1000mA
     driver[i].ihold(100);  // Default 500mA
     driver[i].VMAX(500);   // Default 1000 steps/sec
     driver[i].AMAX(500);   // Default 1000 steps/sec²
     driver[i].DMAX(500);   // Default 1000 steps/sec²
-
-    delayMicroseconds(50);
-    digitalWrite(selectDriver(i), HIGH);
 
     configureDriver(i);
     optimizeForPancake(i);
@@ -504,29 +461,14 @@ void initializeDriversAndTest()
     driversPinSetup();
     delay(100);
 
-    disableDrivers();
-    driver[0].begin();
-    driverTest(0);
-    initializeDriver(0);
-    Serial.println(F("--------------------------------"));
-
-    disableDrivers();
-    driver[1].begin();
-    driverTest(1);
-    initializeDriver(1);
-    Serial.println(F("--------------------------------"));
-
-    disableDrivers();
-    driver[2].begin();
-    driverTest(2);
-    initializeDriver(2);
-    Serial.println(F("--------------------------------"));
-
-    disableDrivers();
-    driver[3].begin();
-    driverTest(3);
-    initializeDriver(3);
-    Serial.println(F("--------------------------------"));
+    for (uint8_t i = 0; i < NUM_MOTORS; i++)
+    {
+        disableDrivers();
+        driver[i].begin();
+        driverTest(i);
+        initializeDriver(i);
+        Serial.println(F("--------------------------------"));
+    }
 }
 
 void motorMoveForward(uint8_t i)
@@ -581,11 +523,7 @@ void motorStop(uint8_t i)
 {
     disableDrivers();
 
-    digitalWrite(selectDriver(i), LOW);
-    delayMicroseconds(50);
     driver[i].VMAX(0);  // Set target velocity to zero
-    delayMicroseconds(50);
-    digitalWrite(selectDriver(i), HIGH);
 
     // Wait for standstill
     uint32_t       status;
@@ -593,11 +531,7 @@ void motorStop(uint8_t i)
     uint32_t       elapsed = 0;
     do
     {
-        digitalWrite(selectDriver(i), LOW);
-        delayMicroseconds(50);
         status = driver[i].DRV_STATUS();
-        delayMicroseconds(50);
-        digitalWrite(selectDriver(i), HIGH);
 
         vTaskDelay(1);
         elapsed++;
@@ -608,11 +542,8 @@ void motorStop(uint8_t i)
         }
     } while (!(status & (1 << 31)));
 
-    digitalWrite(selectDriver(i), LOW);
-    delayMicroseconds(50);
     driver[i].ihold(200);  // Reduce to hold current
-    delayMicroseconds(50);
-    digitalWrite(selectDriver(i), HIGH);
+
     isMoving[i] = false;
 
     disableMotor(i);
