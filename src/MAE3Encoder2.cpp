@@ -1,18 +1,39 @@
 #include "MAE3Encoder2.h"
 #include <algorithm>
 
-// Static array to store encoder instances for interrupt handling
-static MAE3Encoder2* encoderInstances[MAX_ENCODERS] = {nullptr};
+// Initialize static member
+MAE3Encoder2* MAE3Encoder2::encoderInstances[MAX_ENCODERS] = {nullptr};
 
-// Static interrupt handler
-static void IRAM_ATTR staticInterruptHandler()
+// Individual interrupt handlers for each encoder
+void IRAM_ATTR MAE3Encoder2::interruptHandler0()
 {
-    for (auto& instance : encoderInstances)
+    if (encoderInstances[0])
     {
-        if (instance)
-        {
-            instance->processInterrupt();
-        }
+        encoderInstances[0]->processInterrupt();
+    }
+}
+
+void IRAM_ATTR MAE3Encoder2::interruptHandler1()
+{
+    if (encoderInstances[1])
+    {
+        encoderInstances[1]->processInterrupt();
+    }
+}
+
+void IRAM_ATTR MAE3Encoder2::interruptHandler2()
+{
+    if (encoderInstances[2])
+    {
+        encoderInstances[2]->processInterrupt();
+    }
+}
+
+void IRAM_ATTR MAE3Encoder2::interruptHandler3()
+{
+    if (encoderInstances[3])
+    {
+        encoderInstances[3]->processInterrupt();
     }
 }
 
@@ -43,8 +64,22 @@ bool MAE3Encoder2::begin()
     // Store instance for interrupt handling
     encoderInstances[encoderId] = this;
 
-    // Configure interrupt
-    attachInterrupt(digitalPinToInterrupt(interruptPin), staticInterruptHandler, CHANGE);
+    // Configure interrupt based on encoder ID
+    switch (encoderId)
+    {
+        case 0:
+            attachInterrupt(digitalPinToInterrupt(interruptPin), interruptHandler0, CHANGE);
+            break;
+        case 1:
+            attachInterrupt(digitalPinToInterrupt(interruptPin), interruptHandler1, CHANGE);
+            break;
+        case 2:
+            attachInterrupt(digitalPinToInterrupt(interruptPin), interruptHandler2, CHANGE);
+            break;
+        case 3:
+            attachInterrupt(digitalPinToInterrupt(interruptPin), interruptHandler3, CHANGE);
+            break;
+    }
 
     // Initialize state
     state.currentPulse = 0;

@@ -155,6 +155,15 @@ private:
     {
         return 360.0f / constants.PULSE_PER_REV;
     }
+
+    // Individual interrupt handler for this encoder
+    static void IRAM_ATTR interruptHandler0();
+    static void IRAM_ATTR interruptHandler1();
+    static void IRAM_ATTR interruptHandler2();
+    static void IRAM_ATTR interruptHandler3();
+
+    // Static array to store encoder instances for interrupt handling
+    static MAE3Encoder2* encoderInstances[MAX_ENCODERS];
 };
 
 #endif  // MAE3_ENCODER2_H
