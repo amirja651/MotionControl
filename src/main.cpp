@@ -4,8 +4,9 @@
 #include "Motor_Manager.h"
 #include "Object_Manager.h"
 
-float lastPosition    = 0;
-bool  commandReceived = false;
+float   lastPosition    = 0;
+bool    commandReceived = false;
+uint8_t _motorIndex     = 0;
 
 // Task handles
 TaskHandle_t motorUpdateTaskHandle = NULL;
@@ -29,8 +30,7 @@ void setup()
 
     printSystemInfo();
 
-    DriverPinSetup();
-    pinMode(MISO, INPUT_PULLUP);
+    initializeDriversAndTest();
 
     initializeCLI();
 
@@ -55,29 +55,29 @@ void motorUpdateTask(void* pvParameters)
 
     while (1)
     {
-        float  positionDegrees = encoders2[0].getPositionDegrees();
-        float  totalTravelMM   = encoders2[0].getTotalTravelMM();
-        double currentPosition =
-            motors[0].isRotational() ? positionDegrees : (isMicrometerUnit ? totalTravelMM * 1000.0f : totalTravelMM);
-        double positionError  = pids[0].getPositionError(currentPosition, motors[0].isRotational());
-        double teloranceError = motors[0].isRotational() ? 0.5 : (isMicrometerUnit ? 2 : 0.002);
+        bool   isRotational    = motorType[_motorIndex] == MotorType::ROTATIONAL;
+        float  positionDegrees = encoders2[_motorIndex].getPositionDegrees();
+        float  totalTravelUM   = encoders2[_motorIndex].getTotalTravelUM();
+        double currentPosition = isRotational ? positionDegrees : totalTravelUM;
+        double positionError   = pids[_motorIndex].getPositionError(currentPosition, isRotational);
 
-        if (positionError > teloranceError && commandReceived)  // Only move if command was received
+        if (positionError > 0.5 && commandReceived)  // Only move if command was received
         {
-            motors[0].step();
-            encoders2[0].update();
+            motorStep(_motorIndex);
+            encoders2[_motorIndex].update();
 
-            currentPosition =
-                motors[0].isRotational() ? positionDegrees : (isMicrometerUnit ? totalTravelMM * 1000.0f : totalTravelMM);
+            currentPosition = isRotational ? positionDegrees : totalTravelUM;
 
-            pids[0].setInput(currentPosition);
-            pids[0].pid->Compute();
+            pids[_motorIndex].setInput(currentPosition);
+            pids[_motorIndex].pid->Compute();
 
-            (pids[0].output > 0) ? motors[0].moveForward() : (pids[0].output < 0) ? motors[0].moveReverse() : motors[0].stop();
+            (pids[_motorIndex].output > 0)   ? motorMoveForward(_motorIndex)
+            : (pids[_motorIndex].output < 0) ? motorMoveReverse(_motorIndex)
+                                             : motorStop(_motorIndex);
         }
         else
         {
-            motors[0].stop();
+            motorStop(_motorIndex);
             commandReceived = false;  // Reset command flag when target is reached or no command
         }
 
@@ -132,10 +132,12 @@ void serialReadTask(void* pvParameters)
                 // Handle stop command
                 if (c.getArgument("s").isSet())
                 {
-                    motors[motorIndex].stop();
+                    _motorIndex = motorIndex;
+                    motorStop(_motorIndex);
                     commandReceived = false;  // Explicitly stop movement
+
                     Serial.print(F("Motor "));
-                    Serial.print(motorIndex + 1);
+                    Serial.print(_motorIndex + 1);
                     Serial.println(F(" stopped\n"));
                     continue;
                 }
@@ -149,35 +151,35 @@ void serialReadTask(void* pvParameters)
                     // Convert position to degrees based on unit flag
                     if (c.getArgument("d").isSet())
                     {
-                        pids[motorIndex].setTarget(position);
+                        _motorIndex = motorIndex;
+                        pids[_motorIndex].setTarget(position);
+                        commandReceived = true;  // Set flag only after valid command
+
                         Serial.print(F("Motor "));
-                        Serial.print(motorIndex + 1);
+                        Serial.print(_motorIndex + 1);
                         Serial.print(F(" moving to "));
                         Serial.print(position, 2);
                         Serial.println(F(" degrees\n"));
-                        commandReceived = true;  // Set flag only after valid command
                     }
                     else if (c.getArgument("u").isSet())
                     {
-                        pids[motorIndex].setTarget(position);
+                        _motorIndex = motorIndex;
+                        pids[_motorIndex].setTarget(position);
+                        commandReceived = true;  // Set flag only after valid command
+
                         Serial.print(F("Motor "));
-                        Serial.print(motorIndex + 1);
+                        Serial.print(_motorIndex + 1);
                         Serial.print(F(" moving to "));
                         Serial.print(position, 2);
                         Serial.println(F(" um\n"));
-                        commandReceived = true;  // Set flag only after valid command
                     }
                     else
                     {
-                        Serial.println(F("Please specify a unit flag (-d, -m, or -u)"));
                         commandReceived = false;  // Ensure no movement without proper unit
                     }
                 }
                 else
                 {
-                    Serial.print(F("Motor "));
-                    Serial.print(motorIndex + 1);
-                    Serial.println(F(" selected\n"));
                     commandReceived = false;  // No position command, no movement
                 }
             }
@@ -189,11 +191,14 @@ void serialReadTask(void* pvParameters)
             else if (c == cmdRestart)
             {
                 Serial.println(F("System restarting..."));
+                commandReceived = false;
+
                 // Ensure motors are stopped before restart
                 for (int i = 0; i < NUM_MOTORS; i++)
                 {
-                    motors[i].stop();
+                    motorStop(i);
                 }
+
                 delay(100);  // Give time for motors to stop
                 ESP.restart();
             }
@@ -220,16 +225,15 @@ void serialPrintTask(void* pvParameters)
     while (1)
     {
         {
-            const auto& state           = encoders2[0].getState();
-            float       positionDegrees = encoders2[0].getPositionDegrees();
-            float       totalTravelMM   = encoders2[0].getTotalTravelMM();
-            double      currentPosition =
-                motors[0].isRotational() ? positionDegrees : (isMicrometerUnit ? totalTravelMM * 1000.0f : totalTravelMM);
-
-            String unit           = motors[0].isRotational() ? "°" : (isMicrometerUnit ? "um" : "mm");
-            double targetPosition = pids[0].getTarget();
-            double positionError  = pids[0].getPositionError(currentPosition, motors[0].isRotational());
-            String direction      = state.direction == Direction::CLOCKWISE ? "CW" : "CCW";
+            const auto& state           = encoders2[_motorIndex].getState();
+            String      direction       = state.direction == Direction::CLOCKWISE ? "CW" : "CCW";
+            bool        isRotational    = motorType[_motorIndex] == MotorType::ROTATIONAL;
+            String      unit            = isRotational ? "°" : "um";
+            float       positionDegrees = encoders2[_motorIndex].getPositionDegrees();
+            float       totalTravelUM   = encoders2[_motorIndex].getTotalTravelUM();
+            double      currentPosition = isRotational ? positionDegrees : totalTravelUM;
+            double      positionError   = pids[_motorIndex].getPositionError(currentPosition, isRotational);
+            double      targetPosition  = pids[_motorIndex].getTarget();
 
             if (fabs(currentPosition - lastPosition) > 1)
             {
@@ -250,9 +254,11 @@ void serialPrintTask(void* pvParameters)
             }
         }
 
-        if (!motors[0].testCommunication())
+        if (!driverCommunicationTest(_motorIndex, false))
         {
-            Serial.println(F("Motor 1 communication test: FAILED"));
+            Serial.print(F("Motor "));
+            Serial.print(_motorIndex);
+            Serial.println(F(" communication test: FAILED"));
             commandReceived = false;  // Stop movement if communication fails
         }
 
