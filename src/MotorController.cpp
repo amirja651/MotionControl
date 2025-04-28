@@ -5,7 +5,7 @@
 #include "Config/TMC5160T_Driver.h"
 
 MotorController::MotorController(String name, DriverConfig dc)
-    : driver(dc.csPin, 0.075),
+    : driver(dc.csPin, 0.075, dc.link_index),
 
       csPin(dc.csPin),
       stepPin(dc.stepPin),

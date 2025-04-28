@@ -14,6 +14,7 @@ struct DriverConfig
     uint8_t   dirPin;
     uint8_t   enPin;
     MotorType motorType;
+    int8_t    link_index;
 };
 
 class MotorController

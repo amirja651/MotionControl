@@ -6,7 +6,7 @@
 #include "PIDController.h"
 
 // Number of motors in the system
-#define NUM_MOTORS  1
+#define NUM_MOTORS  2
 #define MOTOR_NAME1 "Motor 1"
 #define MOTOR_NAME2 "Motor 2"
 #define MOTOR_NAME3 "Motor 3"

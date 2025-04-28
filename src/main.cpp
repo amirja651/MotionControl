@@ -276,9 +276,19 @@ void serialPrintTask(void* pvParameters)
     }
 }
 
+static bool spiInitialized = false;
+
 void setup()
 {
-    SPI.begin();
+    if (!spiInitialized)
+    {
+        SPI.begin();
+        SPI.setFrequency(100000);  // Start with very low frequency
+        SPI.setDataMode(SPI_MODE3);
+        SPI.setBitOrder(MSBFIRST);
+        spiInitialized = true;
+        Log.noticeln("SPI initialized with frequency: 100kHz");
+    }
 
     Serial.begin(115200);
     delay(1000);
