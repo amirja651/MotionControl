@@ -10,8 +10,6 @@ class MotorController
 {
 public:
     MotorController(uint16_t pinDIR, uint16_t pinSTEP, uint16_t pinEN, uint16_t pinCS, int8_t link_index = -1);
-    MotorController(uint16_t pinDIR, uint16_t pinSTEP, uint16_t pinEN, uint16_t pinCS, uint16_t pinMOSI, uint16_t pinMISO,
-                    uint16_t pinSCK, int8_t link_index = -1);
     TMC5160Stepper driver;  // TMC5160 driver instance
 
     void begin();                          // Initialize the motor controller

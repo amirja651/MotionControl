@@ -1,53 +1,39 @@
 #ifndef TMC5160T_DRIVER_H
 #define TMC5160T_DRIVER_H
 
-#include "ESP32.h"
-
 enum class MotorType
 {
     LINEAR,
     ROTATIONAL
 };
 
-namespace CONFIG
-{
-    struct MOTOR
-    {
-        static const uint8_t DIR1 = ESP32W::RIGHTPINS::GPIO22;
-        static const uint8_t DIR2 = ESP32W::RIGHTPINS::GPIO15;
-        static const uint8_t DIR3 = ESP32W::LEFTPINS::GPIO32;
-        static const uint8_t DIR4 = ESP32W::LEFTPINS::GPIO27;
+static const uint8_t DIR_A  = 22;
+static const uint8_t STEP_A = 21;
+static const uint8_t EN_A   = 17;
+static const uint8_t CS_A   = 5;
 
-        static const uint8_t STEP1 = ESP32W::RIGHTPINS::GPIO21;
-        static const uint8_t STEP2 = ESP32W::RIGHTPINS::GPIO2;
-        static const uint8_t STEP3 = ESP32W::LEFTPINS::GPIO33;
-        static const uint8_t STEP4 = ESP32W::LEFTPINS::GPIO14;
+static const uint8_t DIR_B  = 15;
+static const uint8_t STEP_B = 2;
+static const uint8_t EN_B   = 16;
+static const uint8_t CS_B   = 5;  // 4;
 
-        static const uint8_t CS1 = ESP32W::RIGHTPINS::GPIO5;
-        static const uint8_t CS2 = ESP32W::RIGHTPINS::GPIO4;
-        static const uint8_t CS3 = ESP32W::LEFTPINS::GPIO25;
-        static const uint8_t CS4 = ESP32W::LEFTPINS::GPIO12;
+static const uint8_t DIR_C  = 32;
+static const uint8_t STEP_C = 33;
+static const uint8_t EN_C   = 26;
+static const uint8_t CS_C   = 5;  // 25;
 
-        static const uint8_t EN1 = ESP32W::RIGHTPINS::GPIO17;
-        static const uint8_t EN2 = ESP32W::RIGHTPINS::GPIO16;
-        static const uint8_t EN3 = ESP32W::LEFTPINS::GPIO26;
-        static const uint8_t EN4 = ESP32W::LEFTPINS::GPIO13;
-    };
+static const uint8_t DIR_D  = 27;
+static const uint8_t STEP_D = 14;
+static const uint8_t EN_D   = 13;
+static const uint8_t CS_D   = 5;  // 12;
 
-    struct ENCODER
-    {
-        static const uint8_t ENC1 = ESP32W::LEFTPINS::GPIO36;
-        static const uint8_t ENC2 = ESP32W::LEFTPINS::GPIO39;
-        static const uint8_t ENC3 = ESP32W::LEFTPINS::GPIO34;
-        static const uint8_t ENC4 = ESP32W::LEFTPINS::GPIO35;
-    };
+static const uint8_t ENC_A = 36;
+static const uint8_t ENC_B = 39;
+static const uint8_t ENC_C = 34;
+static const uint8_t ENC_D = 35;
 
-    struct PID
-    {
-        static constexpr double KP = 2.0;
-        static constexpr double KI = 0.5;
-        static constexpr double KD = 0.1;
-    };
-}  // namespace CONFIG
+static constexpr double _KP = 2.0;
+static constexpr double _KI = 0.5;
+static constexpr double _KD = 0.1;
 
 #endif  // TMC5160T_DRIVER_H

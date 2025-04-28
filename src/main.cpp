@@ -278,7 +278,17 @@ void serialPrintTask(void* pvParameters)
 
 void setup()
 {
-    SPI.begin();
+    // Initialize SPI bus if not already initialized
+    static bool spiInitialized = false;
+    if (!spiInitialized)
+    {
+        SPI.begin();
+        SPI.setFrequency(500000);    // Reduced frequency for stability
+        SPI.setDataMode(SPI_MODE3);  // TMC5160 requires SPI mode 3
+        SPI.setBitOrder(MSBFIRST);
+        spiInitialized = true;
+        Log.noticeln("SPI initialized with frequency: 500kHz");
+    }
 
     Serial.begin(115200);
     delay(1000);

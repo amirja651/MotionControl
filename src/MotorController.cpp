@@ -1,29 +1,10 @@
 #include "MotorController.h"
 #include <ArduinoLog.h>
 #include "Config/Motor_Specs.h"
-#include "Config/SPI.h"
 #include "Config/TMC5160T_Driver.h"
 
 MotorController::MotorController(uint16_t pinDIR, uint16_t pinSTEP, uint16_t pinEN, uint16_t pinCS, int8_t link_index)
-    : driver(pinCS, default_RS, link_index),
-      stepPin(pinSTEP),
-      dirPin(pinDIR),
-      enPin(pinEN),
-      runCurrent(200),
-      holdCurrent(100),
-      speed(500),
-      acceleration(500),
-      maxSpeed(500),
-      maxAcceleration(1000),
-      maxDeceleration(1000),
-      isMoving(false),
-      motorType(MotorType::ROTATIONAL)
-{
-}
-
-MotorController::MotorController(uint16_t pinDIR, uint16_t pinSTEP, uint16_t pinEN, uint16_t pinCS, uint16_t pinMOSI,
-                                 uint16_t pinMISO, uint16_t pinSCK, int8_t link_index)
-    : driver(pinCS, pinMOSI, pinMISO, pinSCK, link_index),
+    : driver(pinCS, MOSI, MISO, SCK, link_index),
       stepPin(pinSTEP),
       dirPin(pinDIR),
       enPin(pinEN),
@@ -50,9 +31,29 @@ void MotorController::begin()
     pinMode(enPin, OUTPUT);
     disable();
 
+    // Add longer delay for daisy chain configuration
+    delay(500);  // Increased from 200ms to 500ms
+
+    // Initialize driver with proper daisy chain timing
     driver.begin();
 
+    // Add delay after driver initialization
+    delay(100);
+
+    // Test communication before configuration
+    if (!testCommunication())
+    {
+        Log.errorln(F("Driver communication test failed during initialization"));
+        return;
+    }
+
+    // Add delay before configuration
+    delay(100);
+
     configureDriver();
+
+    // Add delay after configuration
+    delay(100);
 
     if (motorType == MotorType::ROTATIONAL)
     {
@@ -60,9 +61,11 @@ void MotorController::begin()
     }
     else
     {
-        // optimizeFor11HS13_1004H();
         optimize2();
     }
+
+    // Final delay to ensure configuration is complete
+    delay(100);
 }
 
 void MotorController::optimizeForPancake()
@@ -299,23 +302,20 @@ void MotorController::setStealthChopMode(bool enable)
 
 bool MotorController::testCommunication()
 {
-    if (driver.version() == 0xFF || driver.version() == 0)
-    {
-        return false;
-    }
+    // Add delay before communication test
+    delay(50);
 
-    if (0)
+    // Try to read version register multiple times
+    for (int i = 0; i < 3; i++)
     {
-        uint32_t gconf  = driver.GCONF();
-        uint32_t status = driver.DRV_STATUS();
-
-        if (gconf == 0xFFFFFFFF || status == 0xFFFFFFFF)
+        uint32_t version = driver.version();
+        if (version != 0)
         {
-            return false;
+            return true;
         }
+        delay(50);
     }
-
-    return true;
+    return false;
 }
 
 // Private Methods
