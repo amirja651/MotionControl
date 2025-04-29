@@ -22,24 +22,17 @@ double PIDController::getTarget() const
 
 double PIDController::getPositionError(double currentPosition, bool isRotational) const
 {
-    double positionError = 0.0;
+    double error = setpoint - currentPosition;
 
     if (isRotational)
     {
-        positionError = fabs(currentPosition - setpoint);
-
-        // Handle wrap-around at 0/360 degrees
-        if (positionError > 180.0f && isRotational)
-        {
-            positionError = 360.0f - positionError;
-        }
-    }
-    else
-    {
-        positionError = currentPosition - setpoint;
+        while (error > 180.0)
+            error -= 360.0;
+        while (error < -180.0)
+            error += 360.0;
     }
 
-    return positionError;
+    return error;
 }
 
 void PIDController::setInput(float input)

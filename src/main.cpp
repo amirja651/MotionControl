@@ -62,25 +62,32 @@ void motorUpdateTask(void* pvParameters)
     while (1)
     {
         encoders2[_motorIndex].update();
-        bool   isRotational    = motorType[_motorIndex] == MotorType::ROTATIONAL;
-        float  positionDegrees = encoders2[_motorIndex].getPositionDegrees();
-        float  totalTravelUM   = encoders2[_motorIndex].getTotalTravelUM();
-        double currentPosition = isRotational ? positionDegrees : totalTravelUM;
-        double positionError   = pids[_motorIndex].getPositionError(currentPosition, isRotational);
-        if (commandReceived)
+        float currentPosition = 0;
+        bool  isRotational    = motorType[_motorIndex] == MotorType::ROTATIONAL;
+
+        if (isRotational)
         {
-            Serial.print(F("Command received: "));
-            Serial.print(positionError);
-            Serial.print(F(", "));
-            Serial.println(commandReceived);
+            currentPosition = encoders2[_motorIndex].getPositionDegrees();
         }
+        else
+        {
+            currentPosition = encoders2[_motorIndex].getTotalTravelUM();
+        }
+        double positionError = pids[_motorIndex].getPositionError(currentPosition, isRotational);
 
         if (positionError > 0.5 && commandReceived)  // Only move if command was received
         {
             motorLastState = motorState::MOTOR_MOVING;
             motorStep(_motorIndex);
 
-            currentPosition = isRotational ? positionDegrees : totalTravelUM;
+            if (isRotational)
+            {
+                currentPosition = encoders2[_motorIndex].getPositionDegrees();
+            }
+            else
+            {
+                currentPosition = encoders2[_motorIndex].getTotalTravelUM();
+            }
 
             pids[_motorIndex].setInput(currentPosition);
             pids[_motorIndex].pid->Compute();
@@ -234,13 +241,23 @@ void serialPrintTask(void* pvParameters)
         {
             const auto& state           = encoders2[_motorIndex].getState();
             String      direction       = state.direction == Direction::CLOCKWISE ? "CW" : "CCW";
+            String      unit            = "";
+            float       currentPosition = 0;
             bool        isRotational    = motorType[_motorIndex] == MotorType::ROTATIONAL;
-            String      unit            = isRotational ? "°" : "um";
-            float       positionDegrees = encoders2[_motorIndex].getPositionDegrees();
-            float       totalTravelUM   = encoders2[_motorIndex].getTotalTravelUM();
-            double      currentPosition = isRotational ? positionDegrees : totalTravelUM;
-            double      positionError   = pids[_motorIndex].getPositionError(currentPosition, isRotational);
-            double      targetPosition  = pids[_motorIndex].getTarget();
+
+            if (isRotational)
+            {
+                unit            = "°";
+                currentPosition = encoders2[_motorIndex].getPositionDegrees();
+            }
+            else
+            {
+                unit            = "um";
+                currentPosition = encoders2[_motorIndex].getTotalTravelUM();
+            }
+
+            double positionError  = pids[_motorIndex].getPositionError(currentPosition, isRotational);
+            double targetPosition = pids[_motorIndex].getTarget();
 
             if (fabs(currentPosition - lastPosition) > 1)
             {

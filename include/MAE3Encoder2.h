@@ -22,7 +22,7 @@ struct EncoderConstants
     uint32_t MAX_PULSE_WIDTH;  // Maximum valid pulse width in microseconds
     uint32_t PULSE_PERIOD;     // Total period in microseconds
     uint32_t PULSE_PER_REV;    // Resolution (1024 for 10-bit, 4096 for 12-bit)
-    float    PWM_FREQUENCY;    // PWM frequency in kHz
+    float    PWM_FREQUENCY;    // PWM frequency in Hz
 };
 
 // Constants for 10-bit encoder (MAE3-P10)
@@ -44,14 +44,12 @@ constexpr EncoderConstants ENCODER_12BIT = {
 };
 
 // Linear motion constants
-constexpr float    LEAD_SCREW_PITCH = 0.5f;   // Lead screw pitch in mm
-constexpr float    TOTAL_TRAVEL_MM  = 30.0f;  // Total travel distance in mm
-constexpr uint8_t  MICROSTEPS       = 16;     // Microstepping configuration
-constexpr uint16_t STEPS_PER_REV    = 200;    // Motor steps per revolution
-
-// Calculate linear distance per pulse
-constexpr float MM_PER_PULSE = LEAD_SCREW_PITCH / (ENCODER_10BIT.PULSE_PER_REV * MICROSTEPS);
-constexpr float UM_PER_PULSE = MM_PER_PULSE * 1000.0f;  // Convert to micrometers
+constexpr float    LEAD_SCREW_PITCH_MM = 0.5f;      // Lead screw pitch in mm
+constexpr float    TOTAL_TRAVEL_MM     = 30.0f;     // Total travel distance in mm
+constexpr float    LEAD_SCREW_PITCH_UM = 500.0f;    // 0.5mm = 500μm
+constexpr float    TOTAL_TRAVEL_UM     = 30000.0f;  // 30mm = 30000μm
+constexpr uint8_t  MICROSTEPS          = 16;        // Microstepping configuration
+constexpr uint16_t STEPS_PER_REV       = 200;       // Motor steps per revolution
 
 // Direction enum
 enum class Direction
@@ -73,7 +71,7 @@ class MAE3Encoder2
 {
 public:
     MAE3Encoder2(uint8_t signalPin, uint8_t interruptPin, uint8_t encoderId,
-                 EncoderResolution resolution = EncoderResolution::BITS_10);
+                 EncoderResolution resolution = EncoderResolution::BITS_12);
 
     bool begin();
 
@@ -84,31 +82,54 @@ public:
         return state;
     }
 
+    // Degrees per pulse
+    float getDegreesPerPulse() const
+    {
+        return 360.0f / constants.PULSE_PER_REV;
+    }
+
+    // Millimeters per pulse
+    float getMMPerPulse() const
+    {
+        return LEAD_SCREW_PITCH_MM / constants.PULSE_PER_REV;
+    }
+
+    // Micrometers per pulse
+    float getUMPerPulse() const
+    {
+        return getMMPerPulse() * 1000.0f;
+    }
+
+    // Position in degrees
     float getPositionDegrees() const
     {
         return state.currentPulse * getDegreesPerPulse();
     }
 
+    // Position in mm
     float getPositionMM() const
     {
-        return state.currentPulse * MM_PER_PULSE;
+        return state.currentPulse * getMMPerPulse();
     }
 
+    // Position in μm
     float getPositionUM() const
     {
-        return state.currentPulse * UM_PER_PULSE;
+        return state.currentPulse * getUMPerPulse();
     }
 
+    // Total travel in mm
     float getTotalTravelMM() const
     {
-        float totalDistance = (state.laps * LEAD_SCREW_PITCH) + getPositionMM();
-        // Ensure we don't exceed total travel
+        float totalDistance = (state.laps * LEAD_SCREW_PITCH_MM) + getPositionMM();
         return std::min(totalDistance, TOTAL_TRAVEL_MM);
     }
 
+    // Total travel in μm
     float getTotalTravelUM() const
     {
-        return getTotalTravelMM() * 1000.0f;
+        float totalDistanceUM = (state.laps * LEAD_SCREW_PITCH_UM) + getPositionUM();
+        return std::min(totalDistanceUM, TOTAL_TRAVEL_UM);
     }
 
     void reset();
@@ -148,12 +169,6 @@ private:
     static const EncoderConstants& getConstants(EncoderResolution res)
     {
         return (res == EncoderResolution::BITS_10) ? ENCODER_10BIT : ENCODER_12BIT;
-    }
-
-    // Calculate degrees per pulse based on resolution
-    float getDegreesPerPulse() const
-    {
-        return 360.0f / constants.PULSE_PER_REV;
     }
 
     // Individual interrupt handler for this encoder

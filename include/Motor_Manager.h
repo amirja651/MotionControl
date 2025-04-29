@@ -36,7 +36,8 @@ enum class MotorType
 };
 
 static bool      isMoving[NUM_MOTORS]  = {false, false, false, false};
-static MotorType motorType[NUM_MOTORS] = {MotorType::LINEAR, MotorType::ROTATIONAL, MotorType::ROTATIONAL, MotorType::ROTATIONAL};
+static MotorType motorType[NUM_MOTORS] = {MotorType::ROTATIONAL, MotorType::ROTATIONAL, MotorType::ROTATIONAL,
+                                          MotorType::ROTATIONAL};
 
 // Define driver objects
 TMC5160Stepper driver[NUM_MOTORS] = {
