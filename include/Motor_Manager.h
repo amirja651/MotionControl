@@ -590,7 +590,11 @@ void motorStop(uint8_t i)
 
     isMoving[i] = false;
     Serial.println(F("Motor stopped"));
-    disableMotor(i);
+
+    if (i > 0)
+    {
+        disableMotor(i);  // Just for pancake motors, disable the motor after stopping
+    }
 }
 
 void motorStep(uint8_t i)
