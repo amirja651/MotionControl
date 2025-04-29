@@ -73,9 +73,12 @@ void motorUpdateTask(void* pvParameters)
         {
             currentPosition = encoders2[_motorIndex].getTotalTravelUM();
         }
+
         double positionError = pids[_motorIndex].getPositionError(currentPosition, isRotational);
 
-        if (positionError > 0.5 && commandReceived)  // Only move if command was received
+        float threshold = isRotational ? 0.5f : 0.5f;  // Different threshold for rotation and linear
+
+        if (fabs(positionError) > threshold && commandReceived)
         {
             motorLastState = motorState::MOTOR_MOVING;
             motorStep(_motorIndex);
@@ -179,7 +182,7 @@ void serialReadTask(void* pvParameters)
                     Serial.print(F(" moving to "));
                     Serial.print(position, 2);
 
-                    if (_motorIndex == 0)
+                    if (motorType[_motorIndex] != MotorType::ROTATIONAL)
                     {
                         Serial.println(F(" um\n"));
                     }
