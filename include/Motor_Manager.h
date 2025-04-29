@@ -36,7 +36,8 @@ enum class MotorType
 };
 
 static bool      isMoving[NUM_MOTORS]  = {false, false, false, false};
-static MotorType motorType[NUM_MOTORS] = {MotorType::LINEAR, MotorType::ROTATIONAL, MotorType::ROTATIONAL, MotorType::ROTATIONAL};
+static MotorType motorType[NUM_MOTORS] = {MotorType::ROTATIONAL, MotorType::ROTATIONAL, MotorType::ROTATIONAL,
+                                          MotorType::ROTATIONAL};
 
 // Define driver objects
 TMC5160Stepper driver[NUM_MOTORS] = {
@@ -156,115 +157,224 @@ uint8_t selectDriver(uint8_t i)
     }
 }
 
+void configureDriverNEMA11_1004H(uint8_t i)
+{
+    disableDrivers();
+    delay(5);
+
+    // ---------------------------
+    // 1. Basic Driver Configuration (GCONF)
+    // ---------------------------
+    uint32_t gconf = 0;
+    gconf |= (1 << 0);  // Internal Rsense
+    gconf |= (1 << 2);  // Enable StealthChop
+    gconf |= (1 << 3);  // Microstep interpolation
+    gconf |= (1 << 4);  // Double edge step
+    gconf |= (1 << 6);  // Multistep filtering
+    driver[i].GCONF(gconf);
+    delay(5);
+
+    // ---------------------------
+    // 2. Current Settings
+    // ---------------------------
+    driver[i].rms_current(800);  // 0.8A RMS (~1.1A peak → مناسب این موتور)
+    driver[i].irun(220);         // Run current (~86% max to prevent heating)
+    driver[i].ihold(80);         // Hold current (~30% for low heat when idle)
+    driver[i].iholddelay(6);     // Delay before switching to hold current
+    driver[i].TPOWERDOWN(10);    // Power down after inactivity
+
+    // ---------------------------
+    // 3. Microstepping & Interpolation
+    // ---------------------------
+    driver[i].microsteps(16);  // Fine control, 16 microsteps
+    driver[i].intpol(true);    // Enable interpolation for smooth motion
+
+    // ---------------------------
+    // 4. StealthChop Settings
+    // ---------------------------
+    driver[i].TPWMTHRS(500);  // StealthChop active at low speeds
+    driver[i].pwm_autoscale(true);
+    driver[i].pwm_autograd(true);
+    driver[i].pwm_ofs(36);
+    driver[i].pwm_grad(14);
+    driver[i].pwm_freq(1);
+
+    // ---------------------------
+    // 5. SpreadCycle Chopper Settings
+    // ---------------------------
+    driver[i].en_pwm_mode(true);  // Use StealthChop for low speed, switch to SpreadCycle at higher speeds
+    driver[i].toff(4);
+    driver[i].blank_time(24);
+    driver[i].hysteresis_start(3);
+    driver[i].hysteresis_end(1);
+
+    // ---------------------------
+    // 6. StallGuard & CoolStep (Optional tuning)
+    // ---------------------------
+    driver[i].TCOOLTHRS(400);  // Enable CoolStep above moderate speed
+    driver[i].sgt(5);          // StallGuard threshold
+    driver[i].sfilt(true);
+
+    // ---------------------------
+    // 7. Motion Configuration
+    // ---------------------------
+    driver[i].RAMPMODE(0);  // Positioning mode
+    driver[i].VSTART(10);   // Start velocity
+    driver[i].VSTOP(10);    // Stop velocity
+    driver[i].VMAX(1200);   // Max velocity (steps/sec)
+    driver[i].AMAX(400);    // Acceleration (steps/sec²)
+    driver[i].DMAX(400);    // Deceleration (steps/sec²)
+    driver[i].a1(500);      // Start acceleration phase
+    driver[i].d1(500);      // End deceleration phase
+
+    delay(5);
+}
+
+// Optimize for pancake motor
 void optimizeForPancake(uint8_t i)
 {
     disableDrivers();
+    delay(5);
 
-    // Set optimal parameters for pancake motor
-    driver[i].intpol(true);     // Enable microstep interpolation
-    driver[i].sfilt(true);      // Enable StallGuard filter
-    driver[i].sgt(10);          // Set StallGuard threshold
-    driver[i].TCOOLTHRS(1000);  // Set CoolStep threshold
+    // ---------------------------
+    // 1. Basic Driver Configuration (GCONF)
+    // ---------------------------
+    uint32_t gconf = 0;
+    gconf |= (1 << 0);  // Internal Rsense
+    gconf |= (1 << 2);  // StealthChop enable (initially)
+    gconf |= (1 << 3);  // Microstep interpolation
+    gconf |= (1 << 4);  // Double edge step
+    gconf |= (1 << 6);  // Multistep filtering
+    driver[i].GCONF(gconf);
+    delay(5);
 
-    // Configure for high precision
-    driver[i].microsteps(16);  // Maximum microstepping for smooth motion
-    driver[i].intpol(true);    // Enable microstep interpolation
+    // ---------------------------
+    // 2. Current Settings (Low Power Mode)
+    // ---------------------------
+    driver[i].rms_current(350);  // About 0.35A RMS (safe for Pancake)
+    driver[i].irun(200);         // Run current: ~0.35A   #160
+    driver[i].ihold(200);        // Hold current: ~0.12A   #60
+    driver[i].iholddelay(5);     // Short delay before switching to ihold #10
+    driver[i].TPOWERDOWN(10);    // Power down delay
 
-    // Optimize current control
-    driver[i].ihold(100 * 32 / 32);  // Set hold current
-    driver[i].irun(200 * 32 / 32);   // Set run current
+    // ---------------------------
+    // 3. Microstepping & Interpolation
+    // ---------------------------
+    driver[i].microsteps(16);  // Only 4 microsteps → maximize torque
+    driver[i].intpol(true);    // Smooth motion
 
-    driver[i].iholddelay(6);  // Set hold current delay
+    // ---------------------------
+    // 4. StealthChop Settings
+    // ---------------------------
+    /* driver[i].TPWMTHRS(300);  // StealthChop active only at very low speeds
+     driver[i].pwm_autoscale(true);
+     driver[i].pwm_autograd(true);
+     driver[i].pwm_ofs(36);
+     driver[i].pwm_grad(14);
+     driver[i].pwm_freq(1);*/
 
-    // Configure motion control
-    driver[i].RAMPMODE(0);  // Positioning mode for precise control
-    driver[i].VMAX(500);    // Set maximum speed
-    driver[i].a1(500);      // Set maximum acceleration
-    driver[i].d1(500);      // Set maximum deceleration
-}
+    // ---------------------------
+    // 5. SpreadCycle Chopper Settings
+    // ---------------------------
+    driver[i].en_pwm_mode(false);  // Force SpreadCycle above TPWMTHRS
+    driver[i].toff(4);
+    driver[i].blank_time(24);
+    driver[i].hysteresis_start(3);
+    driver[i].hysteresis_end(1);
 
-void optimize2(uint8_t i)
-{
-    disableDrivers();
+    // ---------------------------
+    // 6. StallGuard & CoolStep
+    // ---------------------------
+    driver[i].TCOOLTHRS(200);  // CoolStep threshold
+    driver[i].sgt(5);          // StallGuard threshold
+    driver[i].sfilt(true);
 
-    // Set optimal parameters for pancake motor
-    driver[i].intpol(true);     // Enable microstep interpolation
-    driver[i].sfilt(true);      // Enable StallGuard filter
-    driver[i].sgt(10);          // Set StallGuard threshold
-    driver[i].TCOOLTHRS(1000);  // Set CoolStep threshold
+    // ---------------------------
+    // 7. Motion Configuration (Soft Motion)
+    // ---------------------------
+    driver[i].RAMPMODE(0);  // Positioning mode
+    driver[i].VSTART(5);    // Very soft start
+    driver[i].VSTOP(5);     // Smooth stop
+    driver[i].VMAX(600);    // Max speed (limit for Pancake)
+    driver[i].AMAX(200);    // Acceleration limit
+    driver[i].DMAX(200);    // Deceleration limit
+    driver[i].a1(500);      // Start acceleration
+    driver[i].d1(500);      // Start deceleration
 
-    // Configure for high precision
-    driver[i].microsteps(16);  // Maximum microstepping for smooth motion
-    driver[i].intpol(true);    // Enable microstep interpolation
-
-    // Optimize current control
-    driver[i].ihold(100 * 32 / 32);  // Set hold current
-    driver[i].irun(200 * 32 / 32);   // Set run current
-
-    driver[i].iholddelay(6);  // Set hold current delay
-
-    // Configure motion control
-    driver[i].RAMPMODE(0);  // Positioning mode for precise control
-    driver[i].VMAX(500);    // Set maximum speed
-    driver[i].a1(500);      // Set maximum acceleration
-    driver[i].d1(500);      // Set maximum deceleration
+    delay(5);
 }
 
 void configureDriver(uint8_t i)
 {
     disableDrivers();
+    delay(5);
 
-    // Configure GCONF register for optimal performance
+    // ---------------------------
+    // 1. Basic Driver Configuration (GCONF)
+    // ---------------------------
     uint32_t gconf = 0;
-    gconf |= (1 << 0);  // Enable internal RSense
-    gconf |= (1 << 2);  // Enable stealthChop
-    gconf |= (1 << 3);  // Enable microstep interpolation
-    gconf |= (1 << 4);  // Enable double edge step
-    gconf |= (1 << 6);  // Enable multistep filtering
+    gconf |= (1 << 0);  // Internal Rsense
+    gconf |= (1 << 2);  // StealthChop enable
+    gconf |= (1 << 3);  // Microstep interpolation
+    gconf |= (1 << 4);  // Double edge step
+    gconf |= (1 << 6);  // Multistep filtering
     driver[i].GCONF(gconf);
+    delay(5);
 
-    // Set current control parameters
-    driver[i].rms_current(200);  // Set motor RMS current
-    driver[i].ihold(100);        // Set hold current
-    driver[i].irun(200);         // Set run current
-    driver[i].iholddelay(6);     // Set hold delay
-    driver[i].TPOWERDOWN(10);    // Set power down time
+    // ---------------------------
+    // 2. Current Settings
+    // ---------------------------
+    driver[i].rms_current(1000);  // 1A RMS (overrides irun/ihold if set later)
+    driver[i].irun(200);          // Run current
+    driver[i].ihold(100);         // Hold current
+    driver[i].iholddelay(6);      // Delay before switching to ihold
+    driver[i].TPOWERDOWN(10);     // Time to power down after inactivity
 
-    // Configure microstepping
-    driver[i].microsteps(16);  // Set microsteps
-    driver[i].intpol(true);    // Set microstep interpolation
+    // ---------------------------
+    // 3. Microstepping & Interpolation
+    // ---------------------------
+    driver[i].microsteps(32);  // 32 microsteps
+    driver[i].intpol(true);    // Enable interpolation
 
-    // Configure CoolStep
-    driver[i].TCOOLTHRS(1000);  // Set CoolStep threshold
-    driver[i].sgt(10);          // Set StallGuard threshold
-    driver[i].sfilt(true);      // Set StallGuard filter
-    driver[i].sgt(10);          // Set StallGuard threshold
+    // ---------------------------
+    // 4. StealthChop (Silent Mode)
+    // ---------------------------
+    driver[i].TPWMTHRS(0);          // StealthChop always enabled
+    driver[i].pwm_autoscale(true);  // Auto current scaling
+    driver[i].pwm_autograd(true);   // Auto gradient
+    driver[i].pwm_ofs(36);          // Offset
+    driver[i].pwm_grad(14);         // Gradient
+    driver[i].pwm_freq(1);          // ~23.4kHz
 
-    // Configure stealthChop
-    driver[i].TPWMTHRS(0);          // Enable stealthChop by default
-    driver[i].pwm_autoscale(true);  // Enable PWM autoscale
-    driver[i].pwm_autograd(true);   // Enable PWM autograd
-    driver[i].pwm_ofs(36);          // Set PWM offset
-    driver[i].pwm_grad(14);         // Set PWM gradient
-    driver[i].pwm_freq(1);          // Set PWM frequency
+    // ---------------------------
+    // 5. SpreadCycle & Chopper Config
+    // ---------------------------
+    driver[i].en_pwm_mode(true);    // 0 = SpreadCycle, 1 = StealthChop
+    driver[i].toff(5);              // Off time
+    driver[i].blank_time(24);       // Blanking time
+    driver[i].hysteresis_start(5);  // Hysteresis start
+    driver[i].hysteresis_end(3);    // Hysteresis end
 
-    // Configure spreadCycle
-    driver[i].en_pwm_mode(1);       // 0 for spread cycle, 1 for stealthChop
-    driver[i].toff(3);              // Set turn-off time
-    driver[i].blank_time(24);       // Set blank time
-    driver[i].hysteresis_start(5);  // Set hysteresis start
-    driver[i].hysteresis_end(3);    // Set hysteresis end
+    // ---------------------------
+    // 6. StallGuard & CoolStep
+    // ---------------------------
+    driver[i].TCOOLTHRS(1000);  // Threshold for CoolStep/StallGuard
+    driver[i].sgt(10);          // StallGuard threshold
+    driver[i].sfilt(true);      // StallGuard filtering
 
-    // Configure motion control
-    driver[i].RAMPMODE(0);  // Set ramp mode
-    driver[i].VMAX(500);    // Set maximum speed
-    driver[i].AMAX(500);    // Set maximum acceleration
-    driver[i].DMAX(500);    // Set maximum deceleration
-    driver[i].a1(500);      // Set minimum acceleration
-    driver[i].v1(500 / 2);  // Set minimum speed
-    driver[i].d1(500);      // Set minimum deceleration
-    driver[i].VSTART(0);    // Set start velocity
-    driver[i].VSTOP(10);    // Set stop velocity
+    // ---------------------------
+    // 7. Motion Configuration
+    // ---------------------------
+    driver[i].RAMPMODE(0);  // Positioning mode
+    driver[i].VSTART(0);    // Start velocity
+    driver[i].VSTOP(10);    // Stop velocity
+    driver[i].VMAX(1000);   // Max velocity
+    driver[i].AMAX(500);    // Acceleration
+    driver[i].DMAX(500);    // Deceleration
+    driver[i].a1(10000);    // Initial acceleration phase
+    driver[i].d1(10000);    // Initial deceleration phase
+
+    delay(5);
 }
 
 bool driverCommunicationTest(uint8_t i, bool print = true)
@@ -278,7 +388,7 @@ bool driverCommunicationTest(uint8_t i, bool print = true)
 
     version = driver[i].version();
 
-    delay(100);
+    delay(5);
 
     if (print)
     {
@@ -444,14 +554,14 @@ void initializeDriver(uint8_t i)
 {
     disableDrivers();
 
-    driver[i].irun(200);   // Default 1000mA
-    driver[i].ihold(100);  // Default 500mA
-    driver[i].VMAX(500);   // Default 1000 steps/sec
-    driver[i].AMAX(500);   // Default 1000 steps/sec²
-    driver[i].DMAX(500);   // Default 1000 steps/sec²
-
-    configureDriver(i);
-    optimizeForPancake(i);
+    if (motorType[i] == MotorType::LINEAR)
+    {
+        configureDriverNEMA11_1004H(i);
+    }
+    else if (motorType[i] == MotorType::ROTATIONAL)
+    {
+        optimizeForPancake(i);
+    }
 
     isMoving[i] = false;
 }
@@ -459,7 +569,7 @@ void initializeDriver(uint8_t i)
 void initializeDriversAndTest()
 {
     driversPinSetup();
-    delay(100);
+    delay(5);
 
     for (uint8_t i = 0; i < NUM_MOTORS; i++)
     {
@@ -583,58 +693,6 @@ void motorStep(uint8_t i)
         delayMicroseconds(160);
         digitalWrite(STEP_D, LOW);
         delayMicroseconds(160);
-    }
-}
-
-void toggleStealthChop(uint8_t i)
-{
-    disableDrivers();
-
-    uint32_t currentThreshold = driver[i].TPWMTHRS();
-    if (currentThreshold == 0)
-    {
-        // Currently in StealthChop mode, switch to SpreadCycle
-        driver[i].TPWMTHRS(500);  // Switch to SpreadCycle above 500 steps/sec
-    }
-    else
-    {
-        // Currently in SpreadCycle mode, switch to StealthChop
-        driver[i].TPWMTHRS(0);  // Enable StealthChop mode
-    }
-}
-
-void setStealthChopMode(uint8_t i, bool enable)
-{
-    disableDrivers();
-
-    if (enable)
-    {
-        // Enable StealthChop mode
-        driver[i].TPWMTHRS(0);  // Enable StealthChop for all velocities
-
-        // Configure PWM for StealthChop
-        driver[i].pwm_autoscale(true);  // Enable automatic current scaling
-        driver[i].pwm_autograd(true);   // Enable automatic gradient adaptation
-        driver[i].pwm_ofs(36);          // Default PWM offset
-        driver[i].pwm_grad(14);         // Default PWM gradient
-        driver[i].pwm_freq(1);          // 1 = 23.4kHz PWM frequency
-
-        // Configure chopper for StealthChop
-        driver[i].toff(3);              // Minimum time for slow decay phase
-        driver[i].hysteresis_start(1);  // Hysteresis start value
-        driver[i].hysteresis_end(2);    // Hysteresis end value
-        driver[i].blank_time(24);       // Blanking time
-    }
-    else
-    {
-        // Switch to SpreadCycle mode
-        driver[i].TPWMTHRS(0xFFFFF);  // Disable StealthChop (very high threshold)
-
-        // Configure for SpreadCycle
-        driver[i].toff(5);              // Standard time for slow decay phase
-        driver[i].hysteresis_start(4);  // Standard hysteresis start
-        driver[i].hysteresis_end(1);    // Standard hysteresis end
-        driver[i].blank_time(24);       // Standard blanking time
     }
 }
 

@@ -44,12 +44,10 @@ constexpr EncoderConstants ENCODER_12BIT = {
 };
 
 // Linear motion constants
-constexpr float    LEAD_SCREW_PITCH_MM = 0.5f;      // Lead screw pitch in mm
-constexpr float    TOTAL_TRAVEL_MM     = 30.0f;     // Total travel distance in mm
-constexpr float    LEAD_SCREW_PITCH_UM = 500.0f;    // 0.5mm = 500μm
-constexpr float    TOTAL_TRAVEL_UM     = 30000.0f;  // 30mm = 30000μm
-constexpr uint8_t  MICROSTEPS          = 16;        // Microstepping configuration
-constexpr uint16_t STEPS_PER_REV       = 200;       // Motor steps per revolution
+constexpr float LEAD_SCREW_PITCH_MM = 0.5f;      // Lead screw pitch in mm
+constexpr float TOTAL_TRAVEL_MM     = 30.0f;     // Total travel distance in mm
+constexpr float LEAD_SCREW_PITCH_UM = 500.0f;    // 0.5mm = 500μm
+constexpr float TOTAL_TRAVEL_UM     = 30000.0f;  // 30mm = 30000μm
 
 // Direction enum
 enum class Direction
@@ -178,7 +176,7 @@ private:
     static void IRAM_ATTR interruptHandler3();
 
     // Static array to store encoder instances for interrupt handling
-    static MAE3Encoder2* encoderInstances[MAX_ENCODERS];
+    static MAE3Encoder2* encoderInstances[4];
 };
 
 #endif  // MAE3_ENCODER2_H
