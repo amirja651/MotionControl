@@ -252,7 +252,7 @@ void optimizeForPancake(uint8_t i)
     // ---------------------------
     driver[i].rms_current(350);  // About 0.35A RMS (safe for Pancake)
     driver[i].irun(200);         // Run current: ~0.35A
-    driver[i].ihold(120);        // Hold current: ~0.15A (increased for stability)
+    driver[i].ihold(100);        // Hold current: ~0.15A (increased for stability)
     driver[i].iholddelay(5);     // Short delay before switching to ihold
     driver[i].TPOWERDOWN(10);    // Power down delay
 
@@ -585,7 +585,7 @@ void motorStop(uint8_t i)
     }
     else if (motorType[i] == MotorType::ROTATIONAL)
     {
-        driver[i].ihold(60);  // Pancake/rotary motor hold current (lowered to reduce heat)
+        driver[i].ihold(100);  // Pancake/rotary motor hold current (lowered to reduce heat)
     }
 
     isMoving[i] = false;

@@ -354,7 +354,7 @@ void serialPrintTask(void* pvParameters)
 
     while (1)
     {
-        if (encoders2[_motorIndex].update() && _motorIndex > 0 && _motorIndex < NUM_MOTORS)
+        // if (encoders2[_motorIndex].update() && _motorIndex > 0 && _motorIndex < NUM_MOTORS)
         {
             const auto& state           = encoders2[_motorIndex].getState();
             String      direction       = state.direction == Direction::CLOCKWISE ? "CW" : "CCW";
