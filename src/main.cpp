@@ -59,9 +59,11 @@ void motorUpdateTask(void* pvParameters)
         float  totalTravelUM   = encoders2[_motorIndex].getTotalTravelUM();
         double currentPosition = isRotational ? positionDegrees : totalTravelUM;
         double positionError   = pids[_motorIndex].getPositionError(currentPosition, isRotational);
+        Serial.print(commandReceived);
 
         if (positionError > 0.5 && commandReceived)  // Only move if command was received
         {
+            Serial.print(F("Move"));
             motorStep(_motorIndex);
 
             currentPosition = isRotational ? positionDegrees : totalTravelUM;
@@ -147,8 +149,8 @@ void serialReadTask(void* pvParameters)
                     // Convert position to degrees based on unit flag
                     if (c.getArgument("d").isSet())
                     {
-                        pids[_motorIndex].setTarget(position);
                         commandReceived = true;  // Set flag only after valid command
+                        pids[_motorIndex].setTarget(position);
 
                         Serial.print(F("Motor "));
                         Serial.print(_motorIndex);
@@ -158,8 +160,8 @@ void serialReadTask(void* pvParameters)
                     }
                     else if (c.getArgument("u").isSet())
                     {
-                        pids[_motorIndex].setTarget(position);
                         commandReceived = true;  // Set flag only after valid command
+                        pids[_motorIndex].setTarget(position);
 
                         Serial.print(F("Motor "));
                         Serial.print(_motorIndex);
@@ -167,14 +169,6 @@ void serialReadTask(void* pvParameters)
                         Serial.print(position, 2);
                         Serial.println(F(" um\n"));
                     }
-                    else
-                    {
-                        commandReceived = false;  // Ensure no movement without proper unit
-                    }
-                }
-                else
-                {
-                    commandReceived = false;  // No position command, no movement
                 }
             }
             else if (c == cmdHelp)
@@ -185,7 +179,6 @@ void serialReadTask(void* pvParameters)
             else if (c == cmdRestart)
             {
                 Serial.println(F("System restarting..."));
-                commandReceived = false;
 
                 // Ensure motors are stopped before restart
                 for (int i = 0; i < NUM_MOTORS; i++)
@@ -218,7 +211,7 @@ void serialPrintTask(void* pvParameters)
 
     while (1)
     {
-        //if (encoders2[_motorIndex].update())
+        // if (encoders2[_motorIndex].update())
         {
             const auto& state           = encoders2[_motorIndex].getState();
             String      direction       = state.direction == Direction::CLOCKWISE ? "CW" : "CCW";
