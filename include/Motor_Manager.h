@@ -252,7 +252,7 @@ void optimizeForPancake(uint8_t i)
     // ---------------------------
     driver[i].rms_current(350);  // About 0.35A RMS (safe for Pancake)
     driver[i].irun(200);         // Run current: ~0.35A
-    driver[i].ihold(240);        // Hold current: ~0.15A (increased for stability)
+    driver[i].ihold(120);        // Hold current: ~0.15A (increased for stability)
     driver[i].iholddelay(5);     // Short delay before switching to ihold
     driver[i].TPOWERDOWN(10);    // Power down delay
 
@@ -299,79 +299,6 @@ void optimizeForPancake(uint8_t i)
     driver[i].DMAX(200);    // Deceleration limit
     driver[i].a1(500);      // Start acceleration
     driver[i].d1(500);      // Start deceleration
-
-    delay(5);
-}
-
-void configureDriver(uint8_t i)
-{
-    disableDrivers();
-    delay(5);
-
-    // ---------------------------
-    // 1. Basic Driver Configuration (GCONF)
-    // ---------------------------
-    uint32_t gconf = 0;
-    gconf |= (1 << 0);  // Internal Rsense
-    gconf |= (1 << 2);  // StealthChop enable
-    gconf |= (1 << 3);  // Microstep interpolation
-    gconf |= (1 << 4);  // Double edge step
-    gconf |= (1 << 6);  // Multistep filtering
-    driver[i].GCONF(gconf);
-    delay(5);
-
-    // ---------------------------
-    // 2. Current Settings
-    // ---------------------------
-    driver[i].rms_current(1000);  // 1A RMS (overrides irun/ihold if set later)
-    driver[i].irun(200);          // Run current
-    driver[i].ihold(100);         // Hold current
-    driver[i].iholddelay(6);      // Delay before switching to ihold
-    driver[i].TPOWERDOWN(10);     // Time to power down after inactivity
-
-    // ---------------------------
-    // 3. Microstepping & Interpolation
-    // ---------------------------
-    driver[i].microsteps(32);  // 32 microsteps
-    driver[i].intpol(true);    // Enable interpolation
-
-    // ---------------------------
-    // 4. StealthChop (Silent Mode)
-    // ---------------------------
-    driver[i].TPWMTHRS(0);          // StealthChop always enabled
-    driver[i].pwm_autoscale(true);  // Auto current scaling
-    driver[i].pwm_autograd(true);   // Auto gradient
-    driver[i].pwm_ofs(36);          // Offset
-    driver[i].pwm_grad(14);         // Gradient
-    driver[i].pwm_freq(1);          // ~23.4kHz
-
-    // ---------------------------
-    // 5. SpreadCycle & Chopper Config
-    // ---------------------------
-    driver[i].en_pwm_mode(true);    // 0 = SpreadCycle, 1 = StealthChop
-    driver[i].toff(5);              // Off time
-    driver[i].blank_time(24);       // Blanking time
-    driver[i].hysteresis_start(5);  // Hysteresis start
-    driver[i].hysteresis_end(3);    // Hysteresis end
-
-    // ---------------------------
-    // 6. StallGuard & CoolStep
-    // ---------------------------
-    driver[i].TCOOLTHRS(1000);  // Threshold for CoolStep/StallGuard
-    driver[i].sgt(10);          // StallGuard threshold
-    driver[i].sfilt(true);      // StallGuard filtering
-
-    // ---------------------------
-    // 7. Motion Configuration
-    // ---------------------------
-    driver[i].RAMPMODE(0);  // Positioning mode
-    driver[i].VSTART(0);    // Start velocity
-    driver[i].VSTOP(10);    // Stop velocity
-    driver[i].VMAX(1000);   // Max velocity
-    driver[i].AMAX(500);    // Acceleration
-    driver[i].DMAX(500);    // Deceleration
-    driver[i].a1(10000);    // Initial acceleration phase
-    driver[i].d1(10000);    // Initial deceleration phase
 
     delay(5);
 }
@@ -651,10 +578,18 @@ void motorStop(uint8_t i)
         }
     } while (!(status & (1 << 31)));
 
-    driver[i].ihold(200);  // Reduce to hold current
+    // Set hold current based on motor type
+    if (motorType[i] == MotorType::LINEAR)
+    {
+        driver[i].ihold(100);  // Linear motor hold current
+    }
+    else if (motorType[i] == MotorType::ROTATIONAL)
+    {
+        driver[i].ihold(60);  // Pancake/rotary motor hold current (lowered to reduce heat)
+    }
 
     isMoving[i] = false;
-
+    Serial.println(F("Motor stopped"));
     disableMotor(i);
 }
 
