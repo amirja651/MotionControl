@@ -259,6 +259,35 @@ void serialReadTask(void* pvParameters)
                 {
                     double position = posArg.getValue().toDouble();
 
+                    if (motorType[_motorIndex] == MotorType::ROTATIONAL)
+                    {
+                        if (position <= 0)
+                        {
+                            position = 0.1;
+                            Serial.println(F("The   position is clamped to 0.1"));
+                        }
+
+                        if (position >= 360)
+                        {
+                            position = 359.9;
+                            Serial.println(F("The position is clamped to 359.9"));
+                        }
+                    }
+                    else
+                    {
+                        if (position <= 0)
+                        {
+                            position = 0.002;
+                            Serial.println(F("The position is clamped to 0.002"));
+                        }
+
+                        if (position >= 15000)
+                        {
+                            position = 14999.9;
+                            Serial.println(F("The position is clamped to 14999.9"));
+                        }
+                    }
+
                     commandReceived = true;  // Set flag only after valid command
                     pids[_motorIndex].setTarget(position);
 
@@ -325,7 +354,7 @@ void serialPrintTask(void* pvParameters)
 
     while (1)
     {
-        // if (encoders2[_motorIndex].update())
+        if (encoders2[_motorIndex].update() && _motorIndex > 0 && _motorIndex < NUM_MOTORS)
         {
             const auto& state           = encoders2[_motorIndex].getState();
             String      direction       = state.direction == Direction::CLOCKWISE ? "CW" : "CCW";
@@ -366,14 +395,6 @@ void serialPrintTask(void* pvParameters)
                 lastPosition = currentPosition;
             }
         }
-
-        /**if (!driverCommunicationTest(_motorIndex, false))
-        {
-            Serial.print(F("Motor "));
-            Serial.print(_motorIndex+1);
-            Serial.println(F(" communication test: FAILED"));
-            commandReceived = false;  // Stop movement if communication fails
-        }**/
 
         taskYIELD();
         vTaskDelayUntil(&xLastWakeTime, xFrequency);

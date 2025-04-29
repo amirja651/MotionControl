@@ -444,9 +444,9 @@ bool driverCommunicationTest(uint8_t i, bool print = true)
     return true;
 }
 
-void driverTest(uint8_t i)
+void driverTest(uint8_t i, bool print = true)
 {
-    if (!driverCommunicationTest(i))
+    if (!driverCommunicationTest(i, print))
     {
         Serial.print(F("Driver "));
         Serial.print(i + 1);
@@ -459,14 +459,14 @@ void driverTest(uint8_t i)
         Serial.print(F(" firmware version: "));
         Serial.println(driver[i].version());
 
-        if (driver[i].sd_mode())
+        if (driver[i].sd_mode() && print)
         {
             Serial.print(F("Driver "));
             Serial.print(i + 1);
             Serial.println(F(" is hardware configured for Step & Dir mode"));
         }
 
-        if (driver[i].drv_enn())
+        if (!driver[i].drv_enn() && print)
         {
             Serial.print(F("Driver "));
             Serial.print(i + 1);
@@ -501,7 +501,7 @@ void initializeDriversAndTest()
     {
         disableDrivers();
         driver[i].begin();
-        driverTest(i);
+        driverTest(i, false);
         initializeDriver(i);
         Serial.println(F("--------------------------------"));
     }
