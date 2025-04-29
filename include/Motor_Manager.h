@@ -176,16 +176,16 @@ void configureDriverNEMA11_1004H(uint8_t i)
     // ---------------------------
     // 2. Current Settings
     // ---------------------------
-    driver[i].rms_current(800);  // 0.8A RMS (~1.1A peak → مناسب این موتور)
-    driver[i].irun(220);         // Run current (~86% max to prevent heating)
-    driver[i].ihold(80);         // Hold current (~30% for low heat when idle)
+    driver[i].rms_current(700);  // 0.7A RMS (~1.0A peak, safer for thermal)
+    driver[i].irun(200);         // Run current (~78% max to prevent heating)
+    driver[i].ihold(100);        // Hold current (~40% for more holding torque)
     driver[i].iholddelay(6);     // Delay before switching to hold current
     driver[i].TPOWERDOWN(10);    // Power down after inactivity
 
     // ---------------------------
     // 3. Microstepping & Interpolation
     // ---------------------------
-    driver[i].microsteps(16);  // Fine control, 16 microsteps
+    driver[i].microsteps(16);  // Fine control, 16 microsteps (try 32 for even smoother motion)
     driver[i].intpol(true);    // Enable interpolation for smooth motion
 
     // ---------------------------
