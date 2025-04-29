@@ -251,31 +251,31 @@ void optimizeForPancake(uint8_t i)
     // 2. Current Settings (Low Power Mode)
     // ---------------------------
     driver[i].rms_current(350);  // About 0.35A RMS (safe for Pancake)
-    driver[i].irun(200);         // Run current: ~0.35A   #160
-    driver[i].ihold(200);        // Hold current: ~0.12A   #60
-    driver[i].iholddelay(5);     // Short delay before switching to ihold #10
+    driver[i].irun(200);         // Run current: ~0.35A
+    driver[i].ihold(240);        // Hold current: ~0.15A (increased for stability)
+    driver[i].iholddelay(5);     // Short delay before switching to ihold
     driver[i].TPOWERDOWN(10);    // Power down delay
 
     // ---------------------------
     // 3. Microstepping & Interpolation
     // ---------------------------
-    driver[i].microsteps(16);  // Only 4 microsteps → maximize torque
+    driver[i].microsteps(32);  // Increased microstepping for smoother holding
     driver[i].intpol(true);    // Smooth motion
 
     // ---------------------------
-    // 4. StealthChop Settings
+    // 4. StealthChop Settings (Enable for holding/low speed)
     // ---------------------------
-    /* driver[i].TPWMTHRS(300);  // StealthChop active only at very low speeds
-     driver[i].pwm_autoscale(true);
-     driver[i].pwm_autograd(true);
-     driver[i].pwm_ofs(36);
-     driver[i].pwm_grad(14);
-     driver[i].pwm_freq(1);*/
+    driver[i].TPWMTHRS(500);  // StealthChop active at low speeds (including holding)
+    driver[i].pwm_autoscale(true);
+    driver[i].pwm_autograd(true);
+    driver[i].pwm_ofs(36);
+    driver[i].pwm_grad(14);
+    driver[i].pwm_freq(1);
+    driver[i].en_pwm_mode(true);  // Enable StealthChop (silent mode) for holding
 
     // ---------------------------
-    // 5. SpreadCycle Chopper Settings
+    // 5. SpreadCycle Chopper Settings (used only at higher speeds)
     // ---------------------------
-    driver[i].en_pwm_mode(false);  // Force SpreadCycle above TPWMTHRS
     driver[i].toff(4);
     driver[i].blank_time(24);
     driver[i].hysteresis_start(3);
