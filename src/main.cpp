@@ -4,9 +4,17 @@
 #include "Motor_Manager.h"
 #include "Object_Manager.h"
 
-float   lastPosition    = 0;
-bool    commandReceived = false;
-uint8_t _motorIndex     = 0;
+enum motorState
+{
+    MOTOR_STOPPED,
+    MOTOR_MOVING,
+    MOTOR_ERROR
+};
+
+float      lastPosition    = 0;
+bool       commandReceived = false;
+motorState motorLastState  = motorState::MOTOR_STOPPED;
+uint8_t    _motorIndex     = 0;
 
 // Task handles
 TaskHandle_t motorUpdateTaskHandle = NULL;
@@ -59,11 +67,17 @@ void motorUpdateTask(void* pvParameters)
         float  totalTravelUM   = encoders2[_motorIndex].getTotalTravelUM();
         double currentPosition = isRotational ? positionDegrees : totalTravelUM;
         double positionError   = pids[_motorIndex].getPositionError(currentPosition, isRotational);
-        Serial.print(commandReceived);
+        if (commandReceived)
+        {
+            Serial.print(F("Command received: "));
+            Serial.print(positionError);
+            Serial.print(F(", "));
+            Serial.println(commandReceived);
+        }
 
         if (positionError > 0.5 && commandReceived)  // Only move if command was received
         {
-            Serial.print(F("Move"));
+            motorLastState = motorState::MOTOR_MOVING;
             motorStep(_motorIndex);
 
             currentPosition = isRotational ? positionDegrees : totalTravelUM;
@@ -77,8 +91,12 @@ void motorUpdateTask(void* pvParameters)
         }
         else
         {
-            motorStop(_motorIndex);
-            commandReceived = false;  // Reset command flag when target is reached or no command
+            if (motorLastState == motorState::MOTOR_MOVING)
+            {
+                motorLastState = motorState::MOTOR_STOPPED;
+                motorStop(_motorIndex);
+                commandReceived = false;  // Reset command flag when target is reached or no command
+            }
         }
 
         taskYIELD();
