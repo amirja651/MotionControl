@@ -135,7 +135,7 @@ void serialReadTask(void* pvParameters)
                 {
                     commandReceived = false;  // Explicitly stop movement
                     Serial.print(F("Motor "));
-                    Serial.print(_motorIndex);
+                    Serial.print(_motorIndex + 1);
                     Serial.println(F(" stopped\n"));
                     continue;
                 }
@@ -146,28 +146,29 @@ void serialReadTask(void* pvParameters)
                 {
                     double position = posArg.getValue().toDouble();
 
+                    commandReceived = true;  // Set flag only after valid command
+                    pids[_motorIndex].setTarget(position);
+
+                    Serial.print(F("Motor "));
+                    Serial.print(_motorIndex + 1);
+                    Serial.print(F(" moving to "));
+                    Serial.print(position, 2);
+
+                    if (_motorIndex == 0)
+                    {
+                        Serial.println(F(" um\n"));
+                    }
+                    else
+                    {
+                        Serial.println(F(" degrees\n"));
+                    }
+
                     // Convert position to degrees based on unit flag
                     if (c.getArgument("d").isSet())
                     {
-                        commandReceived = true;  // Set flag only after valid command
-                        pids[_motorIndex].setTarget(position);
-
-                        Serial.print(F("Motor "));
-                        Serial.print(_motorIndex);
-                        Serial.print(F(" moving to "));
-                        Serial.print(position, 2);
-                        Serial.println(F(" degrees\n"));
                     }
                     else if (c.getArgument("u").isSet())
                     {
-                        commandReceived = true;  // Set flag only after valid command
-                        pids[_motorIndex].setTarget(position);
-
-                        Serial.print(F("Motor "));
-                        Serial.print(_motorIndex);
-                        Serial.print(F(" moving to "));
-                        Serial.print(position, 2);
-                        Serial.println(F(" um\n"));
                     }
                 }
             }
@@ -246,7 +247,7 @@ void serialPrintTask(void* pvParameters)
         /**if (!driverCommunicationTest(_motorIndex, false))
         {
             Serial.print(F("Motor "));
-            Serial.print(_motorIndex);
+            Serial.print(_motorIndex+1);
             Serial.println(F(" communication test: FAILED"));
             commandReceived = false;  // Stop movement if communication fails
         }**/
