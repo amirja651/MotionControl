@@ -6,22 +6,22 @@
 #define NUM_MOTORS 4
 
 static const uint16_t DIR_A = 22;
-static const uint16_t DIR_B = 15;
+static const uint16_t DIR_B = 4;
 static const uint16_t DIR_C = 32;
 static const uint16_t DIR_D = 27;
 
 static const uint16_t STEP_A = 21;
-static const uint16_t STEP_B = 2;
+static const uint16_t STEP_B = 16;
 static const uint16_t STEP_C = 33;
 static const uint16_t STEP_D = 14;
 
 static const uint16_t EN_A = 17;
-static const uint16_t EN_B = 16;
+static const uint16_t EN_B = 15;
 static const uint16_t EN_C = 26;
 static const uint16_t EN_D = 13;
 
 static const uint16_t CS_A = 5;
-static const uint16_t CS_B = 4;
+static const uint16_t CS_B = 2;
 static const uint16_t CS_C = 25;
 static const uint16_t CS_D = 12;
 
