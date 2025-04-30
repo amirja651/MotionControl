@@ -29,6 +29,75 @@ static const uint16_t W_MOSI = 23;
 static const uint16_t W_MISO = 19;
 static const uint16_t W_SCK  = 18;
 
+// Multiplexer control pins
+static const uint16_t MUX_SEL0 = 5;   // Select input 0
+static const uint16_t MUX_SEL1 = 2;   // Select input 1
+static const uint16_t MUX_IO   = 12;  // Shared I/O line
+
+// Multiplexer channel enumeration
+enum class MuxChannel
+{
+    CHANNEL_0 = 0,  // SEL0=0, SEL1=0
+    CHANNEL_1 = 1,  // SEL0=1, SEL1=0
+    CHANNEL_2 = 2,  // SEL0=0, SEL1=1
+    CHANNEL_3 = 3   // SEL0=1, SEL1=1
+};
+
+// Initialize multiplexer pins
+void muxPinSetup()
+{
+    pinMode(MUX_SEL0, OUTPUT);
+    pinMode(MUX_SEL1, OUTPUT);
+    pinMode(MUX_IO, INPUT_PULLUP);  // Default to input with pullup
+
+    // Initialize to channel 0
+    digitalWrite(MUX_SEL0, LOW);
+    digitalWrite(MUX_SEL1, LOW);
+}
+
+// Select multiplexer channel
+void selectMuxChannel(MuxChannel channel)
+{
+    switch (channel)
+    {
+        case MuxChannel::CHANNEL_0:
+            digitalWrite(MUX_SEL0, LOW);
+            digitalWrite(MUX_SEL1, LOW);
+            break;
+        case MuxChannel::CHANNEL_1:
+            digitalWrite(MUX_SEL0, HIGH);
+            digitalWrite(MUX_SEL1, LOW);
+            break;
+        case MuxChannel::CHANNEL_2:
+            digitalWrite(MUX_SEL0, LOW);
+            digitalWrite(MUX_SEL1, HIGH);
+            break;
+        case MuxChannel::CHANNEL_3:
+            digitalWrite(MUX_SEL0, HIGH);
+            digitalWrite(MUX_SEL1, HIGH);
+            break;
+    }
+    // Small delay to ensure channel switching is complete
+    delayMicroseconds(1);
+}
+
+// Read from selected multiplexer channel
+bool readMuxChannel(MuxChannel channel)
+{
+    selectMuxChannel(channel);
+    return digitalRead(MUX_IO);
+}
+
+// Write to selected multiplexer channel
+void writeMuxChannel(MuxChannel channel, bool value)
+{
+    selectMuxChannel(channel);
+    pinMode(MUX_IO, OUTPUT);
+    digitalWrite(MUX_IO, value);
+    // Restore to input mode after writing
+    pinMode(MUX_IO, INPUT_PULLUP);
+}
+
 enum class MotorType
 {
     ROTATIONAL,
