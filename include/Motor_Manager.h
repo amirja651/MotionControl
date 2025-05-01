@@ -34,68 +34,51 @@ static const uint16_t MUX_SEL0 = 5;   // Select input 0
 static const uint16_t MUX_SEL1 = 2;   // Select input 1
 static const uint16_t MUX_IO   = 12;  // Shared I/O line
 
-// Multiplexer channel enumeration
-enum class MuxChannel
-{
-    CHANNEL_0 = 0,  // SEL0=0, SEL1=0
-    CHANNEL_1 = 1,  // SEL0=1, SEL1=0
-    CHANNEL_2 = 2,  // SEL0=0, SEL1=1
-    CHANNEL_3 = 3   // SEL0=1, SEL1=1
-};
-
 // Initialize multiplexer pins
-void muxPinSetup()
+void csPinSetup()
 {
-    pinMode(MUX_SEL0, OUTPUT);
-    pinMode(MUX_SEL1, OUTPUT);
-    pinMode(MUX_IO, INPUT_PULLUP);  // Default to input with pullup
+    pinMode(MUX_SEL0, INPUT);
+    pinMode(MUX_SEL1, INPUT);
+    pinMode(MUX_IO, OUTPUT);  // Default to input with pullup
 
     // Initialize to channel 0
     digitalWrite(MUX_SEL0, LOW);
     digitalWrite(MUX_SEL1, LOW);
+    digitalWrite(MUX_IO, HIGH);
 }
 
 // Select multiplexer channel
-void selectMuxChannel(MuxChannel channel)
+void ChipSelect(int channel)
 {
     switch (channel)
     {
-        case MuxChannel::CHANNEL_0:
+        case 0:
             digitalWrite(MUX_SEL0, LOW);
             digitalWrite(MUX_SEL1, LOW);
             break;
-        case MuxChannel::CHANNEL_1:
+        case 1:
             digitalWrite(MUX_SEL0, HIGH);
             digitalWrite(MUX_SEL1, LOW);
             break;
-        case MuxChannel::CHANNEL_2:
+        case 2:
             digitalWrite(MUX_SEL0, LOW);
             digitalWrite(MUX_SEL1, HIGH);
             break;
-        case MuxChannel::CHANNEL_3:
+        case 3:
             digitalWrite(MUX_SEL0, HIGH);
             digitalWrite(MUX_SEL1, HIGH);
             break;
     }
-    // Small delay to ensure channel switching is complete
-    delayMicroseconds(1);
-}
-
-// Read from selected multiplexer channel
-bool readMuxChannel(MuxChannel channel)
-{
-    selectMuxChannel(channel);
-    return digitalRead(MUX_IO);
 }
 
 // Write to selected multiplexer channel
-void writeMuxChannel(MuxChannel channel, bool value)
+void writeCS(int channel, bool value)
 {
-    selectMuxChannel(channel);
-    pinMode(MUX_IO, OUTPUT);
+    ChipSelect(channel);
+    delayMicroseconds(1);
     digitalWrite(MUX_IO, value);
-    // Restore to input mode after writing
-    pinMode(MUX_IO, INPUT_PULLUP);
+    delayMicroseconds(1);
+    Serial.printf("Writing CS: Channel %d, Value: %d\n", channel, value);
 }
 
 enum class MotorType
@@ -570,6 +553,8 @@ void initializeDriversAndTest()
     {
         disableDrivers();
         driver[i].begin();
+        // driver[i].setCSWriteCallback(writeCS);
+        // driver[i].writeChipSelect(i, false);
         driverTest(i, false);
         initializeDriver(i);
         Serial.println(F("--------------------------------"));
