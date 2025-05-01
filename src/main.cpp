@@ -87,23 +87,50 @@ void motorUpdateTask(void* pvParameters)
         if (fabs(positionError) > threshold && commandReceived)
         {
             motorLastState = motorState::MOTOR_MOVING;
-            motorStep(_motorIndex);
 
             if (isRotational)
             {
                 currentPosition = encoders2[_motorIndex].getPositionDegrees();
+                pids[_motorIndex].setInput(currentPosition);
+                pids[_motorIndex].pid->Compute();
+
+                if (pids[_motorIndex].output > 0)
+                {
+                    motorMoveForward(_motorIndex);
+                    motorStep(_motorIndex);
+                }
+                else if (pids[_motorIndex].output < 0)
+                {
+                    motorMoveReverse(_motorIndex);
+                    motorStep(_motorIndex);
+                }
+                else
+                {
+                    motorStop(_motorIndex);
+                }
             }
             else
             {
                 currentPosition = encoders2[_motorIndex].getTotalTravelUM();
+                pids[_motorIndex].setInput(currentPosition);
+                pids[_motorIndex].pid->Compute();
+
+                if (positionError > 0)
+                {
+                    motorMoveForward(_motorIndex);
+                    motorStep(_motorIndex);
+                }
+                else if (positionError < 0)
+                {
+                    motorMoveReverse(_motorIndex);
+                    motorStep(_motorIndex);
+                }
+
+                if (pids[_motorIndex].output == 0)
+                {
+                    motorStop(_motorIndex);
+                }
             }
-
-            pids[_motorIndex].setInput(currentPosition);
-            pids[_motorIndex].pid->Compute();
-
-            (pids[_motorIndex].output > 0)   ? motorMoveForward(_motorIndex)
-            : (pids[_motorIndex].output < 0) ? motorMoveReverse(_motorIndex)
-                                             : motorStop(_motorIndex);
         }
         else
         {
