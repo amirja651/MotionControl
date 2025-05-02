@@ -16,3 +16,6 @@
 [submodule "lib/TMCStepper"]
 	path = lib/TMCStepper
 	url = https://github.com/teemuatlut/TMCStepper.git
+[submodule "lib/TMCStepper2"]
+	path = lib/TMCStepper2
+	url = https://github.com/amirja651/TMCStepper2.git
