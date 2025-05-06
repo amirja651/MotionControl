@@ -44,10 +44,10 @@ constexpr EncoderConstants ENCODER_12BIT = {
 };
 
 // Linear motion constants
-constexpr float LEAD_SCREW_PITCH_MM = 0.5f;      // Lead screw pitch in mm
-constexpr float TOTAL_TRAVEL_MM     = 30.0f;     // Total travel distance in mm
-constexpr float LEAD_SCREW_PITCH_UM = 500.0f;    // 0.5mm = 500μm
-constexpr float TOTAL_TRAVEL_UM     = 30000.0f;  // 30mm = 30000μm
+constexpr float LEAD_SCREW_PITCH_MM = 1.0f;     // Lead screw pitch in mm
+constexpr float TOTAL_TRAVEL_MM     = 5.0f;     // Total travel distance in mm
+constexpr float LEAD_SCREW_PITCH_UM = 1000.0f;  // 1mm = 1000μm
+constexpr float TOTAL_TRAVEL_UM     = 5000.0f;  // 5mm = 5000μm
 
 // Direction enum
 enum class Direction
@@ -128,6 +128,12 @@ public:
     {
         float totalDistanceUM = (state.laps * LEAD_SCREW_PITCH_UM) + getPositionUM();
         return std::min(totalDistanceUM, TOTAL_TRAVEL_UM);
+    }
+
+    // Total travel in px
+    float getTotalTravelPx() const
+    {
+        return getTotalTravelUM() * 5.2f;
     }
 
     void reset();

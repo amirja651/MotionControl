@@ -1,7 +1,8 @@
 ---
 Language: Cpp
 # Based on ESP32 Motion Control System code
-BasedOnStyle: Google
+BasedOnStyle: LLVM
+IndentPPDirectives: BeforeHash
 
 # Basic settings
 AccessModifierOffset: -4

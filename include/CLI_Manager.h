@@ -11,11 +11,12 @@ Command   cmdHelp;
 void initializeCLI()
 {
     cmdMotor = cli.addCmd("motor");
-    cmdMotor.addArg("n", "1");     // motor number argument
-    cmdMotor.addArg("p", "30.0");  // positional argument
-    cmdMotor.addFlagArg("d");      // degree flag
-    cmdMotor.addFlagArg("u");      // um     flag
-    cmdMotor.addFlagArg("s");      // stop flag
+    cmdMotor.addArg("n", "1");    // motor number argument
+    cmdMotor.addArg("o", "0.0");  // motor offset argument
+    cmdMotor.addArg("p", "0.0");  // positional argument
+    cmdMotor.addFlagArg("d");     // degree flag
+    cmdMotor.addFlagArg("u");     // um     flag
+    cmdMotor.addFlagArg("s");     // stop flag
     cmdMotor.setDescription(" motor1 p 3.0 [n: motor number] [-d: degree] [-m: millimeters] [-u: micrometers] [-s: stop]");
 
     cmdRestart = cli.addCmd("restart");

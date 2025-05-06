@@ -1,8 +1,8 @@
-#include <SPI.h>
 #include "CLI_Manager.h"
 #include "ESP32_Manager.h"
 #include "Motor_Manager.h"
 #include "Object_Manager.h"
+#include <SPI.h>
 
 enum motorState
 {
@@ -26,6 +26,8 @@ TaskHandle_t serialPrintTaskHandle = NULL;
 String commandHistory[HISTORY_SIZE];
 int    historyCount = 0;
 int    historyIndex = -1;  // -1 means not navigating
+
+double offset = 0;
 
 void motorUpdateTask(void* pvParameters);
 void serialReadTask(void* pvParameters);
@@ -280,11 +282,21 @@ void serialReadTask(void* pvParameters)
                     continue;
                 }
 
-                // Handle position commands
-                Argument posArg = c.getArgument("p");
-                if (posArg.isSet())
+                // Handle stop command
+                if (c.getArgument("o").isSet())
                 {
-                    double position = posArg.getValue().toDouble();
+                    commandReceived = false;
+                    offset          = c.getArgument("o").getValue().toDouble();
+                    Serial.print(F("Offset set to: "));
+                    Serial.print(offset, 2);
+                    Serial.println(F(" px\n"));
+                    continue;
+                }
+
+                // Handle position commands
+                if (c.getArgument("p").isSet())
+                {
+                    double position = c.getArgument("p").getValue().toDouble();
 
                     if (motorType[_motorIndex] == MotorType::ROTATIONAL)
                     {
@@ -407,13 +419,15 @@ void serialPrintTask(void* pvParameters)
             {
                 Serial.print(F("Laps\tPosition ("));
                 Serial.print(unit);
-                Serial.println(F(")\tDirection\tTarget\tError\tMotor"));
+                Serial.println(F(")\tPosition (px)\tDirection\tTarget\tError\tMotor"));
                 Serial.print(state.laps);
-                Serial.print(F("\t"));
+                Serial.print(F("\t\t"));
                 Serial.print(currentPosition, 2);
-                Serial.print(F("\t\t"));
+                Serial.print(F("\t\t\t"));
+                Serial.print(offset + (currentPosition * 5.2f), 2);
+                Serial.print(F("\t\t\t"));
                 Serial.print(direction);
-                Serial.print(F("\t\t"));
+                Serial.print(F("\t\t\t"));
                 Serial.print(targetPosition, 2);
                 Serial.print(F("\t"));
                 Serial.print(positionError, 2);
