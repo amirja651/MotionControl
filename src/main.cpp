@@ -2,6 +2,7 @@
 #include "ESP32_Manager.h"
 #include "Motor_Manager.h"
 #include "Object_Manager.h"
+#include "Position_Storage.h"
 #include <SPI.h>
 
 enum motorState
@@ -27,7 +28,8 @@ String commandHistory[HISTORY_SIZE];
 int    historyCount = 0;
 int    historyIndex = -1;  // -1 means not navigating
 
-double offset = 0;
+double offset             = 0;
+double _motorLoadPosition = 0;
 
 void motorUpdateTask(void* pvParameters);
 void serialReadTask(void* pvParameters);
@@ -45,11 +47,9 @@ void setup()
     }
 
     printSystemInfo();
-
     initializeCLI();
-
+    initPositionStorage();  // Initialize EEPROM
     initializeDriversAndTest();
-
     initializeOtherObjects();
 
     xTaskCreatePinnedToCore(motorUpdateTask, "MotorUpdateTask", 4096, NULL, 5, &motorUpdateTaskHandle, 1);  // Core 1
@@ -141,12 +141,56 @@ void motorUpdateTask(void* pvParameters)
                 motorLastState = motorState::MOTOR_STOPPED;
                 motorStop(_motorIndex);
                 commandReceived = false;  // Reset command flag when target is reached or no command
+
+                // Save the final position to EEPROM when motor stops
+                saveMotorPosition(_motorIndex, currentPosition);
             }
         }
 
         taskYIELD();
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }
+}
+
+void positionClamp(uint8_t motorIndex, double& position)
+{
+    if (motorType[_motorIndex] == MotorType::ROTATIONAL)
+    {
+        if (position <= 0)
+        {
+            position = 0.1;
+            Serial.println(F("The   position is clamped to 0.1"));
+        }
+
+        if (position >= 360)
+        {
+            position = 359.9;
+            Serial.println(F("The position is clamped to 359.9"));
+        }
+    }
+    else
+    {
+        if (position <= 0)
+        {
+            position = 0.002;
+            Serial.println(F("The position is clamped to 0.002"));
+        }
+
+        if (position >= 15000)
+        {
+            position = 14999.9;
+            Serial.println(F("The position is clamped to 14999.9"));
+        }
+    }
+
+    commandReceived = true;  // Set flag only after valid command
+    pids[_motorIndex].setTarget(position);
+
+    Serial.print(F("Motor "));
+    Serial.print(_motorIndex + 1);
+    Serial.print(F(" moving to "));
+    Serial.print(position, 2);
+    Serial.println(motorType[_motorIndex] != MotorType::ROTATIONAL ? F(" um\n") : F(" degrees\n"));
 }
 
 void serialReadTask(void* pvParameters)
@@ -262,14 +306,34 @@ void serialReadTask(void* pvParameters)
             if (c == cmdMotor)
             {
                 // Get motor number
-                Argument motorNumArg = c.getArgument("n");
-                uint8_t  motorIndex  = motorNumArg.getValue().toInt() - 1;  // Convert to 0-based index
-                _motorIndex          = motorIndex;
-
-                if (motorIndex >= NUM_MOTORS)
+                if (c.getArgument("n").isSet())
                 {
-                    Serial.println(F("Invalid motor number"));
-                    continue;
+                    _motorIndex = c.getArgument("n").getValue().toInt() - 1;  // Convert to 0-based index
+
+                    if (_motorIndex >= NUM_MOTORS)
+                    {
+                        Serial.println(F("Invalid motor number"));
+                        continue;
+                    }
+                }
+
+                // Get motor load position
+                if (c.getArgument("l").isSet())
+                {
+                    _motorLoadPosition = loadMotorPosition(_motorIndex);
+                    positionClamp(_motorIndex, _motorLoadPosition);
+                }
+
+                // Get motor load position
+                if (c.getArgument("c").isSet())
+                {
+                    Serial.print(F("*"));
+                    Serial.print(_motorIndex + 1);
+                    Serial.print(F("#"));
+                    Serial.print(motorType[_motorIndex] == MotorType::ROTATIONAL ? encoders2[_motorIndex].getPositionDegrees()
+                                                                                 : encoders2[_motorIndex].getTotalTravelUM());
+                    Serial.print(F("#"));
+                    Serial.println();
                 }
 
                 // Handle stop command
@@ -297,60 +361,7 @@ void serialReadTask(void* pvParameters)
                 if (c.getArgument("p").isSet())
                 {
                     double position = c.getArgument("p").getValue().toDouble();
-
-                    if (motorType[_motorIndex] == MotorType::ROTATIONAL)
-                    {
-                        if (position <= 0)
-                        {
-                            position = 0.1;
-                            Serial.println(F("The   position is clamped to 0.1"));
-                        }
-
-                        if (position >= 360)
-                        {
-                            position = 359.9;
-                            Serial.println(F("The position is clamped to 359.9"));
-                        }
-                    }
-                    else
-                    {
-                        if (position <= 0)
-                        {
-                            position = 0.002;
-                            Serial.println(F("The position is clamped to 0.002"));
-                        }
-
-                        if (position >= 15000)
-                        {
-                            position = 14999.9;
-                            Serial.println(F("The position is clamped to 14999.9"));
-                        }
-                    }
-
-                    commandReceived = true;  // Set flag only after valid command
-                    pids[_motorIndex].setTarget(position);
-
-                    Serial.print(F("Motor "));
-                    Serial.print(_motorIndex + 1);
-                    Serial.print(F(" moving to "));
-                    Serial.print(position, 2);
-
-                    if (motorType[_motorIndex] != MotorType::ROTATIONAL)
-                    {
-                        Serial.println(F(" um\n"));
-                    }
-                    else
-                    {
-                        Serial.println(F(" degrees\n"));
-                    }
-
-                    // Convert position to degrees based on unit flag
-                    if (c.getArgument("d").isSet())
-                    {
-                    }
-                    else if (c.getArgument("u").isSet())
-                    {
-                    }
+                    positionClamp(_motorIndex, position);
                 }
             }
             else if (c == cmdHelp)
