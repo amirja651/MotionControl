@@ -97,64 +97,40 @@ void MAE3Encoder2::processInterrupt()
     if (digitalRead(signalPin) == HIGH)
     {
         pulseStartTime = currentTime;
+        return;
+    }
+
+    // Calculate t_on and total period
+    uint32_t t_on         = currentTime - pulseStartTime;
+    uint32_t total_period = constants.PULSE_PERIOD;
+    uint32_t position     = 0;  // Implement PWM formula based on resolution
+
+    // 10-bit PWM formula: x = ((t_on * 1026) / (t_on + t_off)) - 1
+    // 12-bit PWM formula: x = ((t_on * 4098) / (t_on + t_off)) - 1
+    uint32_t x = ((t_on * constants.PULSE_PERIOD) / total_period) - 1;
+
+    if (x < constants.MIN_PULSE_WIDTH || x > constants.MAX_PULSE_WIDTH)
+    {
+        return;  // Ignore invalid pulse widths
+    }
+
+    // Apply 10-bit position mapping rules
+    // Apply 12-bit position mapping rules
+    if (x <= constants.PULSE_PER_REV - 2)
+    {
+        position = x;
+    }
+    else if (x == constants.PULSE_PER_REV)
+    {
+        position = constants.PULSE_PER_REV - 1;
     }
     else
     {
-        // Calculate t_on and total period
-        uint32_t t_on         = currentTime - pulseStartTime;
-        uint32_t total_period = constants.PULSE_PERIOD;
+        position = x;
+    }
 
-        // Implement PWM formula based on resolution
-        uint32_t position;
-        if (resolution == EncoderResolution::BITS_10)
-        {
-            // 10-bit PWM formula: x = ((t_on * 1026) / (t_on + t_off)) - 1
-            uint32_t x = ((t_on * constants.PULSE_PERIOD) / total_period) - 1;
-
-            if (x > 1024)
-            {
-                return;
-            }
-
-            // Apply 10-bit position mapping rules
-            if (x <= 1022)
-            {
-                position = x;
-            }
-            else if (x == 1024)
-            {
-                position = 1023;
-            }
-            else
-            {
-                position = x;
-            }
-        }
-        else
-        {
-            // 12-bit PWM formula: x = ((t_on * 4098) / (t_on + t_off)) - 1
-            uint32_t x = ((t_on * constants.PULSE_PERIOD) / total_period) - 1;
-
-            if (x > 4096)
-            {
-                return;
-            }
-
-            // Apply 12-bit position mapping rules
-            if (x <= 4094)
-            {
-                position = x;
-            }
-            else if (x == 4096)
-            {
-                position = 4095;
-            }
-            else
-            {
-                position = x;
-            }
-        }
-
+    if (position != 0)
+    {
         state.currentPulse = position;
         newPulseAvailable  = true;
     }
@@ -167,11 +143,14 @@ bool MAE3Encoder2::update()
         return false;
     }
 
-    // Adjust noise threshold based on resolution (0.6% of full scale)
-    uint32_t noiseThreshold = constants.PULSE_PER_REV * 6 / 1000;
-    if (std::abs(static_cast<int32_t>(state.currentPulse - state.lastPulse)) < noiseThreshold)
+    int32_t diff = static_cast<int32_t>(state.currentPulse) - static_cast<int32_t>(state.lastPulse);
+
+    // Skip noise check if large jump (possible wrap-around)
+    if (abs(diff) < (int32_t)(constants.PULSE_PER_REV / 2))
     {
-        return false;
+        uint32_t noiseThreshold = constants.PULSE_PER_REV * 6 / 1000;
+        if (abs(diff) < (int32_t)noiseThreshold)
+            return false;
     }
 
     // Calculate direction before updating state

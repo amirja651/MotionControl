@@ -92,6 +92,12 @@ public:
         return LEAD_SCREW_PITCH_MM / constants.PULSE_PER_REV;
     }
 
+    // Pulses per revolution
+    uint32_t getPulsesPerRevolution() const
+    {
+        return state.currentPulse;
+    }
+
     // Micrometers per pulse
     float getUMPerPulse() const
     {

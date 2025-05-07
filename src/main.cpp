@@ -84,7 +84,7 @@ void motorUpdateTask(void* pvParameters)
 
         double positionError = pids[_motorIndex].getPositionError(currentPosition, isRotational);
 
-        float threshold = isRotational ? 0.5f : 0.5f;  // Different threshold for rotation and linear
+        float threshold = isRotational ? 0.5f : 0.3f;  // Different threshold for rotation and linear
 
         if (fabs(positionError) > threshold && commandReceived)
         {
@@ -128,9 +128,11 @@ void motorUpdateTask(void* pvParameters)
                     motorStep(_motorIndex);
                 }
 
-                if (pids[_motorIndex].output == 0)
+                if (fabs(positionError) <= threshold)
                 {
+                    motorLastState = motorState::MOTOR_STOPPED;
                     motorStop(_motorIndex);
+                    commandReceived = false;  // Reset command flag when target is reached or no command
                 }
             }
         }
@@ -159,7 +161,7 @@ void positionClamp(uint8_t motorIndex, double& position)
         if (position <= 0)
         {
             position = 0.1;
-            Serial.println(F("The   position is clamped to 0.1"));
+            Serial.println(F("The  position is clamped to 0.1"));
         }
 
         if (position >= 360)
@@ -172,14 +174,14 @@ void positionClamp(uint8_t motorIndex, double& position)
     {
         if (position <= 0)
         {
-            position = 0.002;
-            Serial.println(F("The position is clamped to 0.002"));
+            position = 0.1;
+            Serial.println(F("The position is clamped to 0.1"));
         }
 
-        if (position >= 15000)
+        if (position >= 5000)
         {
-            position = 14999.9;
-            Serial.println(F("The position is clamped to 14999.9"));
+            position = 5000;
+            Serial.println(F("The position is clamped to 5000"));
         }
     }
 
@@ -228,7 +230,7 @@ void serialReadTask(void* pvParameters)
                         // Clear current line and print inputBuffer
                         Serial.print("\r> ");
                         Serial.print(inputBuffer);
-                        Serial.print("                \r> ");  // Overwrite any old chars
+                        Serial.print("           \r> ");  // Overwrite any old chars
                         Serial.print(inputBuffer);
                     }
                     escState = 0;
@@ -242,7 +244,7 @@ void serialReadTask(void* pvParameters)
                         inputBuffer = commandHistory[(historyCount - 1 - historyIndex) % HISTORY_SIZE];
                         Serial.print("\r> ");
                         Serial.print(inputBuffer);
-                        Serial.print("                \r> ");
+                        Serial.print("           \r> ");
                         Serial.print(inputBuffer);
                     }
                     else if (historyIndex == 0)
@@ -251,7 +253,7 @@ void serialReadTask(void* pvParameters)
                         inputBuffer  = lastInput;
                         Serial.print("\r> ");
                         Serial.print(inputBuffer);
-                        Serial.print("                \r> ");
+                        Serial.print("           \r> ");
                         Serial.print(inputBuffer);
                     }
                     escState = 0;
@@ -428,22 +430,44 @@ void serialPrintTask(void* pvParameters)
 
             if (fabs(currentPosition - lastPosition) > 1)
             {
-                Serial.print(F("Laps\tPosition ("));
+                Serial.print(F("Motor  Direction  Pulses/Rev  Laps  Position (px)  Position ("));
                 Serial.print(unit);
-                Serial.println(F(")\tPosition (px)\tDirection\tTarget\tError\tMotor"));
-                Serial.print(state.laps);
-                Serial.print(F("\t\t"));
-                Serial.print(currentPosition, 2);
-                Serial.print(F("\t\t\t"));
-                Serial.print(offset + (currentPosition * 5.2f), 2);
-                Serial.print(F("\t\t\t"));
-                Serial.print(direction);
-                Serial.print(F("\t\t\t"));
-                Serial.print(targetPosition, 2);
-                Serial.print(F("\t"));
-                Serial.print(positionError, 2);
-                Serial.print(F("\t"));
-                Serial.println(_motorIndex + 1);
+                Serial.println(F(")  Target  Error"));
+                // Format each value with fixed width
+                char buffer[20];
+
+                // Motor (5 chars)
+                snprintf(buffer, sizeof(buffer), "%-5d", _motorIndex + 1);
+                Serial.print(buffer);
+                Serial.print("  ");
+                // Direction (9 chars)
+                snprintf(buffer, sizeof(buffer), "%-9s", direction.c_str());
+                Serial.print(buffer);
+                Serial.print("  ");
+                // Pulses/Rev (10 chars)
+                snprintf(buffer, sizeof(buffer), "%-10d", encoders2[_motorIndex].getPulsesPerRevolution());
+                Serial.print(buffer);
+                Serial.print("  ");
+                // Laps (4 chars)
+                snprintf(buffer, sizeof(buffer), "%-4d", state.laps);
+                Serial.print(buffer);
+                Serial.print("  ");
+                // Position in px (15 chars)
+                snprintf(buffer, sizeof(buffer), "%-13.2f", offset + (currentPosition / 5.2f));
+                Serial.print(buffer);
+                Serial.print("  ");
+                // Position (13 chars)
+                snprintf(buffer, sizeof(buffer), "%-13.2f", currentPosition);
+                Serial.print(buffer);
+                Serial.print("  ");
+                // Target (6 chars)
+                snprintf(buffer, sizeof(buffer), "%-6.2f", targetPosition);
+                Serial.print(buffer);
+                Serial.print("  ");
+                // Error (5 chars)
+                snprintf(buffer, sizeof(buffer), "%-5.2f", positionError);
+                Serial.println(buffer);
+
                 lastPosition = currentPosition;
             }
         }

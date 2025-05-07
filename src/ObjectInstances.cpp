@@ -24,7 +24,7 @@ void initializeOtherObjects()
 {
     encoders2[0].begin();
     pids[0].begin();
-    pids[0].setOutputLimits(-15000.0, 15000.0);  // 15mm
+    pids[0].setOutputLimits(-5000.0, 5000.0);  // 15mm
 
     encoders2[1].begin();
     pids[1].begin();
