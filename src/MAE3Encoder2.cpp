@@ -143,18 +143,18 @@ bool MAE3Encoder2::update()
         return false;
     }
 
-    int32_t diff = static_cast<int32_t>(state.currentPulse) - static_cast<int32_t>(state.lastPulse);
+    volatile int32_t diff = static_cast<int32_t>(state.currentPulse) - static_cast<int32_t>(state.lastPulse);
 
     // Skip noise check if large jump (possible wrap-around)
     if (abs(diff) < (int32_t)(constants.PULSE_PER_REV / 2))
     {
-        uint32_t noiseThreshold = constants.PULSE_PER_REV * 6 / 1000;
+        volatile uint32_t noiseThreshold = constants.PULSE_PER_REV * 3 / 1000;
         if (abs(diff) < (int32_t)noiseThreshold)
             return false;
     }
 
     // Calculate direction before updating state
-    Direction newDirection = detectDirection();
+    volatile Direction newDirection = detectDirection();
 
     // Handle lap counting
     if (newDirection != Direction::UNKNOWN)
@@ -220,4 +220,30 @@ void MAE3Encoder2::reset()
     state.laps         = 0;
     state.direction    = Direction::UNKNOWN;
     state.lastPulse    = 0;
+}
+
+void MAE3Encoder2::setLowerLimits(float lowerLimit)
+{
+    this->lowerLimit = lowerLimit;
+}
+
+void MAE3Encoder2::setUpperLimits(float upperLimit)
+{
+    this->upperLimit = upperLimit;
+}
+
+// Calculate laps from current pulse and current position in pixels
+void MAE3Encoder2::calculateLaps(float currentPositionPx)
+{
+    processInterrupt();
+    // Convert pixels to μm
+    float currentPositionUM = currentPositionPx / PIXELS_PER_UM;
+    Serial.printf("Current position: %f\n", currentPositionUM);
+    // Calculate laps
+    int32_t calculatedLaps = (currentPositionUM - (state.currentPulse * getUMPerPulse())) / LEAD_SCREW_PITCH_UM;
+    Serial.printf("Calculated laps: %d\n", calculatedLaps);
+
+    // Round to nearest integer to avoid small floating point errors
+    state.laps = static_cast<int32_t>(round(calculatedLaps));
+    Serial.printf("State laps: %d\n", state.laps);
 }

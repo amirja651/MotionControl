@@ -8,6 +8,9 @@
 // Maximum number of encoders supported
 constexpr uint8_t MAX_ENCODERS = 4;
 
+// Pixels per μm
+#define PIXELS_PER_UM 5.2f
+
 // Encoder resolution configuration
 enum class EncoderResolution
 {
@@ -44,12 +47,10 @@ constexpr EncoderConstants ENCODER_12BIT = {
 };
 
 // Linear motion constants
-constexpr float LEAD_SCREW_PITCH_MM = 1.0f;     // Lead screw pitch in mm
+constexpr float LEAD_SCREW_PITCH_MM = 0.2f;     // Lead screw pitch in mm
+constexpr float LEAD_SCREW_PITCH_UM = 200.0f;   // 1mm = 1000μm
 constexpr float TOTAL_TRAVEL_MM     = 5.0f;     // Total travel distance in mm
-constexpr float LEAD_SCREW_PITCH_UM = 1000.0f;  // 1mm = 1000μm
-
-// Motor 1 specific parameters
-#define PIXELS_PER_UM 5.2f  // 2 pixels = 11 μm
+constexpr float TOTAL_TRAVEL_UM     = 5000.0f;  // 5mm = 5000μm
 
 // Direction enum
 enum class Direction
@@ -77,35 +78,9 @@ public:
 
     bool update();
 
-    void setUpperLimits(double upperLimit)
-    {
-        motor1UpperLimit = upperLimit;
-    }
-
-    double getUpperLimits() const
-    {
-        return motor1UpperLimit;
-    }
-
-    void setLowerLimits(double lowerLimit)
-    {
-        motor1LowerLimit = lowerLimit;
-    }
-
-    double getLowerLimits() const
-    {
-        return motor1LowerLimit;
-    }
-
     const EncoderState& getState() const
     {
         return state;
-    }
-
-    // Pulses per revolution
-    uint32_t getPulsesPerRevolution() const
-    {
-        return state.currentPulse;
     }
 
     // Degrees per pulse
@@ -114,16 +89,34 @@ public:
         return 360.0f / constants.PULSE_PER_REV;
     }
 
+    // Millimeters per pulse
+    float getMMPerPulse() const
+    {
+        return LEAD_SCREW_PITCH_MM / constants.PULSE_PER_REV;
+    }
+
+    // Pulses per revolution
+    uint32_t getPulsesPerRevolution() const
+    {
+        return state.currentPulse;
+    }
+
+    // Micrometers per pulse
+    float getUMPerPulse() const
+    {
+        return getMMPerPulse() * 1000.0f;
+    }
+
     // Position in degrees
     float getPositionDegrees() const
     {
         return state.currentPulse * getDegreesPerPulse();
     }
 
-    // Micrometers per pulse
-    float getUMPerPulse() const
+    // Position in mm
+    float getPositionMM() const
     {
-        return (LEAD_SCREW_PITCH_MM / constants.PULSE_PER_REV) * 1000.0f;
+        return state.currentPulse * getMMPerPulse();
     }
 
     // Position in μm
@@ -132,34 +125,44 @@ public:
         return state.currentPulse * getUMPerPulse();
     }
 
+    // Total travel in mm
+    float getTotalTravelMM() const
+    {
+        float totalDistance = (state.laps * LEAD_SCREW_PITCH_MM) + getPositionMM();
+        return std::min(totalDistance, TOTAL_TRAVEL_MM);
+    }
+
     // Total travel in μm
     float getTotalTravelUM() const
     {
         float totalDistanceUM = (state.laps * LEAD_SCREW_PITCH_UM) + getPositionUM();
-
-        if ((totalDistanceUM * PIXELS_PER_UM) < motor1LowerLimit)
-        {
-            return motor1LowerLimit / PIXELS_PER_UM;
-        }
-        else if ((totalDistanceUM * PIXELS_PER_UM) > motor1UpperLimit)
-        {
-            return motor1UpperLimit / PIXELS_PER_UM;
-        }
-        else
-        {
-            return totalDistanceUM;
-        }
+        return std::min(totalDistanceUM, TOTAL_TRAVEL_UM);
     }
 
     // Total travel in px
     float getTotalTravelPx() const
     {
-        return getTotalTravelUM() * PIXELS_PER_UM;
+        return getTotalTravelUM() * 5.2f;
     }
 
     void reset();
 
     void processInterrupt();
+
+    void setLowerLimits(float lowerLimit);
+    void setUpperLimits(float upperLimit);
+
+    float getLowerLimits() const
+    {
+        return lowerLimit;
+    }
+
+    float getUpperLimits() const
+    {
+        return upperLimit;
+    }
+
+    void calculateLaps(float currentPositionPx);
 
 private:
     // Median filter implementation for noise reduction
@@ -176,9 +179,9 @@ private:
     const uint8_t interruptPin;
     const uint8_t encoderId;
 
-    double motor1LowerLimit = 550.0;  // Lower limit in pixels
-    double motor1UpperLimit = 900.0;  // Upper limit in pixels
-    double motor1Offset     = 680.0;  // Offset in pixels
+    // Limits
+    float lowerLimit = 550.0f;  // 550 pixels
+    float upperLimit = 900.0f;  // 900 pixels
 
     // State management
     EncoderState state;
