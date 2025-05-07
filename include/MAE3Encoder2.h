@@ -47,7 +47,9 @@ constexpr EncoderConstants ENCODER_12BIT = {
 constexpr float LEAD_SCREW_PITCH_MM = 1.0f;     // Lead screw pitch in mm
 constexpr float TOTAL_TRAVEL_MM     = 5.0f;     // Total travel distance in mm
 constexpr float LEAD_SCREW_PITCH_UM = 1000.0f;  // 1mm = 1000μm
-constexpr float TOTAL_TRAVEL_UM     = 5000.0f;  // 5mm = 5000μm
+
+// Motor 1 specific parameters
+#define PIXELS_PER_UM 5.2f  // 2 pixels = 11 μm
 
 // Direction enum
 enum class Direction
@@ -75,21 +77,29 @@ public:
 
     bool update();
 
+    void setUpperLimits(double upperLimit)
+    {
+        motor1UpperLimit = upperLimit;
+    }
+
+    double getUpperLimits() const
+    {
+        return motor1UpperLimit;
+    }
+
+    void setLowerLimits(double lowerLimit)
+    {
+        motor1LowerLimit = lowerLimit;
+    }
+
+    double getLowerLimits() const
+    {
+        return motor1LowerLimit;
+    }
+
     const EncoderState& getState() const
     {
         return state;
-    }
-
-    // Degrees per pulse
-    float getDegreesPerPulse() const
-    {
-        return 360.0f / constants.PULSE_PER_REV;
-    }
-
-    // Millimeters per pulse
-    float getMMPerPulse() const
-    {
-        return LEAD_SCREW_PITCH_MM / constants.PULSE_PER_REV;
     }
 
     // Pulses per revolution
@@ -98,10 +108,10 @@ public:
         return state.currentPulse;
     }
 
-    // Micrometers per pulse
-    float getUMPerPulse() const
+    // Degrees per pulse
+    float getDegreesPerPulse() const
     {
-        return getMMPerPulse() * 1000.0f;
+        return 360.0f / constants.PULSE_PER_REV;
     }
 
     // Position in degrees
@@ -110,10 +120,10 @@ public:
         return state.currentPulse * getDegreesPerPulse();
     }
 
-    // Position in mm
-    float getPositionMM() const
+    // Micrometers per pulse
+    float getUMPerPulse() const
     {
-        return state.currentPulse * getMMPerPulse();
+        return (LEAD_SCREW_PITCH_MM / constants.PULSE_PER_REV) * 1000.0f;
     }
 
     // Position in μm
@@ -122,24 +132,29 @@ public:
         return state.currentPulse * getUMPerPulse();
     }
 
-    // Total travel in mm
-    float getTotalTravelMM() const
-    {
-        float totalDistance = (state.laps * LEAD_SCREW_PITCH_MM) + getPositionMM();
-        return std::min(totalDistance, TOTAL_TRAVEL_MM);
-    }
-
     // Total travel in μm
     float getTotalTravelUM() const
     {
         float totalDistanceUM = (state.laps * LEAD_SCREW_PITCH_UM) + getPositionUM();
-        return std::min(totalDistanceUM, TOTAL_TRAVEL_UM);
+
+        if ((totalDistanceUM * PIXELS_PER_UM) < motor1LowerLimit)
+        {
+            return motor1LowerLimit / PIXELS_PER_UM;
+        }
+        else if ((totalDistanceUM * PIXELS_PER_UM) > motor1UpperLimit)
+        {
+            return motor1UpperLimit / PIXELS_PER_UM;
+        }
+        else
+        {
+            return totalDistanceUM;
+        }
     }
 
     // Total travel in px
     float getTotalTravelPx() const
     {
-        return getTotalTravelUM() * 5.2f;
+        return getTotalTravelUM() * PIXELS_PER_UM;
     }
 
     void reset();
@@ -160,6 +175,10 @@ private:
     const uint8_t signalPin;
     const uint8_t interruptPin;
     const uint8_t encoderId;
+
+    double motor1LowerLimit = 550.0;  // Lower limit in pixels
+    double motor1UpperLimit = 900.0;  // Upper limit in pixels
+    double motor1Offset     = 680.0;  // Offset in pixels
 
     // State management
     EncoderState state;
