@@ -1,7 +1,7 @@
 #include "MAE3Encoder2.h"
 #include "Object_Manager.h"
 #include "PIDController.h"
-
+#include "UnitConversion.h"
 static const uint16_t ENC_A = 36;
 static const uint16_t ENC_B = 39;
 static const uint16_t ENC_C = 34;
@@ -24,17 +24,17 @@ void initializeOtherObjects()
 {
     encoders2[0].begin();
     pids[0].begin();
-    pids[0].setOutputLimits(encoders2[0].getLowerLimits() / PIXELS_PER_UM, encoders2[0].getUpperLimits() / PIXELS_PER_UM);
+    pids[0].setOutputLimits(mmToUm(encoders2[0].getLowerLimits()), mmToUm(encoders2[0].getUpperLimits()));
 
     encoders2[1].begin();
     pids[1].begin();
-    pids[1].setOutputLimits(-180.0, 180.0);  // 15mm
+    pids[1].setOutputLimits(ROTATIONAL_OUTPUT_LIMIT_MIN, ROTATIONAL_OUTPUT_LIMIT_MAX);  // 15mm
 
     encoders2[2].begin();
     pids[2].begin();
-    pids[2].setOutputLimits(-180.0, 180.0);  // 15mm
+    pids[2].setOutputLimits(ROTATIONAL_OUTPUT_LIMIT_MIN, ROTATIONAL_OUTPUT_LIMIT_MAX);  // 15mm
 
     encoders2[3].begin();
     pids[3].begin();
-    pids[3].setOutputLimits(-180.0, 180.0);  // 15mm
+    pids[3].setOutputLimits(ROTATIONAL_OUTPUT_LIMIT_MIN, ROTATIONAL_OUTPUT_LIMIT_MAX);  // 15mm
 }

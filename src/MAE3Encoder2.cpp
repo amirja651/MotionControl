@@ -1,4 +1,5 @@
 #include "MAE3Encoder2.h"
+#include "UnitConversion.h"
 #include <algorithm>
 
 // Initialize static member
@@ -33,7 +34,16 @@ void IRAM_ATTR MAE3Encoder2::interruptHandler3()
 {
     if (encoderInstances[3])
     {
-        encoderInstances[3]->processInterrupt();
+        try
+        {
+            encoderInstances[3]->processInterrupt();
+        }
+        catch (...)
+        {
+            // Log error in a way that's safe for interrupts
+            volatile static uint32_t error_count = 0;
+            error_count++;
+        }
     }
 }
 
@@ -57,6 +67,8 @@ bool MAE3Encoder2::begin()
         return false;
     }
 
+    lowerLimitMm = pxToMm(LINEAR_LOWER_LIMIT_PX);
+    upperLimitMm = pxToMm(LINEAR_UPPER_LIMIT_PX);
     // Configure pins
     pinMode(signalPin, INPUT);
     pinMode(interruptPin, INPUT);
@@ -222,28 +234,32 @@ void MAE3Encoder2::reset()
     state.lastPulse    = 0;
 }
 
-void MAE3Encoder2::setLowerLimits(float lowerLimit)
+void MAE3Encoder2::setLowerLimits(double lowerLimitMm)
 {
-    this->lowerLimit = lowerLimit;
+    this->lowerLimitMm = lowerLimitMm;
 }
 
-void MAE3Encoder2::setUpperLimits(float upperLimit)
+void MAE3Encoder2::setUpperLimits(double upperLimitMm)
 {
-    this->upperLimit = upperLimit;
+    this->upperLimitMm = upperLimitMm;
 }
 
 // Calculate laps from current pulse and current position in pixels
-void MAE3Encoder2::calculateLaps(float currentPositionPx)
+void MAE3Encoder2::calculateLaps(double currentPositionMm)
 {
-    processInterrupt();
-    // Convert pixels to μm
-    float currentPositionUM = currentPositionPx / PIXELS_PER_UM;
-    Serial.printf("Current position: %f\n", currentPositionUM);
-    // Calculate laps
-    int32_t calculatedLaps = (currentPositionUM - (state.currentPulse * getUMPerPulse())) / LEAD_SCREW_PITCH_UM;
-    Serial.printf("Calculated laps: %d\n", calculatedLaps);
+    delay(1000);
+    update();
+    delay(1000);
+    double pulsePositionMm = state.currentPulse * getMillimetersPerPulse();
+    double laps            = (currentPositionMm - pulsePositionMm) / LEAD_SCREW_PITCH_MM;
 
-    // Round to nearest integer to avoid small floating point errors
-    state.laps = static_cast<int32_t>(round(calculatedLaps));
+    // Print for debugging
+    Serial.printf("Current Position (μm): %.12f\n", currentPositionMm);
+    Serial.printf("Pulse Position (μm): %.12f\n", pulsePositionMm);
+    Serial.printf("Difference (μm): %.12f\n", currentPositionMm - pulsePositionMm);
+    Serial.printf("Laps (raw): %.12f\n", laps);
+
+    // Round and update state
+    state.laps = static_cast<int32_t>(round(laps));
     Serial.printf("State laps: %d\n", state.laps);
 }

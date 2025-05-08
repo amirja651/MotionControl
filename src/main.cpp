@@ -1,8 +1,10 @@
 #include "CLI_Manager.h"
+#include "Constants.h"
 #include "ESP32_Manager.h"
 #include "Motor_Manager.h"
 #include "Object_Manager.h"
 #include "Position_Storage.h"
+#include "UnitConversion.h"
 #include <SPI.h>
 
 enum motorState
@@ -12,20 +14,15 @@ enum motorState
     MOTOR_ERROR
 };
 
-double     _motorLoadPosition = 0;
-float      lastPosition       = 0;
-bool       commandReceived    = false;
-motorState motorLastState     = motorState::MOTOR_STOPPED;
-uint8_t    _motorIndex        = 0;
+uint8_t    _motorIndex                 = 0;
+double     lastPosition[NUM_MOTORS]    = {0.0f, 0.0f, 0.0f, 0.0f};
+bool       commandReceived[NUM_MOTORS] = {false, false, false, false};
+motorState motorLastState[NUM_MOTORS]  = {motorState::MOTOR_STOPPED, motorState::MOTOR_STOPPED, motorState::MOTOR_STOPPED,
+                                          motorState::MOTOR_STOPPED};
 
-double motor1LowerLimit = 550.0;  // Lower limit in pixels
-double motor1UpperLimit = 900.0;  // Upper limit in pixels
-double motor1Offset     = 680.0;  // Offset in pixels
-
-// Task handles
-TaskHandle_t motorUpdateTaskHandle = NULL;
-TaskHandle_t serialReadTaskHandle  = NULL;
-TaskHandle_t serialPrintTaskHandle = NULL;
+double motor1LowerLimitUm = pxToUm(LINEAR_LOWER_LIMIT_PX);  // Lower limit in pixels
+double motor1UpperLimitUm = pxToUm(LINEAR_UPPER_LIMIT_PX);  // Upper limit in pixels
+double motor1OffsetUm     = pxToUm(LINEAR_OFFSET_PX);       // Offset in pixels
 
 // Command history support
 #define HISTORY_SIZE 10
@@ -33,17 +30,24 @@ String commandHistory[HISTORY_SIZE];
 int    historyCount = 0;
 int    historyIndex = -1;  // -1 means not navigating
 
+// Task handles
+TaskHandle_t motorUpdateTaskHandle = NULL;
+TaskHandle_t serialReadTaskHandle  = NULL;
+TaskHandle_t serialPrintTaskHandle = NULL;
+
+void resetCommandReceived();
+void checkEncoderErrors();
+bool checkPositionLimits(uint8_t motorIndex, double& position, double lowerLimit, double upperLimit);
 void motorUpdateTask(void* pvParameters);
 void serialReadTask(void* pvParameters);
 void serialPrintTask(void* pvParameters);
 
 void setup()
 {
-    esp_log_level_set("*", ESP_LOG_VERBOSE);
-
     SPI.begin();
 
     Serial.begin(115200);
+    esp_log_level_set("*", ESP_LOG_VERBOSE);
     delay(1000);
     while (!Serial)
     {
@@ -55,7 +59,7 @@ void setup()
     initPositionStorage();  // Initialize EEPROM
     initializeDriversAndTest();
     initializeOtherObjects();
-    encoders2[0].calculateLaps(motor1Offset);
+    encoders2[0].calculateLaps(pxToMm(motor1OffsetUm));
 
     xTaskCreatePinnedToCore(motorUpdateTask, "MotorUpdateTask", 4096, NULL, 5, &motorUpdateTaskHandle, 1);  // Core 1
     xTaskCreatePinnedToCore(serialReadTask, "SerialReadTask", 4096, NULL, 4, &serialReadTaskHandle, 0);     // Core 0
@@ -65,6 +69,41 @@ void setup()
 void loop()
 {
     delay(100);
+}
+
+void resetCommandReceived()
+{
+    for (int i = 0; i < NUM_MOTORS; i++)
+    {
+        commandReceived[i] = false;
+    }
+}
+
+void checkEncoderErrors()
+{
+    for (int i = 0; i < NUM_MOTORS; i++)
+    {
+        if (encoders2[i].hasErrors())
+        {
+            encoders2[i].reportErrors();
+        }
+    }
+}
+
+bool checkPositionLimits(uint8_t motorIndex, double& position, double lowerLimit, double upperLimit)
+{
+    // Check if position is within limits
+    if (position < lowerLimit || position > upperLimit)
+    {
+        Serial.print(F("Position must be between "));
+        Serial.print(lowerLimit);
+        Serial.print(F(" and "));
+        Serial.print(upperLimit);
+        Serial.println(motorType[motorIndex] != MotorType::ROTATIONAL ? F(" um") : F(" ° "));
+        return false;
+    }
+
+    return true;
 }
 
 void motorUpdateTask(void* pvParameters)
@@ -80,24 +119,24 @@ void motorUpdateTask(void* pvParameters)
 
         if (isRotational)
         {
-            currentPosition = encoders2[_motorIndex].getPositionDegrees();
+            currentPosition = encoders2[_motorIndex].getPositionDeg();
         }
         else
         {
-            currentPosition = encoders2[_motorIndex].getTotalTravelUM();
+            currentPosition = encoders2[_motorIndex].getTotalTravelMm();
         }
 
         double positionError = pids[_motorIndex].getPositionError(currentPosition, isRotational);
 
-        float threshold = isRotational ? 0.5f : 0.3f;  // Different threshold for rotation and linear
+        float threshold = isRotational ? ROTATIONAL_THRESHOLD : LINEAR_THRESHOLD;
 
-        if (fabs(positionError) > threshold && commandReceived)
+        if (fabs(positionError) > threshold && commandReceived[_motorIndex])
         {
-            motorLastState = motorState::MOTOR_MOVING;
+            motorLastState[_motorIndex] = motorState::MOTOR_MOVING;
 
             if (isRotational)
             {
-                currentPosition = encoders2[_motorIndex].getPositionDegrees();
+                currentPosition = encoders2[_motorIndex].getPositionDeg();
                 pids[_motorIndex].setInput(currentPosition);
                 pids[_motorIndex].pid->Compute();
 
@@ -118,7 +157,7 @@ void motorUpdateTask(void* pvParameters)
             }
             else
             {
-                currentPosition = encoders2[_motorIndex].getTotalTravelUM();
+                currentPosition = encoders2[_motorIndex].getTotalTravelMm();
                 pids[_motorIndex].setInput(currentPosition);
                 pids[_motorIndex].pid->Compute();
 
@@ -135,19 +174,19 @@ void motorUpdateTask(void* pvParameters)
 
                 if (fabs(positionError) <= threshold)
                 {
-                    motorLastState = motorState::MOTOR_STOPPED;
+                    motorLastState[_motorIndex] = motorState::MOTOR_STOPPED;
                     motorStop(_motorIndex);
-                    commandReceived = false;  // Reset command flag when target is reached or no command
+                    commandReceived[_motorIndex] = false;  // Reset command flag when target is reached or no command
                 }
             }
         }
         else
         {
-            if (motorLastState == motorState::MOTOR_MOVING)
+            if (motorLastState[_motorIndex] == motorState::MOTOR_MOVING)
             {
-                motorLastState = motorState::MOTOR_STOPPED;
+                motorLastState[_motorIndex] = motorState::MOTOR_STOPPED;
                 motorStop(_motorIndex);
-                commandReceived = false;  // Reset command flag when target is reached or no command
+                commandReceived[_motorIndex] = false;  // Reset command flag when target is reached or no command
 
                 // Save the final position to EEPROM when motor stops
                 saveMotorPosition(_motorIndex, currentPosition);
@@ -157,54 +196,6 @@ void motorUpdateTask(void* pvParameters)
         taskYIELD();
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }
-}
-
-void positionClamp(uint8_t motorIndex, double& position)
-{
-    double lowerLimit = motorType[motorIndex] == MotorType::ROTATIONAL ? 0.1f : motor1LowerLimit;
-    double upperLimit = motorType[motorIndex] == MotorType::ROTATIONAL ? 359.9f : motor1UpperLimit;
-    double offset     = motorType[motorIndex] == MotorType::ROTATIONAL ? 0.0f : motor1Offset;
-    // Convert position to pixels if it's in micrometers
-    if (motorType[motorIndex] == MotorType::LINEAR)
-    {
-        position = position * PIXELS_PER_UM;  // Convert μm to pixels (2 pixels = 11 μm)
-    }
-
-    // Clamp to limits
-    if (position + offset < lowerLimit)
-    {
-        position = lowerLimit - offset;
-        if (motorType[motorIndex] == MotorType::LINEAR)
-        {
-            position = position / PIXELS_PER_UM;  // Convert back to micrometers for internal use
-        }
-        Serial.print(F("Position clamped to lower limit: "));
-        Serial.println(position, 2);
-    }
-    else if (position + offset > upperLimit)
-    {
-        position = upperLimit - offset;
-        if (motorType[motorIndex] == MotorType::LINEAR)
-        {
-            position = position / PIXELS_PER_UM;  // Convert back to micrometers for internal use
-        }
-        Serial.print(F("Position clamped to upper limit: "));
-        Serial.println(position, 2);
-    }
-    else
-    {
-        if (motorType[motorIndex] == MotorType::LINEAR)
-        {
-            // Convert back to micrometers for internal use
-            position = position / PIXELS_PER_UM;
-        }
-    }
-
-    Serial.print(F("Motor "));
-    Serial.print(motorIndex + 1);
-    Serial.print(F(" moving to "));
-    Serial.print(position, 2);
-    Serial.println(motorType[motorIndex] != MotorType::ROTATIONAL ? F(" um") : F(" ° "));
 }
 
 void serialReadTask(void* pvParameters)
@@ -342,8 +333,9 @@ void serialReadTask(void* pvParameters)
                         continue;
                     }
 
-                    commandReceived = false;
-                    _motorIndex     = motorIndex;
+                    resetCommandReceived();
+
+                    _motorIndex = motorIndex;
                 }
 
                 // Get motor load position
@@ -352,8 +344,8 @@ void serialReadTask(void* pvParameters)
                     Serial.print(F("*"));
                     Serial.print(_motorIndex + 1);
                     Serial.print(F("#"));
-                    Serial.print(motorType[_motorIndex] == MotorType::ROTATIONAL ? encoders2[_motorIndex].getPositionDegrees()
-                                                                                 : encoders2[_motorIndex].getTotalTravelUM());
+                    Serial.print(motorType[_motorIndex] == MotorType::ROTATIONAL ? encoders2[_motorIndex].getPositionDeg()
+                                                                                 : encoders2[_motorIndex].getTotalTravelMm());
                     Serial.println(F("#"));
                     continue;
                 }
@@ -364,7 +356,7 @@ void serialReadTask(void* pvParameters)
                     Serial.print(F("Motor "));
                     Serial.print(_motorIndex + 1);
                     Serial.println(F(" stopped"));
-                    commandReceived = false;
+                    resetCommandReceived();
                     motorStop(_motorIndex);
                     continue;
                 }
@@ -374,52 +366,82 @@ void serialReadTask(void* pvParameters)
                 {
                     if (motorType[_motorIndex] == MotorType::LINEAR)  // Only allow for Motor 1
                     {
-                        motor1Offset = c.getArgument("o").getValue().toDouble();
+                        motor1OffsetUm = c.getArgument("o").getValue().toDouble();
                         Serial.print(F("Motor 1 offset set to (px): "));
-                        Serial.println(motor1Offset, 2);
+                        Serial.println(motor1OffsetUm, 2);
                     }
                 }
 
+                // Handle lower limit command
                 if (c.getArgument("lo").isSet())
                 {
                     if (motorType[_motorIndex] == MotorType::LINEAR)  // Only allow for Motor 1
                     {
-                        motor1LowerLimit = c.getArgument("lo").getValue().toDouble();
-                        encoders2[_motorIndex].setLowerLimits(motor1LowerLimit);
+                        double lowerLimitPx = c.getArgument("lo").getValue().toDouble();
+                        encoders2[_motorIndex].setLowerLimits(pxToMm(lowerLimitPx));
                         Serial.print(F("Motor 1 lower limit set to (px): "));
-                        Serial.println(motor1LowerLimit, 2);
+                        Serial.println(lowerLimitPx, 2);
                     }
                 }
 
+                // Handle upper limit command
                 if (c.getArgument("up").isSet())
                 {
                     if (motorType[_motorIndex] == MotorType::LINEAR)  // Only allow for Motor 1
                     {
-                        motor1UpperLimit = c.getArgument("up").getValue().toDouble();
-                        encoders2[_motorIndex].setUpperLimits(motor1UpperLimit);
+                        double upperLimitPx = c.getArgument("up").getValue().toDouble();
+                        encoders2[_motorIndex].setUpperLimits(pxToMm(upperLimitPx));
                         Serial.print(F("Motor 1 upper limit set to (px): "));
-                        Serial.println(motor1UpperLimit, 2);
+                        Serial.println(upperLimitPx, 2);
                     }
                 }
 
                 // Handle position commands
                 if (c.getArgument("p").isSet())
                 {
-                    commandReceived = false;
+                    resetCommandReceived();
                     double position = c.getArgument("p").getValue().toDouble();
-                    positionClamp(_motorIndex, position);
-                    commandReceived = true;  // Set flag only after valid command
+
+                    double loLimit = (motorType[_motorIndex] == MotorType::LINEAR) ? motor1LowerLimitUm : ROTATIONAL_POSITION_MIN;
+                    double upLimit = (motorType[_motorIndex] == MotorType::LINEAR) ? motor1UpperLimitUm : ROTATIONAL_POSITION_MAX;
+
+                    if (checkPositionLimits(_motorIndex, position, loLimit, upLimit))
+                    {
+                        continue;
+                    }
+
+                    Serial.print(F("Motor "));
+                    Serial.print(_motorIndex + 1);
+                    Serial.print(F(" - new position is: "));
+                    Serial.print(position);
+                    Serial.println(motorType[_motorIndex] == MotorType::LINEAR ? F(" um") : F(" °"));
+
+                    commandReceived[_motorIndex] = true;  // Set flag only after valid command
                     pids[_motorIndex].setTarget(position);
+                    continue;
                 }
 
                 // Get motor load position
                 if (c.getArgument("l").isSet())
                 {
-                    commandReceived    = false;
-                    _motorLoadPosition = loadMotorPosition(_motorIndex);
-                    positionClamp(_motorIndex, _motorLoadPosition);
-                    commandReceived = true;  // Set flag only after valid command
-                    pids[_motorIndex].setTarget(_motorLoadPosition);
+                    resetCommandReceived();
+                    double position = loadMotorPosition(_motorIndex);
+                    double loLimit = (motorType[_motorIndex] == MotorType::LINEAR) ? motor1LowerLimitUm : ROTATIONAL_POSITION_MIN;
+                    double upLimit = (motorType[_motorIndex] == MotorType::LINEAR) ? motor1UpperLimitUm : ROTATIONAL_POSITION_MAX;
+
+                    if (checkPositionLimits(_motorIndex, position, loLimit, upLimit))
+                    {
+                        continue;
+                    }
+
+                    Serial.print(F("Motor "));
+                    Serial.print(_motorIndex + 1);
+                    Serial.print(F(" - loaded position is: "));
+                    Serial.print(position);
+                    Serial.println(motorType[_motorIndex] == MotorType::LINEAR ? F(" um") : F(" °"));
+
+                    commandReceived[_motorIndex] = true;  // Set flag only after valid command
+                    pids[_motorIndex].setTarget(position);
                     continue;
                 }
             }
@@ -430,7 +452,7 @@ void serialReadTask(void* pvParameters)
             }
             else if (c == cmdRestart)
             {
-                commandReceived = false;
+                resetCommandReceived();
                 Serial.println(F("System restarting..."));
 
                 // Ensure motors are stopped before restart
@@ -464,72 +486,72 @@ void serialPrintTask(void* pvParameters)
 
     while (1)
     {
-        // if (encoders2[_motorIndex].update() && _motorIndex > 0 && _motorIndex < NUM_MOTORS)
+        checkEncoderErrors();
+
+        const auto& state = encoders2[_motorIndex].getState();
+
+        String direction = state.direction == Direction::CLOCKWISE ? "CW" : "CCW";
+        String unit      = "";
+
+        unit                     = "° ";
+        double currentPositionPx = 0;
+        double currentPosition   = encoders2[_motorIndex].getPositionDeg();
+        float  threshold         = ROTATIONAL_THRESHOLD;
+
+        bool isLinear = motorType[_motorIndex] == MotorType::LINEAR;
+
+        if (isLinear)
         {
-            const auto& state             = encoders2[_motorIndex].getState();
-            String      direction         = state.direction == Direction::CLOCKWISE ? "CW" : "CCW";
-            String      unit              = "";
-            float       currentPosition   = 0;
-            float       currentPositionPx = 0;
-            bool        isRotational      = motorType[_motorIndex] == MotorType::ROTATIONAL;
+            unit              = "um";
+            currentPosition   = mmToUm(encoders2[_motorIndex].getTotalTravelMm());
+            currentPositionPx = motor1OffsetUm + umToPx(currentPosition);
+            threshold         = LINEAR_THRESHOLD;
+        }
 
-            if (isRotational)
-            {
-                unit            = "° ";
-                currentPosition = encoders2[_motorIndex].getPositionDegrees();
-            }
-            else
-            {
-                unit              = "um";
-                currentPosition   = encoders2[_motorIndex].getTotalTravelUM();
-                currentPositionPx = motor1Offset + (currentPosition * PIXELS_PER_UM);
-            }
+        double positionError  = pids[_motorIndex].getPositionError(currentPosition, !isLinear);
+        double targetPosition = pids[_motorIndex].getTarget();
 
-            double positionError  = pids[_motorIndex].getPositionError(currentPosition, isRotational);
-            double targetPosition = pids[_motorIndex].getTarget();
+        if (fabs(currentPosition - lastPosition[_motorIndex]) > threshold)
+        {
+            Serial.print(F("Motor  Direction  Pulses/Rev  Laps  Position (px)  Position ("));
+            Serial.print(unit);
+            Serial.println(F(")  Target  Error"));
 
-            if (fabs(currentPosition - lastPosition) > 1)
-            {
-                Serial.print(F("Motor  Direction  Pulses/Rev  Laps  Position (px)  Position ("));
-                Serial.print(unit);
-                Serial.println(F(")  Target  Error"));
-                // Format each value with fixed width
-                char buffer[20];
+            // Format each value with fixed width
+            char buffer[20];
+            // Motor (5 chars)
+            snprintf(buffer, sizeof(buffer), "%-5d", _motorIndex + 1);
+            Serial.print(buffer);
+            Serial.print("  ");
+            // Direction (9 chars)
+            snprintf(buffer, sizeof(buffer), "%-9s", direction.c_str());
+            Serial.print(buffer);
+            Serial.print("  ");
+            // Pulses/Rev (10 chars)
+            snprintf(buffer, sizeof(buffer), "%-10d", encoders2[_motorIndex].getPulsesPerRevolution());
+            Serial.print(buffer);
+            Serial.print("  ");
+            // Laps (4 chars)
+            snprintf(buffer, sizeof(buffer), "%-4d", state.laps);
+            Serial.print(buffer);
+            Serial.print("  ");
+            // Position in px (15 chars)
+            snprintf(buffer, sizeof(buffer), "%-13.2f", currentPositionPx);
+            Serial.print(buffer);
+            Serial.print("  ");
+            // Position (13 chars)
+            snprintf(buffer, sizeof(buffer), "%-13.2f", currentPosition);
+            Serial.print(buffer);
+            Serial.print("  ");
+            // Target (6 chars)
+            snprintf(buffer, sizeof(buffer), "%-6.2f", targetPosition);
+            Serial.print(buffer);
+            Serial.print("  ");
+            // Error (5 chars)
+            snprintf(buffer, sizeof(buffer), "%-5.2f", positionError);
+            Serial.println(buffer);
 
-                // Motor (5 chars)
-                snprintf(buffer, sizeof(buffer), "%-5d", _motorIndex + 1);
-                Serial.print(buffer);
-                Serial.print("  ");
-                // Direction (9 chars)
-                snprintf(buffer, sizeof(buffer), "%-9s", direction.c_str());
-                Serial.print(buffer);
-                Serial.print("  ");
-                // Pulses/Rev (10 chars)
-                snprintf(buffer, sizeof(buffer), "%-10d", encoders2[_motorIndex].getPulsesPerRevolution());
-                Serial.print(buffer);
-                Serial.print("  ");
-                // Laps (4 chars)
-                snprintf(buffer, sizeof(buffer), "%-4d", state.laps);
-                Serial.print(buffer);
-                Serial.print("  ");
-                // Position in px (15 chars)
-                snprintf(buffer, sizeof(buffer), "%-13.2f", currentPositionPx);
-                Serial.print(buffer);
-                Serial.print("  ");
-                // Position (13 chars)
-                snprintf(buffer, sizeof(buffer), "%-13.2f", currentPosition);
-                Serial.print(buffer);
-                Serial.print("  ");
-                // Target (6 chars)
-                snprintf(buffer, sizeof(buffer), "%-6.2f", targetPosition);
-                Serial.print(buffer);
-                Serial.print("  ");
-                // Error (5 chars)
-                snprintf(buffer, sizeof(buffer), "%-5.2f", positionError);
-                Serial.println(buffer);
-
-                lastPosition = currentPosition;
-            }
+            lastPosition[_motorIndex] = currentPosition;
         }
 
         taskYIELD();

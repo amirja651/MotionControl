@@ -1,15 +1,13 @@
 #ifndef MAE3_ENCODER2_H
 #define MAE3_ENCODER2_H
 
+#include "Constants.h"
 #include <Arduino.h>
 #include <array>
 #include <cstdlib>  // For abs with uint32_t
 
 // Maximum number of encoders supported
 constexpr uint8_t MAX_ENCODERS = 4;
-
-// Pixels per μm
-#define PIXELS_PER_UM 5.2f
 
 // Encoder resolution configuration
 enum class EncoderResolution
@@ -47,10 +45,8 @@ constexpr EncoderConstants ENCODER_12BIT = {
 };
 
 // Linear motion constants
-constexpr float LEAD_SCREW_PITCH_MM = 0.2f;     // Lead screw pitch in mm
-constexpr float LEAD_SCREW_PITCH_UM = 200.0f;   // 1mm = 1000μm
-constexpr float TOTAL_TRAVEL_MM     = 5.0f;     // Total travel distance in mm
-constexpr float TOTAL_TRAVEL_UM     = 5000.0f;  // 5mm = 5000μm
+constexpr double LEAD_SCREW_PITCH_MM = 0.2f;  // Lead screw pitch in mm
+constexpr double TOTAL_TRAVEL_MM     = 5.0f;  // Total travel distance in mm
 
 // Direction enum
 enum class Direction
@@ -90,7 +86,7 @@ public:
     }
 
     // Millimeters per pulse
-    float getMMPerPulse() const
+    double getMillimetersPerPulse() const
     {
         return LEAD_SCREW_PITCH_MM / constants.PULSE_PER_REV;
     }
@@ -101,78 +97,75 @@ public:
         return state.currentPulse;
     }
 
-    // Micrometers per pulse
-    float getUMPerPulse() const
-    {
-        return getMMPerPulse() * 1000.0f;
-    }
-
     // Position in degrees
-    float getPositionDegrees() const
+    float getPositionDeg() const
     {
         return state.currentPulse * getDegreesPerPulse();
     }
 
     // Position in mm
-    float getPositionMM() const
+    double getPositionMm() const
     {
-        return state.currentPulse * getMMPerPulse();
-    }
-
-    // Position in μm
-    float getPositionUM() const
-    {
-        return state.currentPulse * getUMPerPulse();
+        return state.currentPulse * getMillimetersPerPulse();
     }
 
     // Total travel in mm
-    float getTotalTravelMM() const
+    double getTotalTravelMm() const
     {
-        float totalDistance = (state.laps * LEAD_SCREW_PITCH_MM) + getPositionMM();
+        double totalDistance = (state.laps * LEAD_SCREW_PITCH_MM) + getPositionMm();
         return std::min(totalDistance, TOTAL_TRAVEL_MM);
     }
 
-    // Total travel in μm
-    float getTotalTravelUM() const
-    {
-        float totalDistanceUM = (state.laps * LEAD_SCREW_PITCH_UM) + getPositionUM();
-        return std::min(totalDistanceUM, TOTAL_TRAVEL_UM);
-    }
-
-    // Total travel in px
-    float getTotalTravelPx() const
-    {
-        return getTotalTravelUM() * 5.2f;
-    }
-
     void reset();
-
     void processInterrupt();
+    void setLowerLimits(double lowerLimitMm);
+    void setUpperLimits(double upperLimitMm);
 
-    void setLowerLimits(float lowerLimit);
-    void setUpperLimits(float upperLimit);
-
-    float getLowerLimits() const
+    double getLowerLimits() const
     {
-        return lowerLimit;
+        return lowerLimitMm;
     }
 
-    float getUpperLimits() const
+    double getUpperLimits() const
     {
-        return upperLimit;
+        return upperLimitMm;
     }
 
-    void calculateLaps(float currentPositionPx);
+    void calculateLaps(double currentPositionMm);
+
+    // Add error state tracking
+    struct ErrorState
+    {
+        uint32_t interrupt_errors;
+        uint32_t invalid_pulses;
+        uint32_t direction_errors;
+    } error_state;
+
+    // Add error checking method
+    bool hasErrors() const
+    {
+        return error_state.interrupt_errors > 0 || error_state.invalid_pulses > 0 || error_state.direction_errors > 0;
+    }
+
+    // Add error reporting method
+    void reportErrors()
+    {
+        if (hasErrors())
+        {
+            Serial.print(F("Encoder "));
+            Serial.print(encoderId);
+            Serial.print(F(" Errors - Interrupt: "));
+            Serial.print(error_state.interrupt_errors);
+            Serial.print(F(" Invalid Pulses: "));
+            Serial.print(error_state.invalid_pulses);
+            Serial.print(F(" Direction: "));
+            Serial.println(error_state.direction_errors);
+        }
+    }
 
 private:
-    // Median filter implementation for noise reduction
-    uint32_t medianFilter();
-
     // Direction detection
     Direction detectDirection();
-
-    // Performance optimization
-    void optimizeInterrupt();
 
     // Pin assignments
     const uint8_t signalPin;
@@ -180,8 +173,8 @@ private:
     const uint8_t encoderId;
 
     // Limits
-    float lowerLimit = 550.0f;  // 550 pixels
-    float upperLimit = 900.0f;  // 900 pixels
+    double lowerLimitMm;
+    double upperLimitMm;
 
     // State management
     EncoderState state;
