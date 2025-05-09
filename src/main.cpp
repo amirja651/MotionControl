@@ -114,6 +114,12 @@ void motorStopAndSavePosition(uint8_t motorIndex, double currentPosition)
     motorStop(_motorIndex);
     commandReceived[_motorIndex] = false;             // Reset command flag when target is reached or no command
     saveMotorPosition(_motorIndex, currentPosition);  // Save the final position to EEPROM when motor stops
+
+    Serial.print(F("\nMotor "));
+    Serial.print(_motorIndex + 1);
+    Serial.print(F(" stopped at "));
+    Serial.print(currentPosition);
+    Serial.println(motorType[_motorIndex] == MotorType::LINEAR ? F(" um") : F(" °"));
 }
 
 void motorUpdateTask(void* pvParameters)
@@ -160,6 +166,11 @@ void motorUpdateTask(void* pvParameters)
 
             pids[_motorIndex].setInput(currentPosition);
             pids[_motorIndex].pid->Compute();
+
+            if (fabs(positionError) <= threshold)
+            {
+                motorStopAndSavePosition(_motorIndex, currentPosition);
+            }
 
             if (positionError > 0)
             {
@@ -526,8 +537,8 @@ void serialPrintTask(void* pvParameters)
         if (isLinear)
         {
             unit              = "um";
-            currentPosition   = mmToUm(encoders2[_motorIndex].getTotalTravelMm());
-            currentPositionPx = umToPx(currentPosition);
+            currentPosition   = mmToUm(encoders2[_motorIndex].getTotalTravelMm()) - motor1OffsetUm;
+            currentPositionPx = umToPx(currentPosition - motor1OffsetUm);
             threshold         = LINEAR_THRESHOLD;
         }
 
@@ -564,19 +575,19 @@ void serialPrintTask(void* pvParameters)
             Serial.print(buffer);
             Serial.print("  ");
             // Position in px (15 chars)
-            snprintf(buffer, sizeof(buffer), "%-13.2f", currentPositionPx);
+            snprintf(buffer, sizeof(buffer), "%-13.3f", currentPositionPx);
             Serial.print(buffer);
             Serial.print("  ");
             // Position (13 chars)
-            snprintf(buffer, sizeof(buffer), "%-13.2f", currentPosition);
+            snprintf(buffer, sizeof(buffer), "%-13.3f", currentPosition);
             Serial.print(buffer);
             Serial.print("  ");
             // Target (6 chars)
-            snprintf(buffer, sizeof(buffer), "%-6.2f", targetPosition);
+            snprintf(buffer, sizeof(buffer), "%-6.3f", targetPosition);
             Serial.print(buffer);
             Serial.print("  ");
             // Error (5 chars)
-            snprintf(buffer, sizeof(buffer), "%-5.2f", positionError);
+            snprintf(buffer, sizeof(buffer), "%-5.3f", positionError);
             Serial.println(buffer);
 
             lastPosition[_motorIndex] = currentPosition;

@@ -695,9 +695,9 @@ void motorStep(uint8_t i, uint16_t microsteps = 16)
     else if (i == 1)
     {
         digitalWrite(STEP_B, HIGH);
-        delayMicroseconds(160);
+        delayMicroseconds(10);
         digitalWrite(STEP_B, LOW);
-        delayMicroseconds(160);
+        delayMicroseconds(10);
     }
     else if (i == 2)
     {

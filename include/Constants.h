@@ -11,8 +11,8 @@ constexpr double LINEAR_LOWER_LIMIT_PX = 550.0;
 constexpr double LINEAR_UPPER_LIMIT_PX = 880.0;
 constexpr double LINEAR_OFFSET_PX      = 680.0;
 
-constexpr double ROTATIONAL_THRESHOLD         = 0.15f;
-constexpr double ROTATIONAL_DISPLAY_THRESHOLD = 0.2f;
+constexpr double ROTATIONAL_THRESHOLD         = 0.1f;
+constexpr double ROTATIONAL_DISPLAY_THRESHOLD = 0.1f;
 constexpr double LINEAR_THRESHOLD             = 0.08f;
 constexpr double LINEAR_DISPLAY_THRESHOLD     = 0.2f;
 
