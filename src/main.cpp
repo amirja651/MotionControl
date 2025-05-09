@@ -127,9 +127,12 @@ void motorUpdateTask(void* pvParameters)
 
         double positionError = pids[_motorIndex].getPositionError(currentPosition, isRotational);
 
-        if (fabs(positionError) + threshold > threshold && commandReceived[_motorIndex])
+        if (fabs(positionError) > threshold && commandReceived[_motorIndex])
         {
             motorLastState[_motorIndex] = motorState::MOTOR_MOVING;
+
+            // Update microstepping based on position error
+            updateMicrostepping(_motorIndex, positionError);
 
             if (isRotational)
             {
@@ -167,7 +170,7 @@ void motorUpdateTask(void* pvParameters)
             {
                 motorLastState[_motorIndex] = motorState::MOTOR_STOPPED;
                 motorStop(_motorIndex);
-                commandReceived[_motorIndex] = false;  // Reset command flag when tarmotor -n 2 -p 300get is reached or no command
+                commandReceived[_motorIndex] = false;  // Reset command flag when target is reached or no command
 
                 // Save the final position to EEPROM when motor stops
                 saveMotorPosition(_motorIndex, currentPosition);
@@ -281,13 +284,13 @@ void serialReadTask(void* pvParameters)
             {
                 // Manual step left (reverse)
                 motorMoveReverse(_motorIndex);
-                motorStep(_motorIndex);
+                motorStep(_motorIndex, 256);
             }
             else if (c == 'i')
             {
                 // Manual step right (forward)
                 motorMoveForward(_motorIndex);
-                motorStep(_motorIndex);
+                motorStep(_motorIndex, 256);
             }
             else
             {
@@ -499,7 +502,7 @@ void serialPrintTask(void* pvParameters)
         unit                     = "° ";
         double currentPositionPx = 0;
         double currentPosition   = encoders2[_motorIndex].getPositionDeg();
-        float  threshold         = ROTATIONAL_THRESHOLD;
+        float  threshold         = ROTATIONAL_DISPLAY_THRESHOLD;
 
         bool isLinear = motorType[_motorIndex] == MotorType::LINEAR;
 
@@ -511,8 +514,8 @@ void serialPrintTask(void* pvParameters)
             threshold         = LINEAR_THRESHOLD;
         }
 
-        double positionError  = pids[_motorIndex].getPositionError(currentPosition, !isLinear);
         double targetPosition = pids[_motorIndex].getTarget();
+        double positionError  = (targetPosition == 0) ? 0 : pids[_motorIndex].getPositionError(currentPosition, !isLinear);
 
         if (fabs(currentPosition - lastPosition[_motorIndex]) > threshold)
         {

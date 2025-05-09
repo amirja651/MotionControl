@@ -5,6 +5,12 @@
 
 #define NUM_MOTORS 4
 
+// Microstepping configuration
+#define MICROSTEPS_COARSE         16    // Fast movement
+#define MICROSTEPS_FINE           256   // Precise positioning
+#define POSITION_THRESHOLD_COARSE 25.0  // Switch to coarse mode when error > 100 units
+#define POSITION_THRESHOLD_FINE   20.0  // Switch to fine mode when error < 20 units
+
 static const uint16_t DIR_A = 22;
 static const uint16_t DIR_B = 4;
 static const uint16_t DIR_C = 32;
@@ -651,8 +657,29 @@ void motorStop(uint8_t i)
     }
 }
 
-void motorStep(uint8_t i)
+// Function to set microstepping mode
+void setMicrostepping(uint8_t motorIndex, uint16_t microsteps)
 {
+    if (motorIndex >= NUM_MOTORS)
+        return;
+
+    driver[motorIndex].microsteps(microsteps);
+    // Update driver settings after changing microsteps
+    driver[motorIndex].push();
+}
+
+void motorStep(uint8_t i, uint16_t microsteps = 16)
+{
+    if (i >= NUM_MOTORS)
+    {
+        return;
+    }
+
+    if (microsteps != 16)
+    {
+        setMicrostepping(i, microsteps);
+    }
+
     if (!isMoving[i])
     {
         return;
@@ -685,6 +712,25 @@ void motorStep(uint8_t i)
         delayMicroseconds(160);
         digitalWrite(STEP_D, LOW);
         delayMicroseconds(160);
+    }
+}
+
+// Function to update microstepping based on position error
+void updateMicrostepping(uint8_t motorIndex, double positionError)
+{
+    if (motorIndex >= NUM_MOTORS)
+        return;
+
+    double   absError          = fabs(positionError);
+    uint16_t currentMicrosteps = driver[motorIndex].microsteps();
+
+    if (absError > POSITION_THRESHOLD_COARSE && currentMicrosteps != MICROSTEPS_COARSE)
+    {
+        setMicrostepping(motorIndex, MICROSTEPS_COARSE);
+    }
+    else if (absError < POSITION_THRESHOLD_FINE && currentMicrosteps != MICROSTEPS_FINE)
+    {
+        setMicrostepping(motorIndex, MICROSTEPS_FINE);
     }
 }
 
