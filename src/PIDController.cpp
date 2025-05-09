@@ -26,10 +26,11 @@ double PIDController::getPositionError(double currentPosition, bool isRotational
 
     if (isRotational)
     {
-        while (error > 180.0)
-            error -= 360.0;
-        while (error < -180.0)
+        error = fmod(error + 180.0, 360.0) - 180.0;
+        if (error < -180.0)
             error += 360.0;
+        if (error > 180.0)
+            error -= 360.0;
     }
 
     return error;

@@ -2,6 +2,7 @@
 #include "Object_Manager.h"
 #include "PIDController.h"
 #include "UnitConversion.h"
+
 static const uint16_t ENC_A = 36;
 static const uint16_t ENC_B = 39;
 static const uint16_t ENC_C = 34;
@@ -22,19 +23,18 @@ PIDController pids[NUM_MOTORS] = {PIDController(pidConfig), PIDController(pidCon
 
 void initializeOtherObjects()
 {
-    encoders2[0].begin();
-    pids[0].begin();
-    pids[0].setOutputLimits(mmToUm(encoders2[0].getLowerLimits()), mmToUm(encoders2[0].getUpperLimits()));
+    for (int i = 0; i < NUM_MOTORS; i++)
+    {
+        encoders2[i].begin();
+        pids[i].begin();
 
-    encoders2[1].begin();
-    pids[1].begin();
-    pids[1].setOutputLimits(ROTATIONAL_OUTPUT_LIMIT_MIN, ROTATIONAL_OUTPUT_LIMIT_MAX);  // 15mm
-
-    encoders2[2].begin();
-    pids[2].begin();
-    pids[2].setOutputLimits(ROTATIONAL_OUTPUT_LIMIT_MIN, ROTATIONAL_OUTPUT_LIMIT_MAX);  // 15mm
-
-    encoders2[3].begin();
-    pids[3].begin();
-    pids[3].setOutputLimits(ROTATIONAL_OUTPUT_LIMIT_MIN, ROTATIONAL_OUTPUT_LIMIT_MAX);  // 15mm
+        if (i == 0)
+        {
+            pids[i].setOutputLimits(mmToUm(encoders2[i].getLowerLimits()), mmToUm(encoders2[i].getUpperLimits()));
+        }
+        else
+        {
+            pids[i].setOutputLimits(ROTATIONAL_OUTPUT_LIMIT_MIN, ROTATIONAL_OUTPUT_LIMIT_MAX);
+        }
+    }
 }
