@@ -22,7 +22,21 @@ void initializeCLI()
     cmdMotor.addArg("up", "-900");  // upper limit argument (pixels)
     cmdMotor.addArg("p", "0.0");    // positional argument (um or deg)
 
-    cmdMotor.setDescription(" motor1 p 3.0 [n: motor number] [-d: degree] [-m: millimeters] [-u: micrometers] [-s: stop]");
+    cmdMotor.setDescription("Control motor movement\n"
+                            "Usage: motor -n <number> [-p <position>] [-s] [-c] [-l] [-o <offset>] [-lo <lower>] [-up <upper>]\n"
+                            "  -n: Motor number (1-4, required)\n"
+                            "  -p: Target position (required for movement)\n"
+                            "  -s: Stop motor\n"
+                            "  -c: Get current position\n"
+                            "  -l: Load saved position\n"
+                            "  -o: Set offset (pixels)\n"
+                            "  -lo: Set lower limit (pixels)\n"
+                            "  -up: Set upper limit (pixels)\n"
+                            "Examples:\n"
+                            "  motor -n 1 -p 100.0    # Move motor 1 to 100 um\n"
+                            "  motor -n 2 -p 45.0     # Move motor 2 to 45 degrees\n"
+                            "  motor -n 1 -s          # Stop motor 1\n"
+                            "  motor -n 1 -c          # Get current position of motor 1");
 
     cmdRestart = cli.addCmd("restart");
     cmdRestart.setDescription("Restart the ESP32 system");
