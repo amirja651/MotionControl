@@ -6,10 +6,10 @@
 #define NUM_MOTORS 4
 
 // Microstepping configuration
-#define MICROSTEPS_COARSE         16    // Fast movement
-#define MICROSTEPS_FINE           256   // Precise positioning
-#define POSITION_THRESHOLD_COARSE 25.0  // Switch to coarse mode when error > 100 units
-#define POSITION_THRESHOLD_FINE   20.0  // Switch to fine mode when error < 20 units
+#define MICROSTEPS_COARSE        16    // Fast movement
+#define MICROSTEPS_FINE          256   // Precise positioning
+#define PERCENT_THRESHOLD_COARSE 0.05  // Switch to coarse mode when error > 5% of total range
+#define PERCENT_THRESHOLD_FINE   0.1   // Switch to fine mode when error < 10% of total range
 
 static const uint16_t DIR_A = 22;
 static const uint16_t DIR_B = 4;
@@ -716,7 +716,7 @@ void motorStep(uint8_t i, uint16_t microsteps = 16)
 }
 
 // Function to update microstepping based on position error
-void updateMicrostepping(uint8_t motorIndex, double positionError)
+void updateMicrostepping(uint8_t motorIndex, double positionError, double totalRange)
 {
     if (motorIndex >= NUM_MOTORS)
         return;
@@ -724,11 +724,11 @@ void updateMicrostepping(uint8_t motorIndex, double positionError)
     double   absError          = fabs(positionError);
     uint16_t currentMicrosteps = driver[motorIndex].microsteps();
 
-    if (absError > POSITION_THRESHOLD_COARSE && currentMicrosteps != MICROSTEPS_COARSE)
+    if (absError > PERCENT_THRESHOLD_COARSE * totalRange && currentMicrosteps != MICROSTEPS_COARSE)
     {
         setMicrostepping(motorIndex, MICROSTEPS_COARSE);
     }
-    else if (absError < POSITION_THRESHOLD_FINE && currentMicrosteps != MICROSTEPS_FINE)
+    else if (absError < PERCENT_THRESHOLD_FINE * totalRange && currentMicrosteps != MICROSTEPS_FINE)
     {
         setMicrostepping(motorIndex, MICROSTEPS_FINE);
     }

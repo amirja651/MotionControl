@@ -254,9 +254,9 @@ void MAE3Encoder2::calculateLaps(double currentPositionMm)
     double laps            = (currentPositionMm - pulsePositionMm) / LEAD_SCREW_PITCH_MM;
 
     // Print for debugging
-    Serial.printf("Current Position (μm): %.12f\n", currentPositionMm);
-    Serial.printf("Pulse Position (μm): %.12f\n", pulsePositionMm);
-    Serial.printf("Difference (μm): %.12f\n", currentPositionMm - pulsePositionMm);
+    Serial.printf("Current Position (μm): %.12f\n", mmToUm(currentPositionMm));
+    Serial.printf("Pulse Position (μm): %.12f\n", mmToUm(pulsePositionMm));
+    Serial.printf("Difference (μm): %.12f\n", mmToUm(currentPositionMm - pulsePositionMm));
     Serial.printf("Laps (raw): %.12f\n", laps);
 
     // Round and update state

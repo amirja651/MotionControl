@@ -1,16 +1,16 @@
 #ifndef UNIT_CONVERSION_H
 #define UNIT_CONVERSION_H
 
-constexpr double PIXELS_PER_UM = 5.2;
+constexpr double UM_PER_PIXEL = 5.2f;
 
 inline double pxToUm(double px)
 {
-    return px / PIXELS_PER_UM;
+    return px * UM_PER_PIXEL;
 }
 
 inline double umToPx(double um)
 {
-    return um * PIXELS_PER_UM;
+    return um / UM_PER_PIXEL;
 }
 
 inline double umToMm(double um)
@@ -25,12 +25,12 @@ inline double mmToUm(double mm)
 
 inline double pxToMm(double px)
 {
-    return px / (PIXELS_PER_UM * 1000.0);
+    return px * (UM_PER_PIXEL / 1000.0);
 }
 
 inline double mmToPx(double mm)
 {
-    return mm * (PIXELS_PER_UM * 1000.0);
+    return mm * 1000.0 / UM_PER_PIXEL;
 }
 
 #endif  // UNIT_CONVERSION_H

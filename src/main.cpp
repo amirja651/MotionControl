@@ -59,7 +59,7 @@ void setup()
     initPositionStorage();  // Initialize EEPROM
     initializeDriversAndTest();
     initializeOtherObjects();
-    encoders2[0].calculateLaps(pxToMm(motor1OffsetUm));
+    encoders2[0].calculateLaps(umToMm(motor1OffsetUm));
 
     xTaskCreatePinnedToCore(motorUpdateTask, "MotorUpdateTask", 4096, NULL, 5, &motorUpdateTaskHandle, 1);  // Core 1
     xTaskCreatePinnedToCore(serialReadTask, "SerialReadTask", 4096, NULL, 4, &serialReadTaskHandle, 0);     // Core 0
@@ -106,6 +106,16 @@ bool checkPositionLimits(uint8_t motorIndex, double& position, double lowerLimit
     return true;
 }
 
+double distanceToTarget = 0;
+
+void motorStopAndSavePosition(uint8_t motorIndex, double currentPosition)
+{
+    motorLastState[_motorIndex] = motorState::MOTOR_STOPPED;
+    motorStop(_motorIndex);
+    commandReceived[_motorIndex] = false;             // Reset command flag when target is reached or no command
+    saveMotorPosition(_motorIndex, currentPosition);  // Save the final position to EEPROM when motor stops
+}
+
 void motorUpdateTask(void* pvParameters)
 {
     const TickType_t xFrequency    = pdMS_TO_TICKS(5);
@@ -127,12 +137,17 @@ void motorUpdateTask(void* pvParameters)
 
         double positionError = pids[_motorIndex].getPositionError(currentPosition, isRotational);
 
+        if (motorLastState[_motorIndex] == motorState::MOTOR_STOPPED)
+        {
+            distanceToTarget = fabs(positionError);
+        }
+
         if (fabs(positionError) > threshold && commandReceived[_motorIndex])
         {
             motorLastState[_motorIndex] = motorState::MOTOR_MOVING;
 
             // Update microstepping based on position error
-            updateMicrostepping(_motorIndex, positionError);
+            updateMicrostepping(_motorIndex, positionError, distanceToTarget);
 
             if (isRotational)
             {
@@ -159,21 +174,14 @@ void motorUpdateTask(void* pvParameters)
 
             if (fabs(positionError) <= threshold)
             {
-                motorLastState[_motorIndex] = motorState::MOTOR_STOPPED;
-                motorStop(_motorIndex);
-                commandReceived[_motorIndex] = false;  // Reset command flag when target is reached or no command
+                motorStopAndSavePosition(_motorIndex, currentPosition);
             }
         }
         else
         {
             if (motorLastState[_motorIndex] == motorState::MOTOR_MOVING)
             {
-                motorLastState[_motorIndex] = motorState::MOTOR_STOPPED;
-                motorStop(_motorIndex);
-                commandReceived[_motorIndex] = false;  // Reset command flag when target is reached or no command
-
-                // Save the final position to EEPROM when motor stops
-                saveMotorPosition(_motorIndex, currentPosition);
+                motorStopAndSavePosition(_motorIndex, currentPosition);
             }
         }
 
@@ -365,7 +373,16 @@ void serialReadTask(void* pvParameters)
                 {
                     if (motorType[_motorIndex] == MotorType::LINEAR)  // Only allow for Motor 1
                     {
-                        motor1OffsetUm = c.getArgument("o").getValue().toDouble();
+                        double offsetPx = c.getArgument("o").getValue().toDouble();
+                        if (pxToUm(offsetPx) < motor1LowerLimitUm || pxToUm(offsetPx) > motor1UpperLimitUm)
+                        {
+                            Serial.print(F("ERROR: Motor 1 offset must be between "));
+                            Serial.print(motor1LowerLimitUm);
+                            Serial.print(F(" and "));
+                            Serial.println(motor1UpperLimitUm);
+                            continue;
+                        }
+                        motor1OffsetUm = pxToUm(offsetPx);
                         Serial.print(F("Motor 1 offset set to (px): "));
                         Serial.println(motor1OffsetUm, 2);
                     }
@@ -411,10 +428,10 @@ void serialReadTask(void* pvParameters)
                     double loLimit = (motorType[_motorIndex] == MotorType::LINEAR) ? motor1LowerLimitUm : ROTATIONAL_POSITION_MIN;
                     double upLimit = (motorType[_motorIndex] == MotorType::LINEAR) ? motor1UpperLimitUm : ROTATIONAL_POSITION_MAX;
 
-                    if (!checkPositionLimits(_motorIndex, position, loLimit, upLimit))
+                    /*if (!checkPositionLimits(_motorIndex, position, loLimit, upLimit))
                     {
                         continue;
-                    }
+                    }*/
 
                     Serial.print(F("Motor "));
                     Serial.print(_motorIndex + 1);
@@ -510,12 +527,17 @@ void serialPrintTask(void* pvParameters)
         {
             unit              = "um";
             currentPosition   = mmToUm(encoders2[_motorIndex].getTotalTravelMm());
-            currentPositionPx = motor1OffsetUm + umToPx(currentPosition);
+            currentPositionPx = umToPx(currentPosition);
             threshold         = LINEAR_THRESHOLD;
         }
 
         double targetPosition = pids[_motorIndex].getTarget();
         double positionError  = (targetPosition == 0) ? 0 : pids[_motorIndex].getPositionError(currentPosition, !isLinear);
+
+        if (targetPosition == 0)
+        {
+            positionError = 0;
+        }
 
         if (fabs(currentPosition - lastPosition[_motorIndex]) > threshold)
         {
