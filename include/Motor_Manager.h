@@ -502,35 +502,33 @@ bool driverCommunicationTest(uint8_t i, bool print = true)
     return true;
 }
 
+String communicationTest[NUM_MOTORS] = {"FAILED", "FAILED", "FAILED", "FAILED"};
+
 void driverTest(uint8_t i, bool print = true)
 {
     if (!driverCommunicationTest(i, print))
     {
-        Serial.print(F("Driver "));
-        Serial.print(i + 1);
-        Serial.println(F(" communication test: FAILED"));
+        communicationTest[i] = "FAILED";
     }
     else
     {
+        communicationTest[i] = "PASSED (" + String(driver[i].version()) + ")";
+    }
+
+    /*if (driver[i].sd_mode() && print)
+    {
         Serial.print(F("Driver "));
         Serial.print(i + 1);
-        Serial.print(F(" firmware version: "));
-        Serial.println(driver[i].version());
-
-        if (driver[i].sd_mode() && print)
-        {
-            Serial.print(F("Driver "));
-            Serial.print(i + 1);
-            Serial.println(F(" is hardware configured for Step & Dir mode"));
-        }
-
-        if (!driver[i].drv_enn() && print)
-        {
-            Serial.print(F("Driver "));
-            Serial.print(i + 1);
-            Serial.println(F(" is not hardware enabled"));
-        }
+        Serial.println(F(" is hardware configured for Step & Dir mode"));
     }
+
+    if (!driver[i].drv_enn() && print)
+    {
+        Serial.print(F("Driver "));
+        Serial.print(i + 1);
+        Serial.println(F(" is not hardware enabled"));
+    }*/
+
     delay(500);
 }
 
@@ -559,12 +557,13 @@ void initializeDriversAndTest()
     {
         disableDrivers();
         driver[i].begin();
-        // driver[i].setCSWriteCallback(writeCS);
-        // driver[i].writeChipSelect(i, false);
         driverTest(i, false);
-        initializeDriver(i);
-        Serial.println(F("--------------------------------"));
     }
+    Serial.println(F("\n\n============================================================= [Drivers Communication Test] "
+                     "============================================================="));
+    Serial.println(F("Driver 1   |   Driver 2   |   Driver 3   |   Driver 4"));
+    Serial.println(communicationTest[0] + "   |   " + communicationTest[1] + "   |   " + communicationTest[2] + "   |   " +
+                   communicationTest[3]);
 }
 
 void motorMoveForward(uint8_t i)

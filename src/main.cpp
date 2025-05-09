@@ -552,40 +552,44 @@ void serialPrintTask(void* pvParameters)
 
         if (fabs(currentPosition - lastPosition[_motorIndex]) > threshold)
         {
-            Serial.print(F("Motor  Direction  Pulses/Rev  Laps  Position (px)  Position ("));
+            Serial.println(
+                F("\n------------------------------------------------------------------------------------------------------------------------------"));
+            Serial.print(F("Motor  |  Direction  |  Pulses/Rev  |  Laps  |  Position (px)  |  Position ("));
             Serial.print(unit);
-            Serial.println(F(")  Target  Error"));
+            Serial.println(F(")  |  Target  |  Error"));
+            Serial.println(
+                F("------------------------------------------------------------------------------------------------------------------------------"));
 
             // Format each value with fixed width
             char buffer[20];
             // Motor (5 chars)
             snprintf(buffer, sizeof(buffer), "%-5d", _motorIndex + 1);
             Serial.print(buffer);
-            Serial.print("  ");
+            Serial.print("  |  ");
             // Direction (9 chars)
             snprintf(buffer, sizeof(buffer), "%-9s", direction.c_str());
             Serial.print(buffer);
-            Serial.print("  ");
+            Serial.print("  |  ");
             // Pulses/Rev (10 chars)
             snprintf(buffer, sizeof(buffer), "%-10d", encoders2[_motorIndex].getPulsesPerRevolution());
             Serial.print(buffer);
-            Serial.print("  ");
+            Serial.print("  |  ");
             // Laps (4 chars)
             snprintf(buffer, sizeof(buffer), "%-4d", state.laps);
             Serial.print(buffer);
-            Serial.print("  ");
+            Serial.print("  |  ");
             // Position in px (15 chars)
             snprintf(buffer, sizeof(buffer), "%-13.3f", currentPositionPx);
             Serial.print(buffer);
-            Serial.print("  ");
+            Serial.print("  |  ");
             // Position (13 chars)
             snprintf(buffer, sizeof(buffer), "%-13.3f", currentPosition);
             Serial.print(buffer);
-            Serial.print("  ");
+            Serial.print("  |  ");
             // Target (6 chars)
             snprintf(buffer, sizeof(buffer), "%-6.3f", targetPosition);
             Serial.print(buffer);
-            Serial.print("  ");
+            Serial.print("  |  ");
             // Error (5 chars)
             snprintf(buffer, sizeof(buffer), "%-5.3f", positionError);
             Serial.println(buffer);
