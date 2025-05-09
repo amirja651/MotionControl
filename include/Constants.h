@@ -15,6 +15,7 @@ constexpr double LINEAR_OFFSET_PX      = 680.0;
 
 constexpr double ROTATIONAL_THRESHOLD         = 0.15f;
 constexpr double ROTATIONAL_DISPLAY_THRESHOLD = 0.2f;
-constexpr double LINEAR_THRESHOLD             = 0.3f;
+constexpr double LINEAR_THRESHOLD             = 0.15f;
+constexpr double LINEAR_DISPLAY_THRESHOLD     = 0.2f;
 
 #endif  // CONSTANTS_H
