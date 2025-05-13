@@ -6,7 +6,7 @@
 
 #define NUM_MOTORS 4
 
-extern MAE3Encoder2  encoders2[NUM_MOTORS];
+extern MAE3Encoder2* encoders2;
 extern PIDController pids[NUM_MOTORS];
 
 void initializeOtherObjects();

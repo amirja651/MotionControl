@@ -34,16 +34,7 @@ void IRAM_ATTR MAE3Encoder2::interruptHandler3()
 {
     if (encoderInstances[3])
     {
-        try
-        {
-            encoderInstances[3]->processInterrupt();
-        }
-        catch (...)
-        {
-            // Log error in a way that's safe for interrupts
-            volatile static uint32_t error_count = 0;
-            error_count++;
-        }
+        encoderInstances[3]->processInterrupt();
     }
 }
 
@@ -67,8 +58,6 @@ bool MAE3Encoder2::begin()
         return false;
     }
 
-    lowerLimitMm = pxToMm(LINEAR_LOWER_LIMIT_PX);
-    upperLimitMm = pxToMm(LINEAR_UPPER_LIMIT_PX);
     // Configure pins
     pinMode(signalPin, INPUT);
     pinMode(interruptPin, INPUT);
@@ -232,27 +221,4 @@ void MAE3Encoder2::reset()
     state.laps         = 0;
     state.direction    = Direction::UNKNOWN;
     state.lastPulse    = 0;
-}
-
-void MAE3Encoder2::setLowerLimits(double lowerLimitMm)
-{
-    this->lowerLimitMm = lowerLimitMm;
-}
-
-void MAE3Encoder2::setUpperLimits(double upperLimitMm)
-{
-    this->upperLimitMm = upperLimitMm;
-}
-
-// Calculate laps from current pulse and current position in pixels
-void MAE3Encoder2::calculateLaps(double currentPositionMm)
-{
-    delay(1000);
-    update();
-    delay(1000);
-    double pulsePositionMm = state.currentPulse * getMillimetersPerPulse();
-    double laps            = (currentPositionMm - pulsePositionMm) / LEAD_SCREW_PITCH_MM;
-
-    // Round and update state
-    state.laps = static_cast<int32_t>(round(laps));
 }

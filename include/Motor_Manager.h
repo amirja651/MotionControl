@@ -5,12 +5,6 @@
 
 #define NUM_MOTORS 4
 
-// Microstepping configuration
-#define MICROSTEPS_COARSE        16    // Fast movement
-#define MICROSTEPS_FINE          256   // Precise positioning
-#define PERCENT_THRESHOLD_COARSE 0.05  // Switch to coarse mode when error > 5% of total range
-#define PERCENT_THRESHOLD_FINE   0.1   // Switch to fine mode when error < 10% of total range
-
 static const uint16_t DIR_A = 22;
 static const uint16_t DIR_B = 4;
 static const uint16_t DIR_C = 32;
@@ -34,58 +28,6 @@ static const uint16_t CS_D = 12;
 static const uint16_t W_MOSI = 23;
 static const uint16_t W_MISO = 19;
 static const uint16_t W_SCK  = 18;
-
-// Multiplexer control pins
-static const uint16_t MUX_SEL0 = 5;   // Select input 0
-static const uint16_t MUX_SEL1 = 2;   // Select input 1
-static const uint16_t MUX_IO   = 12;  // Shared I/O line
-
-// Initialize multiplexer pins
-void csPinSetup()
-{
-    pinMode(MUX_SEL0, INPUT);
-    pinMode(MUX_SEL1, INPUT);
-    pinMode(MUX_IO, OUTPUT);  // Default to input with pullup
-
-    // Initialize to channel 0
-    digitalWrite(MUX_SEL0, LOW);
-    digitalWrite(MUX_SEL1, LOW);
-    digitalWrite(MUX_IO, HIGH);
-}
-
-// Select multiplexer channel
-void ChipSelect(int channel)
-{
-    switch (channel)
-    {
-        case 0:
-            digitalWrite(MUX_SEL0, LOW);
-            digitalWrite(MUX_SEL1, LOW);
-            break;
-        case 1:
-            digitalWrite(MUX_SEL0, HIGH);
-            digitalWrite(MUX_SEL1, LOW);
-            break;
-        case 2:
-            digitalWrite(MUX_SEL0, LOW);
-            digitalWrite(MUX_SEL1, HIGH);
-            break;
-        case 3:
-            digitalWrite(MUX_SEL0, HIGH);
-            digitalWrite(MUX_SEL1, HIGH);
-            break;
-    }
-}
-
-// Write to selected multiplexer channel
-void writeCS(int channel, bool value)
-{
-    ChipSelect(channel);
-    delayMicroseconds(1);
-    digitalWrite(MUX_IO, value);
-    delayMicroseconds(1);
-    Serial.printf("Writing CS: Channel %d, Value: %d\n", channel, value);
-}
 
 enum class MotorType
 {
@@ -243,7 +185,7 @@ void configureDriverNEMA11_1004H(uint8_t i)
     // ---------------------------
     // 3. Microstepping & Interpolation
     // ---------------------------
-    driver[i].microsteps(16);  // Fine control, 16 microsteps (try 32 for even smoother motion)
+    driver[i].microsteps(32);  // Fine control, 16 microsteps (try 32 for even smoother motion)
     driver[i].intpol(true);    // Enable interpolation for smooth motion
 
     // ---------------------------
@@ -317,8 +259,8 @@ void optimizeForPancake(uint8_t i)
     // ---------------------------
     // 3. Microstepping & Interpolation
     // ---------------------------
-    driver[i].microsteps(32);  // Increased microstepping for smoother holding
-    driver[i].intpol(true);    // Smooth motion
+    driver[i].microsteps(256);  // Increased microstepping for smoother holding
+    driver[i].intpol(true);     // Smooth motion
 
     // ---------------------------
     // 4. StealthChop Settings (Enable for holding/low speed)
@@ -656,30 +598,9 @@ void motorStop(uint8_t i)
     }
 }
 
-// Function to set microstepping mode
-void setMicrostepping(uint8_t motorIndex, uint16_t microsteps)
+void motorStep(uint8_t i)
 {
-    if (motorIndex >= NUM_MOTORS)
-        return;
-
-    driver[motorIndex].microsteps(microsteps);
-    // Update driver settings after changing microsteps
-    driver[motorIndex].push();
-}
-
-void motorStep(uint8_t i, uint16_t microsteps = 16)
-{
-    if (i >= NUM_MOTORS)
-    {
-        return;
-    }
-
-    if (microsteps != 16)
-    {
-        setMicrostepping(i, microsteps);
-    }
-
-    if (!isMoving[i])
+    if (i >= NUM_MOTORS || !isMoving[i])
     {
         return;
     }
@@ -691,45 +612,12 @@ void motorStep(uint8_t i, uint16_t microsteps = 16)
         digitalWrite(STEP_A, LOW);
         delayMicroseconds(160);
     }
-    else if (i == 1)
+    else
     {
         digitalWrite(STEP_B, HIGH);
         delayMicroseconds(10);
         digitalWrite(STEP_B, LOW);
         delayMicroseconds(10);
-    }
-    else if (i == 2)
-    {
-        digitalWrite(STEP_C, HIGH);
-        delayMicroseconds(160);
-        digitalWrite(STEP_C, LOW);
-        delayMicroseconds(160);
-    }
-    else if (i == 3)
-    {
-        digitalWrite(STEP_D, HIGH);
-        delayMicroseconds(160);
-        digitalWrite(STEP_D, LOW);
-        delayMicroseconds(160);
-    }
-}
-
-// Function to update microstepping based on position error
-void updateMicrostepping(uint8_t motorIndex, double positionError, double totalRange)
-{
-    if (motorIndex >= NUM_MOTORS)
-        return;
-
-    double   absError          = fabs(positionError);
-    uint16_t currentMicrosteps = driver[motorIndex].microsteps();
-
-    if (absError > PERCENT_THRESHOLD_COARSE * totalRange && currentMicrosteps != MICROSTEPS_COARSE)
-    {
-        setMicrostepping(motorIndex, MICROSTEPS_COARSE);
-    }
-    else if (absError < PERCENT_THRESHOLD_FINE * totalRange && currentMicrosteps != MICROSTEPS_FINE)
-    {
-        setMicrostepping(motorIndex, MICROSTEPS_FINE);
     }
 }
 

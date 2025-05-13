@@ -44,10 +44,6 @@ constexpr EncoderConstants ENCODER_12BIT = {
     .PWM_FREQUENCY   = 0.244f  // 244 Hz
 };
 
-// Linear motion constants
-constexpr double LEAD_SCREW_PITCH_MM = 0.2f;  // Lead screw pitch in mm
-constexpr double TOTAL_TRAVEL_MM     = 5.0f;  // Total travel distance in mm
-
 // Direction enum
 enum class Direction
 {
@@ -79,58 +75,20 @@ public:
         return state;
     }
 
-    // Degrees per pulse
-    float getDegreesPerPulse() const
-    {
-        return 360.0f / constants.PULSE_PER_REV;
-    }
-
-    // Millimeters per pulse
-    double getMillimetersPerPulse() const
-    {
-        return LEAD_SCREW_PITCH_MM / constants.PULSE_PER_REV;
-    }
-
     // Pulses per revolution
-    uint32_t getPulsesPerRevolution() const
+    uint32_t getCurrentPulse() const
     {
         return state.currentPulse;
     }
 
-    // Position in degrees
-    float getPositionDeg() const
-    {
-        return state.currentPulse * getDegreesPerPulse();
-    }
-
-    // Position in mm
-    double getPositionMm() const
-    {
-        return state.currentPulse * getMillimetersPerPulse();
-    }
-
     // Total travel in mm
-    double getTotalTravelMm() const
+    int64_t getTotalPulses() const
     {
-        double totalDistance = (state.laps * LEAD_SCREW_PITCH_MM) + getPositionMm();
-        return std::min(totalDistance, TOTAL_TRAVEL_MM);
+        return (static_cast<int64_t>(state.laps) * constants.PULSE_PER_REV) + state.currentPulse;
     }
 
     void reset();
     void processInterrupt();
-    void setLowerLimits(double lowerLimitMm);
-    void setUpperLimits(double upperLimitMm);
-
-    double getLowerLimits() const
-    {
-        return lowerLimitMm;
-    }
-
-    double getUpperLimits() const
-    {
-        return upperLimitMm;
-    }
-
     void calculateLaps(double currentPositionMm);
 
     // Add error state tracking
@@ -171,10 +129,6 @@ private:
     const uint8_t signalPin;
     const uint8_t interruptPin;
     const uint8_t encoderId;
-
-    // Limits
-    double lowerLimitMm;
-    double upperLimitMm;
 
     // State management
     EncoderState state;
