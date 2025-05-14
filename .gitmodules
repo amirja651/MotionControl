@@ -1,15 +1,15 @@
-[submodule "lib/Arduino-Log"]
-	path = lib/Arduino-Log
-	url = https://github.com/thijse/Arduino-Log.git
-[submodule "lib/ESP32AnalogRead"]
-	path = lib/ESP32AnalogRead
-	url = https://github.com/madhephaestus/ESP32AnalogRead.git
-[submodule "lib/ESP32TimerInterrupt"]
-	path = lib/ESP32TimerInterrupt
-	url = https://github.com/khoih-prog/ESP32TimerInterrupt.git
-[submodule "lib/PID"]
-	path = lib/PID
-	url = https://github.com/br3ttb/Arduino-PID-Library.git
+;[submodule "lib/Arduino-Log"]
+;	path = lib/Arduino-Log
+;	url = https://github.com/thijse/Arduino-Log.git
+;[submodule "lib/ESP32AnalogRead"]
+;	path = lib/ESP32AnalogRead
+;	url = https://github.com/madhephaestus/ESP32AnalogRead.git
+;[submodule "lib/ESP32TimerInterrupt"]
+;	path = lib/ESP32TimerInterrupt
+;	url = https://github.com/khoih-prog/ESP32TimerInterrupt.git
+;[submodule "lib/PID"]
+;	path = lib/PID
+;	url = https://github.com/br3ttb/Arduino-PID-Library.git
 [submodule "lib/SimpleCLI"]
 	path = lib/SimpleCLI
 	url = https://github.com/SpacehuhnTech/SimpleCLI.git

@@ -129,6 +129,7 @@ void encoderUpdateTask(void* pvParameters)
 
     while (1)
     {
+        // encoders2[_motorIndex].update();
         encoders2[_motorIndex].update();
         esp_task_wdt_reset();
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
@@ -211,9 +212,6 @@ void motorUpdate()
         {
             currentPosition = encoders2[_motorIndex].getTotalPulses() * PULSE_TO_UM_FACTOR_12B_32;
         }
-
-        pids[_motorIndex].setInput(currentPosition);
-        pids[_motorIndex].pid->Compute();
 
         if (fabs(positionError) <= threshold)
         {
@@ -487,7 +485,6 @@ void readSerial(String inputBuffer, String lastInput)
                 Serial.println(motorType[_motorIndex] == MotorType::LINEAR ? F(" um") : F(" °"));
 
                 commandReceived[_motorIndex] = true;  // Set flag only after valid command
-                pids[_motorIndex].setTarget(position);
                 return;
             }
 
@@ -511,7 +508,6 @@ void readSerial(String inputBuffer, String lastInput)
                 Serial.println(motorType[_motorIndex] == MotorType::LINEAR ? F(" um") : F(" °"));
 
                 commandReceived[_motorIndex] = true;  // Set flag only after valid command
-                pids[_motorIndex].setTarget(position);
                 return;
             }
         }
@@ -548,8 +544,12 @@ void readSerial(String inputBuffer, String lastInput)
 void printSerial()
 {
     const auto& state = encoders2[_motorIndex].getState();
+    // volatile Direction newDirection = encoders2[_motorIndex].detectDirection();
 
-    String direction       = state.direction == Direction::CLOCKWISE ? "CW" : "CCW";
+    String direction       = state.direction == Direction::UNKNOWN      ? "UNK"
+                             : state.direction == Direction::STATIONARY ? "STA"
+                             : state.direction == Direction::CLOCKWISE  ? " CW"
+                                                                        : "CCW";
     String unit            = "";
     double currentPosition = 0.0f;
     double threshold       = 0.0f;
@@ -568,19 +568,11 @@ void printSerial()
         unit            = "um";
     }
 
-    double targetPosition = pids[_motorIndex].getTarget();
-    double positionError  = (targetPosition == 0) ? 0 : pids[_motorIndex].getPositionError(currentPosition, isRotational);
-
-    if (targetPosition == 0)
-    {
-        positionError = 0;
-    }
-
     if (fabs(currentPosition - lastPosition[_motorIndex]) > threshold)
     {
         Serial.println();
         Serial.println(F("--------------------------------------------------------------"));
-        Serial.println(F("Motor  |  Direction  |  Pulses/Rev  |  Laps  |  TotalPulses"));
+        Serial.println(F("Motor  |  Direction  |  Pulses/Rev  |  Diff  |  LastUpdateTime  |  Laps  |  TotalPulses"));
 
         // Format each value with fixed width
         char buffer[32];  // Increased from 20 to 32
@@ -593,7 +585,15 @@ void printSerial()
         Serial.print(buffer);
         Serial.print("  |  ");
         // Pulses/Rev (10 chars)
-        snprintf(buffer, sizeof(buffer), "%-10d", encoders2[_motorIndex].getCurrentPulse());
+        snprintf(buffer, sizeof(buffer), "%-10d", state.currentPulse);
+        Serial.print(buffer);
+        Serial.print("  |  ");
+        // Pulses/Rev (10 chars)
+        snprintf(buffer, sizeof(buffer), "%-4d", state.diff);
+        Serial.print(buffer);
+        Serial.print("  |  ");
+        // Pulses/Rev (10 chars)
+        snprintf(buffer, sizeof(buffer), "%-14d", state.updateTime);
         Serial.print(buffer);
         Serial.print("  |  ");
         // Laps (4 chars)

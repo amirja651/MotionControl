@@ -1,7 +1,6 @@
 #ifndef PID_CONTROLLER_H
 #define PID_CONTROLLER_H
 
-#include <PID_v1.h>
 #include <cmath>
 
 struct PIDConfig
@@ -17,7 +16,6 @@ public:
     PIDController(PIDConfig config);
     double input;   // Process variable (current position)
     double output;  // Controller output
-    PID*   pid;     // PID controller instance
 
     void   begin();
     void   setTarget(double target);

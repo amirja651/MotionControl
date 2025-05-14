@@ -1,14 +1,8 @@
 #include "PIDController.h"
 
-PIDController::PIDController(PIDConfig config) : input(0.0), output(0.0), setpoint(0.0)
-{
-    pid = new PID(&input, &output, &setpoint, config.Kp, config.Ki, config.Kd, DIRECT);
-}
+PIDController::PIDController(PIDConfig config) : input(0.0), output(0.0), setpoint(0.0) {}
 
-void PIDController::begin()
-{
-    pid->SetMode(AUTOMATIC);
-}
+void PIDController::begin() {}
 
 void PIDController::setTarget(double target)
 {
@@ -46,7 +40,4 @@ double PIDController::getOutput() const
     return this->output;
 }
 
-void PIDController::setOutputLimits(double min, double max)
-{
-    pid->SetOutputLimits(min, max);
-}
+void PIDController::setOutputLimits(double min, double max) {}
