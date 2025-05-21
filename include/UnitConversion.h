@@ -2,14 +2,14 @@
 #define UNIT_CONVERSION_H
 
 // Encoder and Microstep Definitions
-#define PULSE_PER_REV_10B   1024
-#define PULSE_PER_REV_12B   4096
-#define MICROSTEP_256       256
-#define MICROSTEP_32        32
-#define MICROSTEP_16        16
-#define LEAD_SCREW_PITCH_MM 0.2f
-#define UM_PER_PIXEL        5.2f
-#define MM_TO_UM_FACTOR     1000.0f
+#define PULSE_PER_REV_10B 1024
+#define PULSE_PER_REV_12B 4096
+#define MICROSTEP_256     256
+#define MICROSTEP_32      32
+#define MICROSTEP_16      16
+// #define LEAD_SCREW_PITCH_MM2 0.2f
+#define UM_PER_PIXEL    5.2f
+#define MM_TO_UM_FACTOR 1000.0f
 
 // Pre-calculated Conversion Factors (Optimized for Speed)
 // Universal Factors

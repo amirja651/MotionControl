@@ -16,6 +16,6 @@
 [submodule "lib/TMCStepper"]
 	path = lib/TMCStepper
 	url = https://github.com/teemuatlut/TMCStepper.git
-[submodule "lib/MAE3Encoder"]
-	path = lib/MAE3Encoder
-	url = https://github.com/amirja651/MAE3Encoder
+;[submodule "lib/MAE3Encoder"]
+;	path = lib/MAE3Encoder
+;	url = https://github.com/amirja651/MAE3Encoder
