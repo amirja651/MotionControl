@@ -36,20 +36,20 @@ const char* getResetReasonString(esp_reset_reason_t reason)
 
 void printSystemInfo()
 {
-    Serial.println(F("\n\n============================================================= [System Initialization] "
-                     "============================================================="));
+    Serial.println(F("\n\n=============== [System Initialization] ================="));
     Serial.println(F("CPU Frequency (MHz)  |  Free RAM (bytes)  |  Reset Reason"));
 
     // Format each value with fixed width
     char buffer[20];
     snprintf(buffer, sizeof(buffer), "%-19ld", F_CPU / 1000000);
     Serial.print(buffer);
-    Serial.print("  |  ");
+    Serial.print(F("  |  "));
     snprintf(buffer, sizeof(buffer), "%-16d", ESP.getFreeHeap());
     Serial.print(buffer);
-    Serial.print("  |  ");
+    Serial.print(F("  |  "));
     snprintf(buffer, sizeof(buffer), "%-12s", getResetReasonString(esp_reset_reason()));
     Serial.println(buffer);
+    Serial.println();
 }
 
 #endif

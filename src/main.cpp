@@ -2,17 +2,17 @@
 #include "Constants.h"
 #include "ESP32_Manager.h"
 #include "MAE3Encoder.h"
-
 #include "Motor_Manager.h"
 #include "Object_Manager.h"
 #include "Position_Storage.h"
 #include "UnitConversion.h"
-
 #include "esp_task_wdt.h"
 #include <SPI.h>
 #include <inttypes.h>
+
 // Buffer for storing output
 char outputBuffer[200];
+
 enum motorState
 {
     MOTOR_STOPPED,
@@ -29,7 +29,6 @@ MAE3Encoder encoders[4] = {MAE3Encoder(ENC_A, 0), MAE3Encoder(ENC_B, 1), MAE3Enc
 
 uint64_t   lastPulseWidthUs[NUM_MOTORS] = {0, 0, 0, 0};
 uint8_t    _motorIndex                  = 0;
-uint64_t   lastPosition[NUM_MOTORS]     = {0, 0, 0, 0};
 bool       commandReceived[NUM_MOTORS]  = {false, false, false, false};
 motorState motorLastState[NUM_MOTORS]   = {motorState::MOTOR_STOPPED, motorState::MOTOR_STOPPED, motorState::MOTOR_STOPPED,
                                            motorState::MOTOR_STOPPED};
@@ -497,8 +496,6 @@ void serialReadTask(void* pvParameters)
             Serial.print(F("ERROR: "));
             Serial.println(cmdError.toString());
         }
-
-        printSerial();
         esp_task_wdt_reset();
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }
@@ -511,6 +508,7 @@ void serialPrintTask(void* pvParameters)
 
     while (1)
     {
+        printSerial();
         esp_task_wdt_reset();
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }
@@ -583,14 +581,8 @@ void motorUpdate()
     }
 }
 
-uint32_t calibratedMaxT[NUM_MOTORS] = {0, 0, 0, 0};
-
 void printSerial()
 {
-    // مقدارهای فیلتر شده را بخوانید و نمایش دهید
-    uint64_t filteredHigh = encoders[_motorIndex].getMedianWidthHigh();
-    uint64_t filteredLow  = encoders[_motorIndex].getMedianWidthLow();
-
     const auto& state     = encoders[_motorIndex].getState();
     String      direction = state.direction == Direction::CLOCKWISE ? "CW" : "CCW";
     float       degrees   = encoders[_motorIndex].getPositionDegrees();
@@ -598,27 +590,25 @@ void printSerial()
     {
         // printf("\e[2J\e[1;1H");  // clear screen
         //  table header
-        Serial.print("Motor\tLaps\tCurrent_Pulse\tDegrees\t\tDirection\tPulse_High\tPulse_Low\tTotal_Pulse\n");
+        Serial.print(F("Motor\tLaps\tCurrent_Pulse\tDegrees\t\tDirection\tPulse_High\tPulse_Low\tTotal_Pulse\n"));
 
         // Format all values into the buffer
         Serial.print(_motorIndex + 1);
-        Serial.print("\t");
+        Serial.print(F("\t"));
         Serial.print(state.laps);
-        Serial.print("\t");
+        Serial.print(F("\t"));
         Serial.print(state.current_Pulse);
-        Serial.print("\t\t");
+        Serial.print(F("\t\t"));
         Serial.print(degrees);
-        Serial.print("\t\t");
+        Serial.print(F("\t\t"));
         Serial.print(direction.c_str());
-        Serial.print("\t\t");
+        Serial.print(F("\t\t"));
         Serial.print(state.width_high);
-        Serial.print("\t\t");
+        Serial.print(F("\t\t"));
         Serial.print(state.width_low);
-        Serial.print("\t\t");
+        Serial.print(F("\t\t"));
         Serial.print(state.period);
-        +
-
-            Serial.println();
+        Serial.println();
 
         lastPulseWidthUs[_motorIndex] = state.current_Pulse;
     }

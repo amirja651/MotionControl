@@ -501,10 +501,10 @@ void initializeDriversAndTest()
         driver[i].begin();
         driverTest(i, false);
     }
-    Serial.println(F("\n\n============================================================= [Drivers Communication Test] "
-                     "============================================================="));
-    Serial.println(F("Driver 1   |   Driver 2   |   Driver 3   |   Driver 4"));
-    Serial.println(communicationTest[0] + "   |   " + communicationTest[1] + "   |   " + communicationTest[2] + "   |   " +
+
+    Serial.println(F("\n\n=========== [Drivers Communication Test] ============"));
+    Serial.println(F("Driver 1\tDriver 2\tDriver 3\tDriver 4"));
+    Serial.println(communicationTest[0] + "\t" + communicationTest[1] + "\t" + communicationTest[2] + "\t" +
                    communicationTest[3]);
 }
 
