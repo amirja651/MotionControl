@@ -599,7 +599,7 @@ void motorStop(uint8_t i)
     }
 }
 
-void motorStep(uint8_t i)
+void motorStep(uint8_t i, uint16_t delay_us)
 {
     if (i >= NUM_MOTORS || !isMoving[i])
     {
@@ -609,16 +609,16 @@ void motorStep(uint8_t i)
     if (i == 0)
     {
         digitalWrite(STEP_A, HIGH);
-        delayMicroseconds(160);
+        delayMicroseconds(delay_us);
         digitalWrite(STEP_A, LOW);
-        delayMicroseconds(160);
+        delayMicroseconds(delay_us);
     }
     else
     {
         digitalWrite(STEP_B, HIGH);
-        delayMicroseconds(10);
+        delayMicroseconds(delay_us);
         digitalWrite(STEP_B, LOW);
-        delayMicroseconds(10);
+        delayMicroseconds(delay_us);
     }
 }
 

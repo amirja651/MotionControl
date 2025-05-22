@@ -90,11 +90,17 @@ void motorUpdateTask(void* pvParameters)
         uint8_t motorIndex = getMotorIndex();
 
         if (!command_received[motorIndex])
+        {
+            esp_task_wdt_reset();
+            vTaskDelayUntil(&xLastWakeTime, xFrequency);
             continue;
+        }
 
         if (communicationTest[motorIndex] == "FAILED")
         {
             Serial.println(F("ERROR: Motor communication failed!"));
+            esp_task_wdt_reset();
+            vTaskDelayUntil(&xLastWakeTime, xFrequency);
             continue;
         }
 
@@ -131,11 +137,15 @@ void serialReadTask(void* pvParameters)
             if (escState == 0 && c == '\x1b')
             {
                 escState = 1;
+                esp_task_wdt_reset();
+                vTaskDelayUntil(&xLastWakeTime, xFrequency);
                 continue;
             }
             if (escState == 1 && c == '[')
             {
                 escState = 2;
+                esp_task_wdt_reset();
+                vTaskDelayUntil(&xLastWakeTime, xFrequency);
                 continue;
             }
             if (escState == 2)
@@ -154,6 +164,8 @@ void serialReadTask(void* pvParameters)
                         Serial.print(inputBuffer);
                     }
                     escState = 0;
+                    esp_task_wdt_reset();
+                    vTaskDelayUntil(&xLastWakeTime, xFrequency);
                     continue;
                 }
                 else if (c == 'B')
@@ -177,9 +189,13 @@ void serialReadTask(void* pvParameters)
                         Serial.print(inputBuffer);
                     }
                     escState = 0;
+                    esp_task_wdt_reset();
+                    vTaskDelayUntil(&xLastWakeTime, xFrequency);
                     continue;
                 }
                 escState = 0;
+                esp_task_wdt_reset();
+                vTaskDelayUntil(&xLastWakeTime, xFrequency);
                 continue;
             }
 
@@ -248,12 +264,16 @@ void serialReadTask(void* pvParameters)
 
                     if (!validationInputAndSetMotorIndex(motorNumStr))
                     {
+                        esp_task_wdt_reset();
+                        vTaskDelayUntil(&xLastWakeTime, xFrequency);
                         continue;
                     }
                 }
                 else
                 {
                     Serial.println(errorMotorNumberIsRequired);
+                    esp_task_wdt_reset();
+                    vTaskDelayUntil(&xLastWakeTime, xFrequency);
                     continue;
                 }
 
@@ -263,6 +283,8 @@ void serialReadTask(void* pvParameters)
                     if (!is_set_motor_number)
                     {
                         Serial.println(errorMotorNumberIsRequired);
+                        esp_task_wdt_reset();
+                        vTaskDelayUntil(&xLastWakeTime, xFrequency);
                         continue;
                     }
 
@@ -283,6 +305,8 @@ void serialReadTask(void* pvParameters)
                     }
 
                     Serial.println(F("#"));
+                    esp_task_wdt_reset();
+                    vTaskDelayUntil(&xLastWakeTime, xFrequency);
                     continue;
                 }
 
@@ -292,6 +316,8 @@ void serialReadTask(void* pvParameters)
                     if (!is_set_motor_number)
                     {
                         Serial.println(errorMotorNumberIsRequired);
+                        esp_task_wdt_reset();
+                        vTaskDelayUntil(&xLastWakeTime, xFrequency);
                         continue;
                     }
 
@@ -304,6 +330,8 @@ void serialReadTask(void* pvParameters)
                     Serial.print(F("Motor "));
                     Serial.print(motorIndex + 1);
                     Serial.println(F(" stopped"));
+                    esp_task_wdt_reset();
+                    vTaskDelayUntil(&xLastWakeTime, xFrequency);
                     continue;
                 }
 
@@ -313,6 +341,8 @@ void serialReadTask(void* pvParameters)
                     if (!is_set_motor_number)
                     {
                         Serial.println(errorMotorNumberIsRequired);
+                        esp_task_wdt_reset();
+                        vTaskDelayUntil(&xLastWakeTime, xFrequency);
                         continue;
                     }
 
@@ -323,6 +353,8 @@ void serialReadTask(void* pvParameters)
                     if (motorType[motorIndex] != MotorType::LINEAR)
                     {
                         Serial.println(errorTheCommandIsOnlyValidForLinearMotors);
+                        esp_task_wdt_reset();
+                        vTaskDelayUntil(&xLastWakeTime, xFrequency);
                         continue;
                     }
 
@@ -330,6 +362,8 @@ void serialReadTask(void* pvParameters)
 
                     if (!validationInputAndSetLinearOffset(linearOffsetStr))
                     {
+                        esp_task_wdt_reset();
+                        vTaskDelayUntil(&xLastWakeTime, xFrequency);
                         continue;
                     }
                 }
@@ -340,6 +374,8 @@ void serialReadTask(void* pvParameters)
                     if (!is_set_motor_number)
                     {
                         Serial.println(errorMotorNumberIsRequired);
+                        esp_task_wdt_reset();
+                        vTaskDelayUntil(&xLastWakeTime, xFrequency);
                         continue;
                     }
 
@@ -350,6 +386,8 @@ void serialReadTask(void* pvParameters)
                     if (motorType[motorIndex] != MotorType::LINEAR)
                     {
                         Serial.println(errorTheCommandIsOnlyValidForLinearMotors);
+                        esp_task_wdt_reset();
+                        vTaskDelayUntil(&xLastWakeTime, xFrequency);
                         continue;
                     }
 
@@ -357,6 +395,8 @@ void serialReadTask(void* pvParameters)
 
                     if (!validationInputAndSetLinearLowerLimit(lowerLimitPx))
                     {
+                        esp_task_wdt_reset();
+                        vTaskDelayUntil(&xLastWakeTime, xFrequency);
                         continue;
                     }
                 }
@@ -367,6 +407,8 @@ void serialReadTask(void* pvParameters)
                     if (!is_set_motor_number)
                     {
                         Serial.println(errorMotorNumberIsRequired);
+                        esp_task_wdt_reset();
+                        vTaskDelayUntil(&xLastWakeTime, xFrequency);
                         continue;
                     }
 
@@ -377,6 +419,8 @@ void serialReadTask(void* pvParameters)
                     if (motorType[motorIndex] != MotorType::LINEAR)
                     {
                         Serial.println(errorTheCommandIsOnlyValidForLinearMotors);
+                        esp_task_wdt_reset();
+                        vTaskDelayUntil(&xLastWakeTime, xFrequency);
                         continue;
                     }
 
@@ -384,6 +428,8 @@ void serialReadTask(void* pvParameters)
 
                     if (!validationInputAndSetLinearUpperLimit(upperLimitPx))
                     {
+                        esp_task_wdt_reset();
+                        vTaskDelayUntil(&xLastWakeTime, xFrequency);
                         continue;
                     }
                 }
@@ -394,6 +440,8 @@ void serialReadTask(void* pvParameters)
                     if (!is_set_motor_number)
                     {
                         Serial.println(errorMotorNumberIsRequired);
+                        esp_task_wdt_reset();
+                        vTaskDelayUntil(&xLastWakeTime, xFrequency);
                         continue;
                     }
 
@@ -402,7 +450,11 @@ void serialReadTask(void* pvParameters)
                     String targetStr = c.getArgument("p").getValue();
 
                     if (!validationInputAndSetTarget(targetStr))
+                    {
+                        esp_task_wdt_reset();
+                        vTaskDelayUntil(&xLastWakeTime, xFrequency);
                         continue;
+                    }
                 }
 
                 // Get motor load position
@@ -411,6 +463,8 @@ void serialReadTask(void* pvParameters)
                     if (!is_set_motor_number)
                     {
                         Serial.println(errorMotorNumberIsRequired);
+                        esp_task_wdt_reset();
+                        vTaskDelayUntil(&xLastWakeTime, xFrequency);
                         continue;
                     }
 
@@ -418,6 +472,8 @@ void serialReadTask(void* pvParameters)
 
                     String targetStr = c.getArgument("l").getValue();
 
+                    esp_task_wdt_reset();
+                    vTaskDelayUntil(&xLastWakeTime, xFrequency);
                     continue;
                 }
             }
@@ -537,7 +593,7 @@ void rotationalMotorUpdate()
             motorMoveReverse(motorIndex);
         }
 
-        motorStep(motorIndex);  // Execute the step
+        motorStep(motorIndex, 10);  // Execute the step
 
         // Check the error again
         positionError = getShortestAngularDistanceError();
@@ -575,7 +631,7 @@ void linearMotorUpdate()
             motorMoveReverse(motorIndex);
         }
 
-        motorStep(motorIndex);  // Execute the step
+        motorStep(motorIndex, 160);  // Execute the step
 
         positionError = getSignedPositionError();
 
@@ -615,15 +671,15 @@ void printSerial()
         Serial.print(state.laps);
         Serial.print(F("\t"));
         Serial.print(direction.c_str());
-        Serial.print(F("\t\t"));
+        Serial.print(F("\t"));
         Serial.print(state.current_Pulse);
-        Serial.print(F("\t\t"));
+        Serial.print(F("\t"));
         Serial.print(state.width_high);
-        Serial.print(F("\t\t"));
+        Serial.print(F("\t"));
         Serial.print(state.width_low);
-        Serial.print(F("\t\t"));
+        Serial.print(F("\t"));
         Serial.print(state.period);
-        Serial.print(F("\t\t"));
+        Serial.print(F("\t"));
         Serial.print(position);
         Serial.print(F("\t\t"));
         Serial.print(target);
