@@ -548,7 +548,7 @@ double getShortestAngularDistanceError()
 {
     uint8_t motorIndex      = getMotorIndex();
     float   currentPosition = encoders[motorIndex].getPositionDegrees();
-    float   targetPosition  = getTarget();
+    float   targetPosition  = getTarget() + ROTATIONAL_THRESHOLD;
 
     double diff = fabs(currentPosition - targetPosition);
     if (diff > 180.0)
@@ -659,7 +659,10 @@ void printSerial()
     String       direction = state.direction == Direction::CLOCKWISE ? "CW" : "CCW";
     double       target    = getTarget();
 
-    if (fabs(state.current_Pulse - last_pulse[motorIndex]) > 1)
+    if (target == 0)
+        error = 0;
+
+    if (fabs(state.current_Pulse - last_pulse[motorIndex]) > 0.2)
     {
         //  table header
         Serial.print(F("Motor\tLaps\tDir\tPulse\tHigh\tLow\tPeriod"
@@ -683,9 +686,9 @@ void printSerial()
         Serial.print(position);
         Serial.print(F("\t\t"));
         Serial.print(target);
-        Serial.print(F("\t\t"));
+        Serial.print(F("\t"));
         Serial.print(error);
-        Serial.println();
+        Serial.println("\n\n\n\n");
 
         last_pulse[motorIndex] = state.current_Pulse;
     }
