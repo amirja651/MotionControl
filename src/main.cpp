@@ -81,7 +81,7 @@ void encoderUpdateTask(void* pvParameters)
 
 void motorUpdateTask(void* pvParameters)
 {
-    const uint8_t    MOTOR_UPDATE_TIME = 10;
+    const uint8_t    MOTOR_UPDATE_TIME = 5;
     const TickType_t xFrequency        = pdMS_TO_TICKS(MOTOR_UPDATE_TIME);
     TickType_t       xLastWakeTime     = xTaskGetTickCount();
 
