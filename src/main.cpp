@@ -81,7 +81,7 @@ void encoderUpdateTask(void* pvParameters)
 
 void motorUpdateTask(void* pvParameters)
 {
-    const uint8_t    MOTOR_UPDATE_TIME = 5;
+    const uint8_t    MOTOR_UPDATE_TIME = 10;
     const TickType_t xFrequency        = pdMS_TO_TICKS(MOTOR_UPDATE_TIME);
     TickType_t       xLastWakeTime     = xTaskGetTickCount();
 
@@ -597,8 +597,18 @@ void rotationalMotorUpdate()
         else
             motorMoveReverse(motorIndex);  // Counterclockwise rotation
 
-        if (steps > 50)
-            motorStep(motorIndex, 50);  // Execute the step
+        if (steps > 200)
+            motorStep(motorIndex, 200);  // Execute the step
+        else if (steps > 160)
+            motorStep(motorIndex, 160);
+        else if (steps > 120)
+            motorStep(motorIndex, 120);
+        else if (steps > 80)
+            motorStep(motorIndex, 80);
+        else if (steps > 40)
+            motorStep(motorIndex, 40);
+        else if (steps > 20)
+            motorStep(motorIndex, 20);
         else if (steps > 10)
             motorStep(motorIndex, 10);
         else

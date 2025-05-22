@@ -25,7 +25,7 @@ constexpr double LINEAR_LOWER_LIMIT_PX = 550.0;
 constexpr double LINEAR_UPPER_LIMIT_PX = 880.0;
 constexpr double LINEAR_OFFSET_PX      = 680.0;
 
-constexpr float ROTATIONAL_THRESHOLD = 0.01f;
+constexpr float ROTATIONAL_THRESHOLD = 0.05f;
 constexpr float LINEAR_THRESHOLD     = 0.05f;
 
 static const uint16_t ENC_A = 36;
