@@ -546,14 +546,17 @@ void motorStopAndSavePosition()
 
 double getShortestAngularDistanceError()
 {
-    uint8_t motorIndex      = getMotorIndex();
-    float   currentPosition = encoders[motorIndex].getPositionDegrees();
-    float   targetPosition  = getTarget() + ROTATIONAL_THRESHOLD;
+    uint8_t motorIndex = getMotorIndex();
+    float   currentDeg = encoders[motorIndex].getPositionDegrees();
+    float   targetDeg  = getTarget() + ROTATIONAL_THRESHOLD;
+    float   error      = targetDeg - currentDeg;
 
-    double diff = fabs(currentPosition - targetPosition);
-    if (diff > 180.0)
-        diff = 360.0 - diff;
-    return diff;  // always positive
+    if (error > 180.0f)
+        error -= 360.0f;
+    else if (error < -180.0f)
+        error += 360.0f;
+
+    return error;
 }
 
 double getSignedPositionError()
@@ -584,24 +587,14 @@ void rotationalMotorUpdate()
         motorLastState[motorIndex] = motorState::MOVING;
 
         // Select the appropriate direction and move the motor
-        if (positionError > 0)
-        {
-            motorMoveForward(motorIndex);
-        }
+        if (fabs(positionError) <= ROTATIONAL_THRESHOLD)  // Threshold to stop
+            motorStopAndSavePosition();
+        else if (positionError > 0.0f)
+            motorMoveForward(motorIndex);  // Clockwise rotation
         else
-        {
-            motorMoveReverse(motorIndex);
-        }
+            motorMoveReverse(motorIndex);  // Counterclockwise rotation
 
         motorStep(motorIndex, 10);  // Execute the step
-
-        // Check the error again
-        positionError = getShortestAngularDistanceError();
-
-        if (fabs(positionError) <= ROTATIONAL_THRESHOLD)
-        {
-            motorStopAndSavePosition();
-        }
     }
     else
     {
@@ -662,7 +655,7 @@ void printSerial()
     if (target == 0)
         error = 0;
 
-    if (fabs(state.current_Pulse - last_pulse[motorIndex]) > 0.2)
+    if (fabs(state.current_Pulse - last_pulse[motorIndex]) > 1)
     {
         //  table header
         Serial.print(F("Motor\tLaps\tDir\tPulse\tHigh\tLow\tPeriod"
