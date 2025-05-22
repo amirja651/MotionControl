@@ -506,6 +506,7 @@ void initializeDriversAndTest()
     Serial.println(F("Driver 1\tDriver 2\tDriver 3\tDriver 4"));
     Serial.println(communicationTest[0] + "\t" + communicationTest[1] + "\t" + communicationTest[2] + "\t" +
                    communicationTest[3]);
+    Serial.println();
 }
 
 void motorMoveForward(uint8_t i)
