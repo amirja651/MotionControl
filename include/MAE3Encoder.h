@@ -102,14 +102,16 @@ public:
     float getTotalTravelMM() const
     {
         float totalDistance = (state.laps * LEAD_SCREW_PITCH_MM) + getPositionMM();
-        return std::min(totalDistance, TOTAL_TRAVEL_MM);
+        // return std::min(totalDistance, TOTAL_TRAVEL_MM);
+        return totalDistance;
     }
 
     // Total travel in μm
     float getTotalTravelUM() const
     {
         float totalDistanceUM = (state.laps * LEAD_SCREW_PITCH_UM) + getPositionUM();
-        return std::min(totalDistanceUM, TOTAL_TRAVEL_UM);
+        // return std::min(totalDistanceUM, TOTAL_TRAVEL_UM);
+        return totalDistanceUM;
     }
 
     void reset();

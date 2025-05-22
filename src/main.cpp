@@ -230,15 +230,17 @@ void serialReadTask(void* pvParameters)
                     Serial.print(F("\b \b"));
                 }
             }
-            else if (c == 'u')
-            {
-                // Manual step left (reverse)
-                motorMoveReverse(getMotorIndex());
-            }
             else if (c == 'i')
             {
                 // Manual step right (forward)
                 motorMoveForward(getMotorIndex());
+                motorStep(getMotorIndex(), 10);
+            }
+            else if (c == 'k')
+            {
+                // Manual step left (reverse)
+                motorMoveReverse(getMotorIndex());
+                motorStep(getMotorIndex(), 10);
             }
             else
             {
@@ -562,8 +564,8 @@ double getShortestAngularDistanceError()
 double getSignedPositionError()
 {
     uint8_t motorIndex      = getMotorIndex();
-    float   currentPosition = encoders[motorIndex].getPositionUM();
-    float   targetPosition  = getTarget();
+    float   currentPosition = encoders[motorIndex].getTotalTravelUM();
+    float   targetPosition  = getTarget() + LINEAR_THRESHOLD;
 
     return targetPosition - currentPosition;  // retains sign
 }
@@ -589,7 +591,7 @@ void rotationalMotorUpdate()
         // Select the appropriate direction and move the motor
         if (fabs(positionError) <= ROTATIONAL_THRESHOLD)  // Threshold to stop
             motorStopAndSavePosition();
-        else if (positionError > 0.0f)
+        else if (positionError < 0.0f)
             motorMoveForward(motorIndex);  // Clockwise rotation
         else
             motorMoveReverse(motorIndex);  // Counterclockwise rotation
@@ -615,23 +617,14 @@ void linearMotorUpdate()
     {
         motorLastState[motorIndex] = motorState::MOVING;
 
-        if (positionError > 0)
-        {
-            motorMoveForward(motorIndex);
-        }
+        if (fabs(positionError) <= LINEAR_THRESHOLD)  // Threshold to stop
+            motorStopAndSavePosition();
+        else if (positionError < 0.0f)
+            motorMoveForward(motorIndex);  // Clockwise rotation
         else
-        {
-            motorMoveReverse(motorIndex);
-        }
+            motorMoveReverse(motorIndex);  // Counterclockwise rotation
 
         motorStep(motorIndex, 160);  // Execute the step
-
-        positionError = getSignedPositionError();
-
-        if (fabs(positionError) <= LINEAR_THRESHOLD)
-        {
-            motorStopAndSavePosition();
-        }
     }
     else
     {
@@ -646,7 +639,7 @@ void printSerial()
 {
     uint8_t motorIndex = getMotorIndex();
     float   position   = motorType[motorIndex] == MotorType::ROTATIONAL ? encoders[motorIndex].getPositionDegrees()
-                                                                        : encoders[motorIndex].getPositionUM();
+                                                                        : encoders[motorIndex].getTotalTravelUM();
     float   error = motorType[motorIndex] == MotorType::ROTATIONAL ? getShortestAngularDistanceError() : getSignedPositionError();
     EncoderState state     = encoders[motorIndex].getState();
     String       direction = state.direction == Direction::CLOCKWISE ? "CW" : "CCW";
@@ -658,7 +651,7 @@ void printSerial()
     if (fabs(state.current_Pulse - last_pulse[motorIndex]) > 1)
     {
         //  table header
-        Serial.print(F("Motor\tLaps\tDir\tPulse\tHigh\tLow\tPeriod"
+        Serial.print(F("\n\nMotor\tLaps\tDir\tPulse\tHigh\tLow\tPeriod"
                        "\tPosition\tTarget\tError\n"));
 
         // Format all values into the buffer
