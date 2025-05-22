@@ -514,7 +514,7 @@ void serialReadTask(void* pvParameters)
 
 void serialPrintTask(void* pvParameters)
 {
-    const uint16_t   SERIAL_PRINT_TIME = 100;
+    const uint16_t   SERIAL_PRINT_TIME = 300;
     const TickType_t xFrequency        = pdMS_TO_TICKS(SERIAL_PRINT_TIME);
     TickType_t       xLastWakeTime     = xTaskGetTickCount();
 
@@ -575,7 +575,8 @@ void rotationalMotorUpdate()
     uint8_t motorIndex = getMotorIndex();
 
     // Calculate signed angular position error [-180, 180]
-    float positionError = getShortestAngularDistanceError();
+    float    positionError = getShortestAngularDistanceError();
+    uint64_t steps         = fabs(positionError) * DEGREE_TO_PULSE_FACTOR_12B_256;
 
     // If previously stopped, save the distance
     if (motorLastState[motorIndex] == motorState::STOPPED)
@@ -596,7 +597,12 @@ void rotationalMotorUpdate()
         else
             motorMoveReverse(motorIndex);  // Counterclockwise rotation
 
-        motorStep(motorIndex, 10);  // Execute the step
+        if (steps > 50)
+            motorStep(motorIndex, 50);  // Execute the step
+        else if (steps > 10)
+            motorStep(motorIndex, 10);
+        else
+            motorStep(motorIndex, steps);  // Execute all remaining steps
     }
     else
     {
@@ -613,6 +619,8 @@ void linearMotorUpdate()
     uint8_t motorIndex    = getMotorIndex();
     float   positionError = getSignedPositionError();
 
+    uint64_t steps = fabs(positionError) * UM_TO_PULSE_FACTOR_12B_32;
+
     if (fabs(positionError) > LINEAR_THRESHOLD)
     {
         motorLastState[motorIndex] = motorState::MOVING;
@@ -624,7 +632,18 @@ void linearMotorUpdate()
         else
             motorMoveReverse(motorIndex);  // Counterclockwise rotation
 
-        motorStep(motorIndex, 160);  // Execute the step
+        if (steps > 200)
+            motorStep(motorIndex, 200);  // Execute the step
+        else if (steps > 160)
+            motorStep(motorIndex, 160);
+        else if (steps > 120)
+            motorStep(motorIndex, 120);
+        else if (steps > 80)
+            motorStep(motorIndex, 80);
+        else if (steps > 40)
+            motorStep(motorIndex, 40);
+        else
+            motorStep(motorIndex, steps);  // Execute all remaining steps
     }
     else
     {
@@ -651,7 +670,7 @@ void printSerial()
     if (fabs(state.current_Pulse - last_pulse[motorIndex]) > 1)
     {
         //  table header
-        Serial.print(F("\n\nMotor\tLaps\tDir\tPulse\tHigh\tLow\tPeriod"
+        Serial.print(F("Motor\tLaps\tDir\tPulse\tHigh\tLow\tPeriod"
                        "\tPosition\tTarget\tError\n"));
 
         // Format all values into the buffer
