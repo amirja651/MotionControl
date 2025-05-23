@@ -38,7 +38,6 @@ const String errorMotorNumberIsInvalid                 = "ERROR: Invalid motor n
 const String errorTheCommandIsOnlyValidForLinearMotors = "ERROR: The command is only valid for linear motors";
 
 uint8_t       motor_index                  = 0;
-unsigned long last_encoder_update_time     = 0;
 bool          is_set_motor_number          = false;
 double        linear_Lower_limit_um        = LINEAR_LOWER_LIMIT_PX * UM_PER_PIXEL;  // Lower limit in pixels
 double        linear_upper_limit_um        = LINEAR_UPPER_LIMIT_PX * UM_PER_PIXEL;  // Upper limit in pixels

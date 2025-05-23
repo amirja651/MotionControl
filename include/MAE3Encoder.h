@@ -6,6 +6,8 @@
 #include <cstdlib>  // For abs with uint32_t
 #include <esp_timer.h>
 
+#define DELTA_BUFFER_SIZE 10
+
 // Maximum number of encoders supported
 constexpr uint8_t MAX_ENCODERS            = 4;
 constexpr uint8_t CALIBRATION_BUFFER_SIZE = 20;
@@ -27,13 +29,15 @@ enum class Direction
 
 struct EncoderState
 {
-    volatile uint64_t current_Pulse;  // Current pulse value
-    int32_t           laps;           // Number of complete rotations
-    Direction         direction;      // Current direction of rotation
-    volatile uint64_t last_pulse;     // Last valid pulse value
-    volatile uint64_t width_high;     // High pulse width (rising to falling)
-    volatile uint64_t width_low;      // Low pulse width (falling to rising)
-    volatile uint64_t period;         // Total pulse width (t_on + t_off)
+    volatile uint64_t current_Pulse;                   // Current pulse value
+    volatile uint64_t width_high;                      // High pulse width (rising to falling)
+    volatile uint64_t width_low;                       // Low pulse width (falling to rising)
+    volatile uint64_t period;                          // Total pulse width (t_on + t_off)
+    int32_t           laps;                            // Number of complete rotations
+    int32_t           absolute_position;               // Current absolute position
+    Direction         direction = Direction::UNKNOWN;  // Current direction of rotation
+    float             last_angle;                      // Last valid angle value
+    float             delta;
 };
 
 class MAE3Encoder
@@ -51,7 +55,7 @@ public:
     }
     bool calibrate();  // New calibration method
 
-    void update();
+    void updateDirectionAndLaps();
 
     const EncoderState& getState() const
     {
@@ -140,13 +144,10 @@ public:
     uint64_t getMedianWidthLow() const;
 
 private:
-    void      processInterrupt();
-    uint32_t  medianFilter();
-    Direction detectDirection();
-    void      optimizeInterrupt();
-    void      attachInterruptHandler();
-    void      detachInterruptHandler();
-    uint32_t  findMostFrequentValue(const std::array<uint32_t, CALIBRATION_BUFFER_SIZE>& buffer);
+    void     processInterrupt();
+    void     attachInterruptHandler();
+    void     detachInterruptHandler();
+    uint32_t findMostFrequentValue(const std::array<uint32_t, CALIBRATION_BUFFER_SIZE>& buffer);
 
     // Pin assignments
     const uint8_t signalPin;

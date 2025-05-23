@@ -44,7 +44,7 @@ void loop()
 
 void encoderUpdateTask(void* pvParameters)
 {
-    const uint8_t    ENCODER_UPDATE_TIME = 2;  // changed from 1 to 2
+    const uint8_t    ENCODER_UPDATE_TIME = 4;
     const TickType_t xFrequency          = pdMS_TO_TICKS(ENCODER_UPDATE_TIME);
     TickType_t       xLastWakeTime       = xTaskGetTickCount();
 
@@ -66,13 +66,7 @@ void encoderUpdateTask(void* pvParameters)
         }
 
         encoders[motorIndex].processPWM();
-
-        unsigned long now = millis();
-        if (now - last_encoder_update_time > ENCODER_UPDATE_TIME + 1)  // 1 ms more than ENCODER_UPDATE_TIME
-        {
-            encoders[motorIndex].update();
-            last_encoder_update_time = now;
-        }
+        encoders[motorIndex].updateDirectionAndLaps();
 
         esp_task_wdt_reset();
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
@@ -81,7 +75,7 @@ void encoderUpdateTask(void* pvParameters)
 
 void motorUpdateTask(void* pvParameters)
 {
-    const uint8_t    MOTOR_UPDATE_TIME = 5;
+    const uint8_t    MOTOR_UPDATE_TIME = 4;
     const TickType_t xFrequency        = pdMS_TO_TICKS(MOTOR_UPDATE_TIME);
     TickType_t       xLastWakeTime     = xTaskGetTickCount();
 
@@ -103,6 +97,8 @@ void motorUpdateTask(void* pvParameters)
             vTaskDelayUntil(&xLastWakeTime, xFrequency);
             continue;
         }
+
+        encoders[motorIndex].updateDirectionAndLaps();
 
         if (motorType[motorIndex] == MotorType::ROTATIONAL)
         {
@@ -592,7 +588,7 @@ void rotationalMotorUpdate()
         // Select the appropriate direction and move the motor
         if (fabs(positionError) <= ROTATIONAL_THRESHOLD)  // Threshold to stop
             motorStopAndSavePosition();
-        else if (positionError < 0.0f)
+        else if (positionError > 0.0f)
             motorMoveForward(motorIndex);  // Clockwise rotation
         else
             motorMoveReverse(motorIndex);  // Counterclockwise rotation
@@ -637,7 +633,7 @@ void linearMotorUpdate()
 
         if (fabs(positionError) <= LINEAR_THRESHOLD)  // Threshold to stop
             motorStopAndSavePosition();
-        else if (positionError < 0.0f)
+        else if (positionError > 0.0f)
             motorMoveForward(motorIndex);  // Clockwise rotation
         else
             motorMoveReverse(motorIndex);  // Counterclockwise rotation
@@ -681,7 +677,7 @@ void printSerial()
     {
         //  table header
         Serial.print(F("Motor\tLaps\tDir\tPulse\tHigh\tLow\tPeriod"
-                       "\tPosition\tTarget\tError\n"));
+                       "\tPosition\tTarget\tError\tLastAngle\tDelta\n"));
 
         // Format all values into the buffer
         Serial.print(motorIndex + 1);
@@ -703,6 +699,10 @@ void printSerial()
         Serial.print(target);
         Serial.print(F("\t"));
         Serial.print(error);
+        Serial.print(F("\t"));
+        Serial.print(state.last_angle);
+        Serial.print(F("\t"));
+        Serial.print(state.delta);
         Serial.println("\n\n\n\n");
 
         last_pulse[motorIndex] = state.current_Pulse;

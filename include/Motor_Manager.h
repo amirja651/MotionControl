@@ -611,14 +611,14 @@ void motorStep(uint8_t i, uint16_t delay_us)
         digitalWrite(STEP_A, HIGH);
         delayMicroseconds(delay_us);
         digitalWrite(STEP_A, LOW);
-        delayMicroseconds(delay_us);
+        // delayMicroseconds(delay_us);
     }
     else
     {
         digitalWrite(STEP_B, HIGH);
         delayMicroseconds(delay_us);
         digitalWrite(STEP_B, LOW);
-        delayMicroseconds(delay_us);
+        // delayMicroseconds(delay_us);
     }
 }
 

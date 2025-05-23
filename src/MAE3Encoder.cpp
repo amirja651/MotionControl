@@ -81,10 +81,7 @@ bool MAE3Encoder::begin()
     encoderInstances[encoderId] = this;
 
     // Initialize state
-    state.current_Pulse = 0;
-    state.laps          = 0;
-    state.direction     = Direction::UNKNOWN;
-    state.last_pulse    = 0;
+    reset();
 
     // Initialize calibration buffer
     calibrationBuffer.fill(0);
@@ -254,7 +251,7 @@ void IRAM_ATTR MAE3Encoder::processInterrupt()
 // New method for processing PWM signal
 void MAE3Encoder::processPWM()
 {
-    if (!bufferUpdated)
+    if (!enabled || !bufferUpdated)
         return;
 
     // Last valid index (last complete cycle)
@@ -282,90 +279,68 @@ void MAE3Encoder::processPWM()
     {
         return;
     }
-
+    state.last_angle    = getPositionDegrees();  // it should be before state.current_Pulse
     state.current_Pulse = x_measured;
     bufferUpdated       = false;
     newPulseAvailable   = true;
     lastPulseTime       = esp_timer_get_time();
 }
 
-void MAE3Encoder::update()
+void MAE3Encoder::updateDirectionAndLaps()
 {
     if (!enabled || !newPulseAvailable)
         return;
 
-    Direction newDirection = detectDirection();
+    // Detect direction and count laps
+    float currentAngle = getPositionDegrees();
+    state.delta        = currentAngle - state.last_angle;
 
-    // Handle lap counting
-    if (newDirection != Direction::UNKNOWN)
+    // Normalize delta to -180 to 180 degrees
+    if (state.delta > 180)
+        state.delta -= 360;
+    if (state.delta < -180)
+        state.delta += 360;
+
+    const float threshold = 0.3f;
+
+    if (abs(state.delta) < threshold)
     {
-        // Check for clockwise lap completion
-        if (newDirection == Direction::CLOCKWISE)
-        {
-            if (state.last_pulse > (max_t * 3 / 4) && state.current_Pulse < (max_t / 4))
-            {
-                state.laps++;
-            }
-        }
-        // Check for counter-clockwise lap completion
-        else if (newDirection == Direction::COUNTER_CLOCKWISE)
-        {
-            if (state.last_pulse < (max_t / 4) && state.current_Pulse > (max_t * 3 / 4))
-            {
-                state.laps--;
-            }
-        }
+        state.direction = Direction::UNKNOWN;
+    }
+    else if (state.delta > 0)
+    {
+        // Clockwise
+        state.direction = Direction::CLOCKWISE;
+        if (state.last_angle > 300 && currentAngle < 60)
+            state.laps++;
+    }
+    else if (state.delta < 0)
+    {
+        // Counter-clockwise
+        state.direction = Direction::COUNTER_CLOCKWISE;
+        if (state.last_angle < 60 && currentAngle > 300)
+            state.laps--;
     }
 
-    // Update state
-    state.direction   = newDirection;
-    state.last_pulse  = state.current_Pulse;
     newPulseAvailable = false;
-}
-
-Direction MAE3Encoder::detectDirection()
-{
-    uint32_t noiseThreshold = max_t * 6 / 1000;
-    if (std::abs(static_cast<int32_t>(state.current_Pulse - state.last_pulse)) < noiseThreshold)
-    {
-        return state.direction;
-    }
-
-    // Handle wrap-around cases
-    uint32_t diff;
-    if (state.current_Pulse > state.last_pulse)
-    {
-        diff = state.current_Pulse - state.last_pulse;
-        if (diff > (max_t / 2))
-        {
-            return Direction::COUNTER_CLOCKWISE;
-        }
-        return Direction::CLOCKWISE;
-    }
-    else
-    {
-        diff = state.last_pulse - state.current_Pulse;
-        if (diff > (max_t / 2))
-        {
-            return Direction::CLOCKWISE;
-        }
-        return Direction::COUNTER_CLOCKWISE;
-    }
 }
 
 void MAE3Encoder::reset()
 {
-    state.current_Pulse = 0;
-    state.laps          = 0;
-    state.direction     = Direction::UNKNOWN;
-    state.last_pulse    = 0;
-    state.width_high    = 0;
-    state.width_low     = 0;
-    state.period        = 0;
-    newPulseAvailable   = false;
-    lastPulseTime       = 0;
-    lastFallingEdgeTime = 0;
-    lastRisingEdgeTime  = 0;
+    state.current_Pulse     = 0;
+    state.current_Pulse     = 0;
+    state.width_high        = 0;
+    state.width_low         = 0;
+    state.period            = 0;
+    state.laps              = 0;
+    state.absolute_position = 0;
+    state.direction         = Direction::UNKNOWN;
+    state.last_angle        = 0.0f;
+    state.delta             = 0.0f;
+    newPulseAvailable       = false;
+    lastPulseTime           = 0;
+    lastFallingEdgeTime     = 0;
+    lastRisingEdgeTime      = 0;
 }
 
 uint64_t MAE3Encoder::getMedianWidthHigh() const
