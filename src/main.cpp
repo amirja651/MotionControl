@@ -44,7 +44,7 @@ void loop()
 
 void encoderUpdateTask(void* pvParameters)
 {
-    const uint8_t    ENCODER_UPDATE_TIME = 4;
+    const uint8_t    ENCODER_UPDATE_TIME = 10;
     const TickType_t xFrequency          = pdMS_TO_TICKS(ENCODER_UPDATE_TIME);
     TickType_t       xLastWakeTime       = xTaskGetTickCount();
 
@@ -97,8 +97,6 @@ void motorUpdateTask(void* pvParameters)
             vTaskDelayUntil(&xLastWakeTime, xFrequency);
             continue;
         }
-
-        encoders[motorIndex].updateDirectionAndLaps();
 
         if (motorType[motorIndex] == MotorType::ROTATIONAL)
         {
@@ -589,15 +587,11 @@ void rotationalMotorUpdate()
         if (fabs(positionError) <= ROTATIONAL_THRESHOLD)  // Threshold to stop
             motorStopAndSavePosition();
         else if (positionError > 0.0f)
-            motorMoveForward(motorIndex);  // Clockwise rotation
-        else
             motorMoveReverse(motorIndex);  // Counterclockwise rotation
+        else
+            motorMoveForward(motorIndex);  // Clockwise rotation
 
-        if (steps > 200)
-            motorStep(motorIndex, 200);  // Execute the step
-        else if (steps > 160)
-            motorStep(motorIndex, 160);
-        else if (steps > 120)
+        if (steps > 120)
             motorStep(motorIndex, 120);
         else if (steps > 80)
             motorStep(motorIndex, 80);
@@ -608,7 +602,7 @@ void rotationalMotorUpdate()
         else if (steps > 10)
             motorStep(motorIndex, 10);
         else
-            motorStep(motorIndex, steps);  // Execute all remaining steps
+            motorStep(motorIndex, 1);  // Execute all remaining steps
     }
     else
     {
@@ -634,9 +628,9 @@ void linearMotorUpdate()
         if (fabs(positionError) <= LINEAR_THRESHOLD)  // Threshold to stop
             motorStopAndSavePosition();
         else if (positionError > 0.0f)
-            motorMoveForward(motorIndex);  // Clockwise rotation
-        else
             motorMoveReverse(motorIndex);  // Counterclockwise rotation
+        else
+            motorMoveForward(motorIndex);  // Clockwise rotation
 
         if (steps > 200)
             motorStep(motorIndex, 200);  // Execute the step
@@ -648,8 +642,10 @@ void linearMotorUpdate()
             motorStep(motorIndex, 80);
         else if (steps > 40)
             motorStep(motorIndex, 40);
+        else if (steps > 10)
+            motorStep(motorIndex, 10);
         else
-            motorStep(motorIndex, steps);  // Execute all remaining steps
+            motorStep(motorIndex, 1);  // Execute all remaining steps
     }
     else
     {
@@ -659,16 +655,16 @@ void linearMotorUpdate()
         }
     }
 }
-
-void printSerial()
+double x = 0;
+void   printSerial()
 {
     uint8_t motorIndex = getMotorIndex();
     float   position   = motorType[motorIndex] == MotorType::ROTATIONAL ? encoders[motorIndex].getPositionDegrees()
                                                                         : encoders[motorIndex].getTotalTravelUM();
     float   error = motorType[motorIndex] == MotorType::ROTATIONAL ? getShortestAngularDistanceError() : getSignedPositionError();
-    EncoderState state     = encoders[motorIndex].getState();
-    String       direction = state.direction == Direction::CLOCKWISE ? "CW" : "CCW";
-    double       target    = getTarget();
+    EncoderState state = encoders[motorIndex].getState();
+    String direction   = state.direction == Direction::UNKNOWN ? "---" : state.direction == Direction::CLOCKWISE ? "CW" : "CCW";
+    double target      = getTarget();
 
     if (target == 0)
         error = 0;
@@ -677,7 +673,7 @@ void printSerial()
     {
         //  table header
         Serial.print(F("Motor\tLaps\tDir\tPulse\tHigh\tLow\tPeriod"
-                       "\tPosition\tTarget\tError\tLastAngle\tDelta\n"));
+                       "\tPosition\tTarget\tError\tLast Pulse\n"));
 
         // Format all values into the buffer
         Serial.print(motorIndex + 1);
@@ -700,9 +696,9 @@ void printSerial()
         Serial.print(F("\t"));
         Serial.print(error);
         Serial.print(F("\t"));
-        Serial.print(state.last_angle);
+        Serial.print(state.last_Pulse);
         Serial.print(F("\t"));
-        Serial.print(state.delta);
+        Serial.print(state.accumulated_steps);
         Serial.println("\n\n\n\n");
 
         last_pulse[motorIndex] = state.current_Pulse;

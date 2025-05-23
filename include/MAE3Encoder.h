@@ -17,7 +17,7 @@ constexpr float    LEAD_SCREW_PITCH_MM = 0.5f;      // Lead screw pitch in mm
 constexpr float    TOTAL_TRAVEL_MM     = 30.0f;     // Total travel distance in mm
 constexpr float    LEAD_SCREW_PITCH_UM = 500.0f;    // 0.5mm = 500μm
 constexpr float    TOTAL_TRAVEL_UM     = 30000.0f;  // 30mm = 30000μm
-constexpr uint32_t DEFAULT_MAX_T       = 4096;      // Default max_t value
+constexpr uint32_t DEFAULT_MAX_T       = 4096;      // Default 4096 value
 
 // Direction enum
 enum class Direction
@@ -29,15 +29,16 @@ enum class Direction
 
 struct EncoderState
 {
-    volatile uint64_t current_Pulse;                   // Current pulse value
-    volatile uint64_t width_high;                      // High pulse width (rising to falling)
-    volatile uint64_t width_low;                       // Low pulse width (falling to rising)
-    volatile uint64_t period;                          // Total pulse width (t_on + t_off)
-    int32_t           laps;                            // Number of complete rotations
-    int32_t           absolute_position;               // Current absolute position
-    Direction         direction = Direction::UNKNOWN;  // Current direction of rotation
-    float             last_angle;                      // Last valid angle value
-    float             delta;
+    volatile int64_t current_Pulse;                   // Current pulse value
+    volatile int64_t last_Pulse;                      // Current pulse value
+    volatile int64_t width_high;                      // High pulse width (rising to falling)
+    volatile int64_t width_low;                       // Low pulse width (falling to rising)
+    volatile int64_t period;                          // Total pulse width (t_on + t_off)
+    volatile int64_t laps;                            // Number of complete rotations
+    volatile int64_t absolute_position;               // Current absolute position
+    Direction        direction = Direction::UNKNOWN;  // Current direction of rotation
+    volatile int64_t delta;
+    double           accumulated_steps = 0;
 };
 
 class MAE3Encoder
@@ -63,19 +64,19 @@ public:
     }
     uint32_t getMaxT() const
     {
-        return max_t;
-    }  // Get current max_t value
+        return 4096;
+    }  // Get current 4096 value
 
     // Degrees per pulse
     float getDegreesPerPulse() const
     {
-        return 360.0f / max_t;
+        return 360.0f / 4096;
     }
 
     // Millimeters per pulse
     float getMMPerPulse() const
     {
-        return LEAD_SCREW_PITCH_MM / max_t;
+        return LEAD_SCREW_PITCH_MM / 4096;
     }
 
     // Micrometers per pulse
@@ -124,12 +125,12 @@ public:
     void processPWM();
 
     // --- Pulse width ring buffers ---
-    static constexpr size_t                        PULSE_BUFFER_SIZE = 10;
-    const std::array<uint64_t, PULSE_BUFFER_SIZE>& getWidthHBuffer() const
+    static constexpr size_t                       PULSE_BUFFER_SIZE = 10;
+    const std::array<int64_t, PULSE_BUFFER_SIZE>& getWidthHBuffer() const
     {
         return widthHBuffer;
     }
-    const std::array<uint64_t, PULSE_BUFFER_SIZE>& getWidthLBuffer() const
+    const std::array<int64_t, PULSE_BUFFER_SIZE>& getWidthLBuffer() const
     {
         return widthLBuffer;
     }
@@ -139,9 +140,9 @@ public:
     }
 
     // Median filter for width_high
-    uint64_t getMedianWidthHigh() const;
+    int64_t getMedianWidthHigh() const;
     // Median filter for width_low
-    uint64_t getMedianWidthLow() const;
+    int64_t getMedianWidthLow() const;
 
 private:
     void     processInterrupt();
@@ -156,12 +157,12 @@ private:
     // State management
     EncoderState  state;
     volatile bool enabled;
-    uint32_t      max_t;  // Instance-specific max_t value
+    uint32_t      max_t;  // Instance-specific 4096 value
 
     // Filtering and timing
-    uint64_t          lastPulseTime;
-    volatile uint64_t lastFallingEdgeTime;
-    volatile uint64_t lastRisingEdgeTime;
+    int64_t          lastPulseTime;
+    volatile int64_t lastFallingEdgeTime;
+    volatile int64_t lastRisingEdgeTime;
 
     // Interrupt handling
     volatile bool newPulseAvailable;
@@ -182,9 +183,9 @@ private:
     static MAE3Encoder* encoderInstances[MAX_ENCODERS];
 
     // --- Pulse width ring buffers ---
-    std::array<uint64_t, PULSE_BUFFER_SIZE> widthLBuffer{};
-    std::array<uint64_t, PULSE_BUFFER_SIZE> widthHBuffer{};
-    size_t                                  pulseBufferIndex = 0;
+    std::array<int64_t, PULSE_BUFFER_SIZE> widthLBuffer{};
+    std::array<int64_t, PULSE_BUFFER_SIZE> widthHBuffer{};
+    size_t                                 pulseBufferIndex = 0;
 };
 
 #endif  // MAE3_ENCODER2_H
