@@ -669,7 +669,7 @@ void   printSerial()
     if (target == 0)
         error = 0;
 
-    if (fabs(state.current_Pulse - last_pulse[motorIndex]) > 1)
+    if (fabs(state.current_pulse - last_pulse[motorIndex]) > 1)
     {
         //  table header
         Serial.print(F("Motor\tLaps\tDir\tPulse\tHigh\tLow\tPeriod"
@@ -682,7 +682,7 @@ void   printSerial()
         Serial.print(F("\t"));
         Serial.print(direction.c_str());
         Serial.print(F("\t"));
-        Serial.print(state.current_Pulse);
+        Serial.print(state.current_pulse);
         Serial.print(F("\t"));
         Serial.print(state.width_high);
         Serial.print(F("\t"));
@@ -696,12 +696,12 @@ void   printSerial()
         Serial.print(F("\t"));
         Serial.print(error);
         Serial.print(F("\t"));
-        Serial.print(state.last_Pulse);
+        Serial.print(state.last_pulse);
         Serial.print(F("\t"));
         Serial.print(state.accumulated_steps);
         Serial.println("\n\n\n\n");
 
-        last_pulse[motorIndex] = state.current_Pulse;
+        last_pulse[motorIndex] = state.current_pulse;
     }
 }
 

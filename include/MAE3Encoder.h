@@ -29,8 +29,8 @@ enum class Direction
 
 struct EncoderState
 {
-    volatile int64_t current_Pulse;                   // Current pulse value
-    volatile int64_t last_Pulse;                      // Current pulse value
+    volatile int64_t current_pulse;                   // Current pulse value
+    volatile int64_t last_pulse;                      // Current pulse value
     volatile int64_t width_high;                      // High pulse width (rising to falling)
     volatile int64_t width_low;                       // Low pulse width (falling to rising)
     volatile int64_t period;                          // Total pulse width (t_on + t_off)
@@ -39,6 +39,14 @@ struct EncoderState
     Direction        direction = Direction::UNKNOWN;  // Current direction of rotation
     volatile int64_t delta;
     double           accumulated_steps = 0;
+
+    // Sector tracking
+    static constexpr uint8_t  NUM_SECTORS      = 60;
+    static constexpr uint16_t STEPS_PER_SECTOR = 4096 / NUM_SECTORS;  // ≈ 68.266
+    uint64_t                  touched_sectors  = 0;                   // Bitmap of touched sectors
+    uint8_t                   current_sector   = 0;                   // Current sector (0-59)
+    uint8_t                   last_sector      = 0;                   // Last sector for direction detection
+    uint8_t                   touched_count    = 0;                   // Count of touched sectors
 };
 
 class MAE3Encoder
@@ -88,19 +96,19 @@ public:
     // Position in degrees
     float getPositionDegrees() const
     {
-        return state.current_Pulse * getDegreesPerPulse();
+        return state.current_pulse * getDegreesPerPulse();
     }
 
     // Position in mm
     float getPositionMM() const
     {
-        return state.current_Pulse * getMMPerPulse();
+        return state.current_pulse * getMMPerPulse();
     }
 
     // Position in μm
     float getPositionUM() const
     {
-        return state.current_Pulse * getUMPerPulse();
+        return state.current_pulse * getUMPerPulse();
     }
 
     // Total travel in mm
@@ -144,6 +152,24 @@ public:
     // Median filter for width_low
     int64_t getMedianWidthLow() const;
 
+    // Sector tracking methods
+    uint8_t getCurrentSector() const
+    {
+        return state.current_sector;
+    }
+    uint8_t getTouchedSectorCount() const
+    {
+        return state.touched_count;
+    }
+    bool isSectorTouched(uint8_t sector) const
+    {
+        return (state.touched_sectors & (1ULL << sector)) != 0;
+    }
+    uint64_t getTouchedSectors() const
+    {
+        return state.touched_sectors;
+    }
+
 private:
     void     processInterrupt();
     void     attachInterruptHandler();
@@ -186,6 +212,9 @@ private:
     std::array<int64_t, PULSE_BUFFER_SIZE> widthLBuffer{};
     std::array<int64_t, PULSE_BUFFER_SIZE> widthHBuffer{};
     size_t                                 pulseBufferIndex = 0;
+
+    void updateSectorTracking();
+    bool checkFullRotation() const;
 };
 
 #endif  // MAE3_ENCODER2_H
