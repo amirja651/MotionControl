@@ -265,12 +265,12 @@ void optimizeForPancake(uint8_t i)
     // ---------------------------
     // 4. StealthChop Settings (Enable for holding/low speed)
     // ---------------------------
-    driver[i].TPWMTHRS(500);  // StealthChop active at low speeds (including holding)
+    driver[i].TPWMTHRS(0xFFFF);  // StealthChop active at low speeds (including holding)
     driver[i].pwm_autoscale(true);
     driver[i].pwm_autograd(true);
     driver[i].pwm_ofs(36);
-    driver[i].pwm_grad(14);
-    driver[i].pwm_freq(1);
+    driver[i].pwm_grad(10);
+    driver[i].pwm_freq(2);
     driver[i].en_pwm_mode(true);  // Enable StealthChop (silent mode) for holding
 
     // ---------------------------
@@ -292,13 +292,13 @@ void optimizeForPancake(uint8_t i)
     // 7. Motion Configuration (Soft Motion)
     // ---------------------------
     driver[i].RAMPMODE(0);  // Positioning mode
-    driver[i].VSTART(5);    // Very soft start
-    driver[i].VSTOP(5);     // Smooth stop
+    driver[i].VSTART(1);    // Very soft start
+    driver[i].VSTOP(1);     // Smooth stop
     driver[i].VMAX(600);    // Max speed (limit for Pancake)
-    driver[i].AMAX(200);    // Acceleration limit
-    driver[i].DMAX(200);    // Deceleration limit
-    driver[i].a1(500);      // Start acceleration
-    driver[i].d1(500);      // Start deceleration
+    driver[i].AMAX(100);    // Acceleration limit
+    driver[i].DMAX(100);    // Deceleration limit
+    driver[i].a1(300);      // Start acceleration
+    driver[i].d1(300);      // Start deceleration
 
     delay(5);
 }

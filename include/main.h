@@ -37,15 +37,15 @@ const String errorMotorNumberIsRequired                = "ERROR: Motor number (-
 const String errorMotorNumberIsInvalid                 = "ERROR: Invalid motor number. Must be between 1 and 4";
 const String errorTheCommandIsOnlyValidForLinearMotors = "ERROR: The command is only valid for linear motors";
 
-uint8_t       motor_index                  = 0;
-bool          is_set_motor_number          = false;
-double        linear_Lower_limit_um        = LINEAR_LOWER_LIMIT_PX * UM_PER_PIXEL;  // Lower limit in pixels
-double        linear_upper_limit_um        = LINEAR_UPPER_LIMIT_PX * UM_PER_PIXEL;  // Upper limit in pixels
-double        linear_offset_um             = LINEAR_OFFSET_PX * UM_PER_PIXEL;       // Offset in pixels
-double        target[NUM_MOTORS]           = {0, 0, 0, 0};
-double        current_position[NUM_MOTORS] = {0, 0, 0, 0};
-uint64_t      last_pulse[NUM_MOTORS]       = {0, 0, 0, 0};
-bool          command_received[NUM_MOTORS] = {false, false, false, false};
+uint8_t  motor_index                  = 0;
+bool     is_set_motor_number          = false;
+double   linear_Lower_limit_um        = LINEAR_LOWER_LIMIT_PX * UM_PER_PIXEL;  // Lower limit in pixels
+double   linear_upper_limit_um        = LINEAR_UPPER_LIMIT_PX * UM_PER_PIXEL;  // Upper limit in pixels
+double   linear_offset_um             = LINEAR_OFFSET_PX * UM_PER_PIXEL;       // Offset in pixels
+double   target[NUM_MOTORS]           = {0, 0, 0, 0};
+double   current_position[NUM_MOTORS] = {0, 0, 0, 0};
+uint64_t last_pulse[NUM_MOTORS]       = {0, 0, 0, 0};
+bool     command_received[NUM_MOTORS] = {false, false, false, false};
 
 // Buffer for storing output
 char outputBuffer[200];
@@ -70,9 +70,9 @@ void    encoderUpdateTask(void* pvParameters);
 void    motorUpdateTask(void* pvParameters);
 void    serialReadTask(void* pvParameters);
 void    serialPrintTask(void* pvParameters);
-void    motorStopAndSavePosition();
 double  getShortestAngularDistance(double current, double target);
 double  getSignedPositionError(double current, double target);
+void    motorStopAndSavePosition();
 void    rotationalMotorUpdate();
 void    linearMotorUpdate();
 void    printSerial();

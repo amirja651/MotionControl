@@ -519,31 +519,11 @@ void serialPrintTask(void* pvParameters)
     }
 }
 
-void motorStopAndSavePosition()
-{
-    uint8_t motorIndex = getMotorIndex();
-
-    motorLastState[motorIndex] = motorState::STOPPED;
-    motorStop(motorIndex);
-    command_received[motorIndex] = false;  // Reset command flag when target is reached or no command
-
-    float currentPosition = motorType[motorIndex] == MotorType::LINEAR ? encoders[motorIndex].getPositionUM()
-                                                                       : encoders[motorIndex].getPositionDegrees();
-
-    // saveMotorPosition(motorIndex, currentPosition);  // Save the final position to EEPROM when motor stops
-
-    Serial.print(F("\nMotor "));
-    Serial.print(motorIndex + 1);
-    Serial.print(F(" stopped at "));
-    Serial.print(currentPosition);
-    Serial.println(motorType[motorIndex] == MotorType::LINEAR ? F(" um") : F(" °"));
-}
-
 double getShortestAngularDistanceError()
 {
     uint8_t motorIndex = getMotorIndex();
     float   currentDeg = encoders[motorIndex].getPositionDegrees();
-    float   targetDeg  = getTarget() + ROTATIONAL_THRESHOLD;
+    float   targetDeg  = getTarget() - 0.1f;
     float   error      = targetDeg - currentDeg;
 
     if (error > 180.0f)
@@ -558,9 +538,22 @@ double getSignedPositionError()
 {
     uint8_t motorIndex      = getMotorIndex();
     float   currentPosition = encoders[motorIndex].getTotalTravelUM();
-    float   targetPosition  = getTarget() + LINEAR_THRESHOLD;
+    float   targetPosition  = getTarget() - 0.1f;
 
     return targetPosition - currentPosition;  // retains sign
+}
+
+void motorStopAndSavePosition()
+{
+    uint8_t motorIndex = getMotorIndex();
+
+    motorLastState[motorIndex] = motorState::STOPPED;
+    motorStop(motorIndex);
+    command_received[motorIndex] = false;  // Reset command flag when target is reached or no command
+
+    float currentPosition = motorType[motorIndex] == MotorType::LINEAR ? encoders[motorIndex].getPositionUM()
+                                                                       : encoders[motorIndex].getPositionDegrees();
+    // saveMotorPosition(motorIndex, currentPosition);  // Save the final position to EEPROM when motor stops
 }
 
 void rotationalMotorUpdate()
@@ -578,14 +571,15 @@ void rotationalMotorUpdate()
     }
 
     // Check if we haven't reached the target yet
-    if (fabs(positionError) > ROTATIONAL_THRESHOLD)
+    if (fabs(positionError) > 0)
     {
         motorLastState[motorIndex] = motorState::MOVING;
 
         // Select the appropriate direction and move the motor
-        if (fabs(positionError) <= ROTATIONAL_THRESHOLD)  // Threshold to stop
+        if (fabs(positionError) <= 0.25f)  // Threshold to stop
             motorStopAndSavePosition();
-        else if (positionError > 0.0f)
+
+        if (positionError > 0.0f)
             motorMoveReverse(motorIndex);  // Counterclockwise rotation
         else
             motorMoveForward(motorIndex);  // Clockwise rotation
@@ -613,20 +607,21 @@ void rotationalMotorUpdate()
     }
 }
 
-void linearMotorUpdate()
+void linearMotorUpdate()  // amir
 {
     uint8_t motorIndex    = getMotorIndex();
     float   positionError = getSignedPositionError();
 
     uint64_t steps = fabs(positionError) * UM_TO_PULSE_FACTOR_12B_32;
 
-    if (fabs(positionError) > LINEAR_THRESHOLD)
+    if (fabs(positionError) > 0)
     {
         motorLastState[motorIndex] = motorState::MOVING;
 
-        if (fabs(positionError) <= LINEAR_THRESHOLD)  // Threshold to stop
+        if (fabs(positionError) <= 0.25f)  // Threshold to stop
             motorStopAndSavePosition();
-        else if (positionError > 0.0f)
+
+        if (positionError > 0.0f)
             motorMoveReverse(motorIndex);  // Counterclockwise rotation
         else
             motorMoveForward(motorIndex);  // Clockwise rotation
@@ -670,34 +665,31 @@ void   printSerial()
 
     if (fabs(state.current_pulse - last_pulse[motorIndex]) > 1)
     {
-        if (0)
-        {
-            //  table header
-            Serial.print(F("Motor\tLaps\tDir\tPulse\tHigh\tLow\tPeriod"
-                           "\tPosition\tTarget\tError\n"));
+        //  table header
+        Serial.print(F("Motor\tLaps\tDir\tPulse\tPos\tTarget\tError\n"));
 
-            // Format all values into the buffer
-            Serial.print(motorIndex + 1);
-            Serial.print(F("\t"));
-            Serial.print(state.laps);
-            Serial.print(F("\t"));
-            Serial.print(direction.c_str());
-            Serial.print(F("\t"));
-            Serial.print(state.current_pulse);
-            Serial.print(F("\t"));
-            Serial.print(state.width_high);
-            Serial.print(F("\t"));
-            Serial.print(state.width_low);
-            Serial.print(F("\t"));
-            Serial.print(state.period);
-            Serial.print(F("\t"));
-            Serial.print(position);
-            Serial.print(F("\t\t"));
-            Serial.print(target);
-            Serial.print(F("\t"));
-            Serial.print(error);
-            Serial.println("\n");
-        }
+        // Format all values into the buffer
+        Serial.print(motorIndex + 1);
+        Serial.print(F("\t"));
+        Serial.print(state.laps);
+        Serial.print(F("\t"));
+        Serial.print(direction.c_str());
+        Serial.print(F("\t"));
+        Serial.print(state.current_pulse);
+        Serial.print(F("\t"));
+        Serial.print(position);
+        Serial.print(F("\t"));
+        Serial.print(target);
+        Serial.print(F("\t"));
+        Serial.print(error);
+        Serial.println("\n");
+        // Serial.print(state.width_high);
+        // Serial.print(F("\t"));
+        // Serial.print(state.width_low);
+        // Serial.print(F("\t"));
+        // Serial.print(state.period);
+        // Serial.print(F("\t"));
+
         last_pulse[motorIndex] = state.current_pulse;
     }
 }
