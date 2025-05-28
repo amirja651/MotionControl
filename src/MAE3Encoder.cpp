@@ -2,6 +2,7 @@
 #include <algorithm>
 #include <esp_timer.h>
 #include <map>
+#include <stdint.h>
 
 // Initialize static member
 MAE3Encoder* MAE3Encoder::encoderInstances[MAX_ENCODERS] = {nullptr};
@@ -44,14 +45,10 @@ MAE3Encoder::MAE3Encoder(uint8_t signalPin, uint8_t encoderId)
       encoderId(encoderId),
       state{},
       enabled(false),
-      max_t(DEFAULT_MAX_T),
       lastPulseTime(0),
       lastFallingEdgeTime(0),
       lastRisingEdgeTime(0),
-      newPulseAvailable(false),
       bufferUpdated(false),
-      calibrationBuffer{},
-      calibrationIndex(0),
       widthLBuffer{},
       widthHBuffer{},
       pulseBufferIndex(0)
@@ -61,6 +58,7 @@ MAE3Encoder::MAE3Encoder(uint8_t signalPin, uint8_t encoderId)
 MAE3Encoder::~MAE3Encoder()
 {
     disable();
+
     if (encoderId < MAX_ENCODERS)
     {
         encoderInstances[encoderId] = nullptr;
@@ -70,9 +68,7 @@ MAE3Encoder::~MAE3Encoder()
 bool MAE3Encoder::begin()
 {
     if (encoderId >= MAX_ENCODERS)
-    {
         return false;
-    }
 
     // Configure pins
     pinMode(signalPin, INPUT);
@@ -83,83 +79,10 @@ bool MAE3Encoder::begin()
     // Initialize state
     reset();
 
-    // Initialize calibration buffer
-    calibrationBuffer.fill(0);
-    calibrationIndex = 0;
-
     // Encoder starts disabled by default
     enabled = false;
 
     return true;
-}
-
-bool MAE3Encoder::calibrate()
-{
-    if (enabled)
-    {
-        disable();  // Temporarily disable encoder
-    }
-
-    // Enable encoder for calibration
-    enabled = true;
-    attachInterruptHandler();
-
-    // Clear calibration buffer
-    calibrationBuffer.fill(0);
-    calibrationIndex = 0;
-
-    // Wait for buffer to fill
-    int64_t startTime = millis();
-    while (calibrationIndex < CALIBRATION_BUFFER_SIZE && (millis() - startTime) < 5000)  // 5 second timeout
-    {
-        if (newPulseAvailable)
-        {
-            calibrationBuffer[calibrationIndex++] = state.period;
-            newPulseAvailable                     = false;
-        }
-        delay(1);  // Small delay to prevent CPU hogging
-    }
-
-    // Disable encoder after calibration
-    disable();
-
-    if (calibrationIndex < CALIBRATION_BUFFER_SIZE)
-    {
-        return false;  // Calibration failed - didn't get enough samples
-    }
-
-    // Find most frequent value and update max_t
-    max_t = findMostFrequentValue(calibrationBuffer);
-    return true;
-}
-
-uint32_t MAE3Encoder::findMostFrequentValue(const std::array<uint32_t, CALIBRATION_BUFFER_SIZE>& buffer)
-{
-    std::map<uint32_t, uint32_t> frequencyMap;
-
-    // Count frequency of each value
-    for (uint32_t value : buffer)
-    {
-        if (value > 0)  // Ignore zero values
-        {
-            frequencyMap[value]++;
-        }
-    }
-
-    // Find value with highest frequency
-    uint32_t mostFrequentValue = DEFAULT_MAX_T;
-    uint32_t maxFrequency      = 0;
-
-    for (const auto& pair : frequencyMap)
-    {
-        if (pair.second > maxFrequency)
-        {
-            maxFrequency      = pair.second;
-            mostFrequentValue = pair.first;
-        }
-    }
-
-    return mostFrequentValue;
 }
 
 void MAE3Encoder::enable()
@@ -217,14 +140,13 @@ void IRAM_ATTR MAE3Encoder::processInterrupt()
         lastRisingEdgeTime = currentTime;
         if (lastFallingEdgeTime != 0)
         {
-            volatile int64_t width_high = lastRisingEdgeTime - lastFallingEdgeTime;
-            state.width_high            = width_high;
-            if (width_high > max_t)
+            state.width_high = lastRisingEdgeTime - lastFallingEdgeTime;
+            if (state.width_high > EncoderState::DEFAULT_MAX_T)
             {
                 return;
             }
             // Measure low pulse width (falling to rising)
-            widthLBuffer[pulseBufferIndex] = width_high;
+            widthLBuffer[pulseBufferIndex] = state.width_high;
         }
     }
     else
@@ -233,14 +155,13 @@ void IRAM_ATTR MAE3Encoder::processInterrupt()
         lastFallingEdgeTime = currentTime;
         if (lastRisingEdgeTime != 0)
         {
-            volatile int64_t width_low = lastFallingEdgeTime - lastRisingEdgeTime;
-            state.width_low            = width_low;
-            if (width_low > max_t)
+            state.width_low = lastFallingEdgeTime - lastRisingEdgeTime;
+            if (state.width_low > EncoderState::DEFAULT_MAX_T)
             {
                 return;
             }
             // Measure high pulse width (rising to falling)
-            widthHBuffer[pulseBufferIndex] = width_low;
+            widthHBuffer[pulseBufferIndex] = state.width_low;
         }
         // Increment the index of the rotating buffer in a circular manner only after each complete cycle (falling edge)
         pulseBufferIndex = (pulseBufferIndex + 1) % PULSE_BUFFER_SIZE;
@@ -256,22 +177,21 @@ void MAE3Encoder::processPWM()
 
     int64_t width_h = getMedianWidthHigh();
     int64_t width_l = getMedianWidthLow();
-    int64_t period  = width_h + width_l;
-    state.period    = period;
+    state.period    = width_h + width_l;
 
-    if (period == 0)
+    if (state.period == 0)
         return;
 
     // Optimized calculation for x_measured
-    int64_t x_measured = (width_h * (max_t + 2)) / period - 1;
+    int64_t x_measured = (width_h * (EncoderState::DEFAULT_MAX_T + 2)) / state.period - 1;
 
     // Boundary check with early return
-    if (x_measured <= (max_t - 2))
+    if (x_measured <= (EncoderState::DEFAULT_MAX_T - 2))
     {
     }
-    else if (x_measured == max_t)
+    else if (x_measured == EncoderState::DEFAULT_MAX_T)
     {
-        x_measured = max_t - 1;
+        x_measured = EncoderState::DEFAULT_MAX_T - 1;
     }
     else
     {
@@ -279,7 +199,6 @@ void MAE3Encoder::processPWM()
     }
 
     state.current_pulse = x_measured;
-    newPulseAvailable   = true;
     bufferUpdated       = false;
     lastPulseTime       = esp_timer_get_time();
 
@@ -289,144 +208,131 @@ void MAE3Encoder::processPWM()
 
 void MAE3Encoder::updateSectorTracking()
 {
-    // Calculate current sector (0-59)
-    uint8_t new_sector = (state.current_pulse * EncoderState::NUM_SECTORS) / max_t;
+    static uint8_t last_sector  = 0;
+    static bool    laps_update  = false;
+    static int8_t  delta_sector = 0;
+
+    // Calculate current sector (0-63)
+    uint8_t new_sector = (state.current_pulse * EncoderState::NUM_SECTORS) / EncoderState::DEFAULT_MAX_T;
+
+    if (new_sector != last_sector)
+    {
+        Serial.print(F("\ncurrent pulse:   \t"));
+        Serial.println(state.current_pulse);
+        Serial.print(F("new sector:      \t"));
+        Serial.println(new_sector);
+
+        delta_sector = new_sector - last_sector;
+
+        Serial.print(F("delta_sector:    \t"));
+        Serial.println(delta_sector);
+
+        last_sector = new_sector;
+
+        if (!laps_update && abs(delta_sector) > 10)
+        {
+            if (delta_sector > 0)
+                state.laps++;
+            else
+                state.laps--;
+
+            laps_update = true;
+        }
+    }
+
+    if (abs(delta_sector) <= 1 || (state.current_sector > 0 && state.current_sector < 63))
+    {
+        laps_update = false;
+    }
 
     // If sector changed
-    if (new_sector != state.current_sector)
+    if (new_sector == state.current_sector)
+        return;
+
+    Serial.print(F("laps:            \t"));
+    Serial.println(state.laps);
+
+    state.last_sector    = state.current_sector;
+    state.current_sector = new_sector;
+
+    uint64_t sector_bit  = 1ULL << state.current_sector;
+    int8_t   sector_diff = 0;
+
+    if (!(state.touched_sectors & sector_bit))
     {
-        int8_t sector_diff = 0;
+        state.touched_sectors |= sector_bit;
+        state.touched_count = __builtin_popcountll(state.touched_sectors);
+    }
 
-        state.last_sector    = state.current_sector;
-        state.current_sector = new_sector;
+    int64_t raw_diff = state.current_sector - state.last_sector;
+    sector_diff      = (raw_diff + EncoderState::NUM_SECTORS) % EncoderState::NUM_SECTORS;
 
-        sector_diff = new_sector - state.last_sector;
+    Serial.print(F("sector diff:     \t"));
+    Serial.print(sector_diff);
 
-        // Handle wraparound
-        if (sector_diff > EncoderState::NUM_SECTORS / 2)
-            sector_diff -= EncoderState::NUM_SECTORS;
-        else if (sector_diff < -EncoderState::NUM_SECTORS / 2)
-            sector_diff += EncoderState::NUM_SECTORS;
+    if (sector_diff > EncoderState::NUM_SECTORS / 2)
+        sector_diff -= EncoderState::NUM_SECTORS;
 
-        state.direction = (sector_diff > 0) ? Direction::CLOCKWISE : Direction::COUNTER_CLOCKWISE;
+    Serial.print(F("\t"));
+    Serial.print(sector_diff);
 
-        // Check if this sector was previously untouched
-        int prev = (new_sector == 0) ? 63 : new_sector - 1;
-        int next = (new_sector == 63) ? 0 : new_sector + 1;
+    // Handle wraparound
+    if (sector_diff > EncoderState::NUM_SECTORS / 2)
+        sector_diff -= EncoderState::NUM_SECTORS;
+    else if (sector_diff < -EncoderState::NUM_SECTORS / 2)
+        sector_diff += EncoderState::NUM_SECTORS;
 
-        uint64_t sector_bit = (1ULL << new_sector) | (1ULL << prev) | (1ULL << next);
+    Serial.print(F("\t"));
+    Serial.println(sector_diff);
 
-        if (state.direction == Direction::CLOCKWISE)
-        {
-            if (state.touched_sectors_CCW & sector_bit)
-            {
-                state.touched_sectors_CCW &= ~sector_bit;
-                // فقط اگر واقعاً چیزی پاک شده، count کم کن
-                state.touched_count_CCW = __builtin_popcountll(state.touched_sectors_CCW);
-            }
+    state.direction = (sector_diff == 0)  ? Direction::UNKNOWN
+                      : (sector_diff > 0) ? Direction::CLOCKWISE
+                                          : Direction::COUNTER_CLOCKWISE;
 
-            if (!(state.touched_sectors_CW & sector_bit))
-            {
-                state.touched_sectors_CW |= sector_bit;
-                state.touched_count_CW = __builtin_popcountll(state.touched_sectors_CW);
-            }
-        }
+    Serial.print(F("direction:       \t"));
+    Serial.println((int64_t)state.direction);
 
-        if (state.direction == Direction::COUNTER_CLOCKWISE)
-        {
-            if (state.touched_sectors_CW & sector_bit)
-            {
-                state.touched_sectors_CW &= ~sector_bit;
-                state.touched_count_CW = __builtin_popcountll(state.touched_sectors_CW);
-            }
+    uint64_t highest_sectors = (1ULL << (EncoderState::NUM_SECTORS - 2)) | (1ULL << (EncoderState::NUM_SECTORS - 3));
 
-            if (!(state.touched_sectors_CCW & sector_bit))
-            {
-                state.touched_sectors_CCW |= sector_bit;
-                state.touched_count_CCW = __builtin_popcountll(state.touched_sectors_CCW);
-            }
-        }
-
-        // Update direction based on sector sequence
-        if (state.touched_count_CW > 0)  // Need at least 2 sectors for direction
-        {
-        }
-
-        // Check for full rotation
-        if (checkFullRotation())
-        {
-            state.laps += (state.direction == Direction::CLOCKWISE) ? 1 : -1;
-
-            // Reset sector tracking for next rotation
-            state.touched_sectors_CW  = 0;
-            state.touched_count_CW    = 0;
-            state.touched_sectors_CCW = 0;
-            state.touched_count_CCW   = 0;
-        }
-
-        Serial.print(F("current pulse:  \t"));
-        Serial.println(state.current_pulse);
-        Serial.print(F("new sector:     \t"));
-        Serial.println(new_sector);
-        Serial.print(F("current sector: \t"));
-        Serial.println(state.current_sector);
-        Serial.print(F("sector bit:     \t"));
-        Serial.println(sector_bit);
-        Serial.print(F("touched sectors:\t"));
-        Serial.println(state.touched_sectors_CW);
-        Serial.print(F("touched count CW:\t"));
-        Serial.println(state.touched_count_CW);
-        Serial.print(F("touched sectors:\t"));
-        Serial.println(state.touched_sectors_CCW);
-        Serial.print(F("touched count CCW\t"));
-        Serial.println(state.touched_count_CCW);
-        Serial.print(F("sector diff:    \t"));
-        Serial.println(sector_diff);
-        Serial.print(F("direction:      \t"));
-        Serial.println((int)state.direction);
-        Serial.print(F("laps:           \t"));
-        Serial.println(state.laps);
-        Serial.println();
-        Serial.println();
+    if ((state.touched_sectors & highest_sectors) == highest_sectors)
+    {
+        // Reset sector tracking for next rotation
+        laps_update           = false;
+        state.touched_sectors = 0;
+        state.touched_count   = 0;
     }
 }
 
-bool MAE3Encoder::checkFullRotation() const
+void MAE3Encoder::printBinary64(uint64_t value)
 {
-    // Check if the 3 highest sectors are touched
-    uint64_t highest_sectors = (1ULL << (EncoderState::NUM_SECTORS - 1)) | (1ULL << (EncoderState::NUM_SECTORS - 64));
-    //  | (1ULL << (EncoderState::NUM_SECTORS - 3));
-
-    return (state.touched_sectors_CW & highest_sectors) == highest_sectors;
-}
-
-void MAE3Encoder::updateDirectionAndLaps()
-{
-    return;
+    for (int i = 63; i >= 0; i--)
+    {
+        Serial.print((value >> i) & 1);
+        if (i % 8 == 0)
+            Serial.print(' ');
+    }
+    Serial.println();
 }
 
 void MAE3Encoder::reset()
 {
-    state.current_pulse     = 0;
-    state.last_pulse        = 0;
-    state.width_high        = 0;
-    state.width_low         = 0;
-    state.period            = 0;
-    state.laps              = 0;
-    state.absolute_position = 0;
-    state.direction         = Direction::UNKNOWN;
-    state.last_pulse        = 0.0f;
-    state.delta             = 0.0f;
-    newPulseAvailable       = false;
-    lastPulseTime           = 0;
-    lastFallingEdgeTime     = 0;
-    lastRisingEdgeTime      = 0;
+    state.current_pulse = 0;
+    state.last_pulse    = 0;
+    state.width_high    = 0;
+    state.width_low     = 0;
+    state.period        = 0;
+    state.laps          = 0;
+    state.direction     = Direction::UNKNOWN;
+    state.last_pulse    = 0.0f;
+    lastPulseTime       = 0;
+    lastFallingEdgeTime = 0;
+    lastRisingEdgeTime  = 0;
 
     // Reset sector tracking
-    state.touched_sectors_CW = 0;
-    state.current_sector     = 0;
-    state.last_sector        = 0;
-    state.touched_count_CW   = 0;
+    state.touched_sectors = 0;
+    state.current_sector  = 0;
+    state.last_sector     = 0;
+    state.touched_count   = 0;
 }
 
 int64_t MAE3Encoder::getMedianWidthHigh() const

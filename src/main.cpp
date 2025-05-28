@@ -44,7 +44,7 @@ void loop()
 
 void encoderUpdateTask(void* pvParameters)
 {
-    const uint8_t    ENCODER_UPDATE_TIME = 10;
+    const uint8_t    ENCODER_UPDATE_TIME = 4;
     const TickType_t xFrequency          = pdMS_TO_TICKS(ENCODER_UPDATE_TIME);
     TickType_t       xLastWakeTime       = xTaskGetTickCount();
 
@@ -66,7 +66,6 @@ void encoderUpdateTask(void* pvParameters)
         }
 
         encoders[motorIndex].processPWM();
-        encoders[motorIndex].updateDirectionAndLaps();
 
         esp_task_wdt_reset();
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
@@ -702,7 +701,7 @@ void   printSerial()
             Serial.print(F("\t\t"));
             Serial.print(state.current_sector);
             Serial.print(F("\t\t"));
-            Serial.print(state.touched_sectors_CW);
+            Serial.print(state.touched_sectors);
             Serial.println("\n");
         }
         last_pulse[motorIndex] = state.current_pulse;
