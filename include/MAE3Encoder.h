@@ -41,12 +41,14 @@ struct EncoderState
     double           accumulated_steps = 0;
 
     // Sector tracking
-    static constexpr uint8_t  NUM_SECTORS      = 60;
-    static constexpr uint16_t STEPS_PER_SECTOR = 4096 / NUM_SECTORS;  // ≈ 68.266
-    uint64_t                  touched_sectors  = 0;                   // Bitmap of touched sectors
-    uint8_t                   current_sector   = 0;                   // Current sector (0-59)
-    uint8_t                   last_sector      = 0;                   // Last sector for direction detection
-    uint8_t                   touched_count    = 0;                   // Count of touched sectors
+    static constexpr uint8_t  NUM_SECTORS         = 64;
+    static constexpr uint16_t STEPS_PER_SECTOR    = 4096 / NUM_SECTORS;  // ≈ 68.266
+    uint64_t                  touched_sectors_CW  = 0;                   // Bitmap of touched sectors
+    uint64_t                  touched_sectors_CCW = 0;                   // Bitmap of touched sectors
+    uint8_t                   current_sector      = 0;                   // Current sector (0-59)
+    uint8_t                   last_sector         = 0;                   // Last sector for direction detection
+    uint8_t                   touched_count_CW    = 0;                   // Count of touched sectors
+    uint8_t                   touched_count_CCW   = 0;                   // Count of touched sectors
 };
 
 class MAE3Encoder
@@ -111,6 +113,13 @@ public:
         return state.current_pulse * getUMPerPulse();
     }
 
+    // Total travel in μm
+    float getTotalTravelPulse() const
+    {
+        float totalDistanceUM = (state.laps * getMaxT()) + state.current_pulse;
+        return totalDistanceUM;
+    }
+
     // Total travel in mm
     float getTotalTravelMM() const
     {
@@ -123,7 +132,6 @@ public:
     float getTotalTravelUM() const
     {
         float totalDistanceUM = (state.laps * LEAD_SCREW_PITCH_UM) + getPositionUM();
-        // return std::min(totalDistanceUM, TOTAL_TRAVEL_UM);
         return totalDistanceUM;
     }
 
@@ -159,15 +167,15 @@ public:
     }
     uint8_t getTouchedSectorCount() const
     {
-        return state.touched_count;
+        return state.touched_count_CW;
     }
     bool isSectorTouched(uint8_t sector) const
     {
-        return (state.touched_sectors & (1ULL << sector)) != 0;
+        return (state.touched_sectors_CW & (1ULL << sector)) != 0;
     }
     uint64_t getTouchedSectors() const
     {
-        return state.touched_sectors;
+        return state.touched_sectors_CW;
     }
 
 private:

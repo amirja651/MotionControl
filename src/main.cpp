@@ -671,36 +671,40 @@ void   printSerial()
 
     if (fabs(state.current_pulse - last_pulse[motorIndex]) > 1)
     {
-        //  table header
-        Serial.print(F("Motor\tLaps\tDir\tPulse\tHigh\tLow\tPeriod"
-                       "\tPosition\tTarget\tError\tLast Pulse\n"));
+        if (0)
+        {
+            //  table header
+            Serial.print(F("Motor\tLaps\tDir\tPulse\tHigh\tLow\tPeriod"
+                           "\tPosition\tTarget\tError\tlast_sector\tcurrent_sector\ttouched_sectors\n"));
 
-        // Format all values into the buffer
-        Serial.print(motorIndex + 1);
-        Serial.print(F("\t"));
-        Serial.print(state.laps);
-        Serial.print(F("\t"));
-        Serial.print(direction.c_str());
-        Serial.print(F("\t"));
-        Serial.print(state.current_pulse);
-        Serial.print(F("\t"));
-        Serial.print(state.width_high);
-        Serial.print(F("\t"));
-        Serial.print(state.width_low);
-        Serial.print(F("\t"));
-        Serial.print(state.period);
-        Serial.print(F("\t"));
-        Serial.print(position);
-        Serial.print(F("\t\t"));
-        Serial.print(target);
-        Serial.print(F("\t"));
-        Serial.print(error);
-        Serial.print(F("\t"));
-        Serial.print(state.last_pulse);
-        Serial.print(F("\t"));
-        Serial.print(state.accumulated_steps);
-        Serial.println("\n\n\n\n");
-
+            // Format all values into the buffer
+            Serial.print(motorIndex + 1);
+            Serial.print(F("\t"));
+            Serial.print(state.laps);
+            Serial.print(F("\t"));
+            Serial.print(direction.c_str());
+            Serial.print(F("\t"));
+            Serial.print(state.current_pulse);
+            Serial.print(F("\t"));
+            Serial.print(state.width_high);
+            Serial.print(F("\t"));
+            Serial.print(state.width_low);
+            Serial.print(F("\t"));
+            Serial.print(state.period);
+            Serial.print(F("\t"));
+            Serial.print(position);
+            Serial.print(F("\t\t"));
+            Serial.print(target);
+            Serial.print(F("\t"));
+            Serial.print(error);
+            Serial.print(F("\t"));
+            Serial.print(state.last_sector);
+            Serial.print(F("\t\t"));
+            Serial.print(state.current_sector);
+            Serial.print(F("\t\t"));
+            Serial.print(state.touched_sectors_CW);
+            Serial.println("\n");
+        }
         last_pulse[motorIndex] = state.current_pulse;
     }
 }

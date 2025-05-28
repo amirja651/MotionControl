@@ -10,12 +10,12 @@
 ;[submodule "lib/PID"]
 ;	path = lib/PID
 ;	url = https://github.com/br3ttb/Arduino-PID-Library.git
-[submodule "lib/SimpleCLI"]
-	path = lib/SimpleCLI
-	url = https://github.com/SpacehuhnTech/SimpleCLI.git
-[submodule "lib/TMCStepper"]
-	path = lib/TMCStepper
-	url = https://github.com/teemuatlut/TMCStepper.git
+;[submodule "lib/SimpleCLI"]
+;	path = lib/SimpleCLI
+;	url = https://github.com/SpacehuhnTech/SimpleCLI.git
+;[submodule "lib/TMCStepper"]
+;	path = lib/TMCStepper
+;	url = https://github.com/teemuatlut/TMCStepper.git
 ;[submodule "lib/MAE3Encoder"]
 ;	path = lib/MAE3Encoder
 ;	url = https://github.com/amirja651/MAE3Encoder

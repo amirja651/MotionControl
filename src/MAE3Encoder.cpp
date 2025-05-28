@@ -295,113 +295,114 @@ void MAE3Encoder::updateSectorTracking()
     // If sector changed
     if (new_sector != state.current_sector)
     {
+        int8_t sector_diff = 0;
+
         state.last_sector    = state.current_sector;
         state.current_sector = new_sector;
 
+        sector_diff = new_sector - state.last_sector;
+
+        // Handle wraparound
+        if (sector_diff > EncoderState::NUM_SECTORS / 2)
+            sector_diff -= EncoderState::NUM_SECTORS;
+        else if (sector_diff < -EncoderState::NUM_SECTORS / 2)
+            sector_diff += EncoderState::NUM_SECTORS;
+
+        state.direction = (sector_diff > 0) ? Direction::CLOCKWISE : Direction::COUNTER_CLOCKWISE;
+
         // Check if this sector was previously untouched
-        uint64_t sector_bit = 1ULL << new_sector;
-        if (!(state.touched_sectors & sector_bit))
+        int prev = (new_sector == 0) ? 63 : new_sector - 1;
+        int next = (new_sector == 63) ? 0 : new_sector + 1;
+
+        uint64_t sector_bit = (1ULL << new_sector) | (1ULL << prev) | (1ULL << next);
+
+        if (state.direction == Direction::CLOCKWISE)
         {
-            state.touched_sectors |= sector_bit;
-            state.touched_count++;
-
-            // Update direction based on sector sequence
-            if (state.touched_count > 1)  // Need at least 2 sectors for direction
+            if (state.touched_sectors_CCW & sector_bit)
             {
-                int8_t sector_diff = new_sector - state.last_sector;
-
-                // Handle wraparound
-                if (sector_diff > EncoderState::NUM_SECTORS / 2)
-                    sector_diff -= EncoderState::NUM_SECTORS;
-                else if (sector_diff < -EncoderState::NUM_SECTORS / 2)
-                    sector_diff += EncoderState::NUM_SECTORS;
-
-                state.direction = (sector_diff > 0) ? Direction::CLOCKWISE : Direction::COUNTER_CLOCKWISE;
+                state.touched_sectors_CCW &= ~sector_bit;
+                // فقط اگر واقعاً چیزی پاک شده، count کم کن
+                state.touched_count_CCW = __builtin_popcountll(state.touched_sectors_CCW);
             }
+
+            if (!(state.touched_sectors_CW & sector_bit))
+            {
+                state.touched_sectors_CW |= sector_bit;
+                state.touched_count_CW = __builtin_popcountll(state.touched_sectors_CW);
+            }
+        }
+
+        if (state.direction == Direction::COUNTER_CLOCKWISE)
+        {
+            if (state.touched_sectors_CW & sector_bit)
+            {
+                state.touched_sectors_CW &= ~sector_bit;
+                state.touched_count_CW = __builtin_popcountll(state.touched_sectors_CW);
+            }
+
+            if (!(state.touched_sectors_CCW & sector_bit))
+            {
+                state.touched_sectors_CCW |= sector_bit;
+                state.touched_count_CCW = __builtin_popcountll(state.touched_sectors_CCW);
+            }
+        }
+
+        // Update direction based on sector sequence
+        if (state.touched_count_CW > 0)  // Need at least 2 sectors for direction
+        {
         }
 
         // Check for full rotation
         if (checkFullRotation())
         {
             state.laps += (state.direction == Direction::CLOCKWISE) ? 1 : -1;
+
             // Reset sector tracking for next rotation
-            state.touched_sectors = 0;
-            state.touched_count   = 0;
+            state.touched_sectors_CW  = 0;
+            state.touched_count_CW    = 0;
+            state.touched_sectors_CCW = 0;
+            state.touched_count_CCW   = 0;
         }
+
+        Serial.print(F("current pulse:  \t"));
+        Serial.println(state.current_pulse);
+        Serial.print(F("new sector:     \t"));
+        Serial.println(new_sector);
+        Serial.print(F("current sector: \t"));
+        Serial.println(state.current_sector);
+        Serial.print(F("sector bit:     \t"));
+        Serial.println(sector_bit);
+        Serial.print(F("touched sectors:\t"));
+        Serial.println(state.touched_sectors_CW);
+        Serial.print(F("touched count CW:\t"));
+        Serial.println(state.touched_count_CW);
+        Serial.print(F("touched sectors:\t"));
+        Serial.println(state.touched_sectors_CCW);
+        Serial.print(F("touched count CCW\t"));
+        Serial.println(state.touched_count_CCW);
+        Serial.print(F("sector diff:    \t"));
+        Serial.println(sector_diff);
+        Serial.print(F("direction:      \t"));
+        Serial.println((int)state.direction);
+        Serial.print(F("laps:           \t"));
+        Serial.println(state.laps);
+        Serial.println();
+        Serial.println();
     }
 }
 
 bool MAE3Encoder::checkFullRotation() const
 {
     // Check if the 3 highest sectors are touched
-    uint64_t highest_sectors = (1ULL << (EncoderState::NUM_SECTORS - 1)) | (1ULL << (EncoderState::NUM_SECTORS - 2)) |
-                               (1ULL << (EncoderState::NUM_SECTORS - 3));
+    uint64_t highest_sectors = (1ULL << (EncoderState::NUM_SECTORS - 1)) | (1ULL << (EncoderState::NUM_SECTORS - 64));
+    //  | (1ULL << (EncoderState::NUM_SECTORS - 3));
 
-    return (state.touched_sectors & highest_sectors) == highest_sectors;
+    return (state.touched_sectors_CW & highest_sectors) == highest_sectors;
 }
 
 void MAE3Encoder::updateDirectionAndLaps()
 {
-    if (!enabled || !newPulseAvailable)
-        return;
-
-    // Detect direction and count laps
-
-    if (state.current_pulse == state.last_pulse)
-    {
-        state.direction = Direction::UNKNOWN;
-    }
-    else if (state.current_pulse > state.last_pulse)
-    {
-        // Clockwise
-        state.direction = Direction::CLOCKWISE;
-        // if (state.last_Pulse > (max_t * 3 / 4) && state.current_Pulse < (max_t * 1 / 4))
-        //  state.laps++;
-    }
-    else if (state.current_pulse < state.last_pulse)
-    {
-        // Counter-clockwise
-        state.direction = Direction::COUNTER_CLOCKWISE;
-        // if (state.last_Pulse < (max_t * 1 / 4) && state.current_Pulse > (max_t * 3 / 4))
-        //   state.laps--;
-    }
-    if (0)
-    {
-        state.accumulated_steps = (double)(state.current_pulse / 4096.0);
-
-        if (state.accumulated_steps >= 0.5)
-        {
-            state.laps += 1;
-        }
-        else if (state.accumulated_steps < 0.5)
-        {
-            state.laps -= 1;
-        }
-    }
-
-    state.delta = state.current_pulse - state.last_pulse;
-
-    // Fix wraparound
-    if (state.delta > 2048)
-        state.delta -= 4096;
-    else if (state.delta < -2048)
-        state.delta += 4096;
-
-    state.accumulated_steps += state.delta;
-
-    if (state.accumulated_steps >= 4096)
-    {
-        state.laps += 1;
-        state.accumulated_steps -= 4096;
-    }
-    else if (state.accumulated_steps <= -4096)
-    {
-        state.laps -= 1;
-        state.accumulated_steps += 4096;
-    }
-
-    state.last_pulse  = state.current_pulse;
-    newPulseAvailable = false;
+    return;
 }
 
 void MAE3Encoder::reset()
@@ -422,10 +423,10 @@ void MAE3Encoder::reset()
     lastRisingEdgeTime      = 0;
 
     // Reset sector tracking
-    state.touched_sectors = 0;
-    state.current_sector  = 0;
-    state.last_sector     = 0;
-    state.touched_count   = 0;
+    state.touched_sectors_CW = 0;
+    state.current_sector     = 0;
+    state.last_sector        = 0;
+    state.touched_count_CW   = 0;
 }
 
 int64_t MAE3Encoder::getMedianWidthHigh() const
