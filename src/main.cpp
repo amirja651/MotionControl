@@ -674,7 +674,7 @@ void   printSerial()
         {
             //  table header
             Serial.print(F("Motor\tLaps\tDir\tPulse\tHigh\tLow\tPeriod"
-                           "\tPosition\tTarget\tError\tlast_sector\tcurrent_sector\ttouched_sectors\n"));
+                           "\tPosition\tTarget\tError\n"));
 
             // Format all values into the buffer
             Serial.print(motorIndex + 1);
@@ -696,12 +696,6 @@ void   printSerial()
             Serial.print(target);
             Serial.print(F("\t"));
             Serial.print(error);
-            Serial.print(F("\t"));
-            Serial.print(state.last_sector);
-            Serial.print(F("\t\t"));
-            Serial.print(state.current_sector);
-            Serial.print(F("\t\t"));
-            Serial.print(state.touched_sectors);
             Serial.println("\n");
         }
         last_pulse[motorIndex] = state.current_pulse;

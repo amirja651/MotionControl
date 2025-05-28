@@ -33,18 +33,18 @@ struct EncoderState
 
     volatile int64_t period;  // Total pulse width (t_on + t_off)
     volatile int64_t laps;    // Number of complete rotations
+    bool             laps_update = true;
 
     Direction direction = Direction::UNKNOWN;  // Current direction of rotation
 
     // Sector tracking
     static constexpr int64_t DEFAULT_MAX_T    = 4096LL;  // Default 4096 value
-    static constexpr int64_t NUM_SECTORS      = 64LL;
-    static constexpr int64_t STEPS_PER_SECTOR = DEFAULT_MAX_T / NUM_SECTORS;  // 64
+    static constexpr int64_t NUM_SECTORS      = 128LL;
+    static constexpr int64_t STEPS_PER_SECTOR = DEFAULT_MAX_T / NUM_SECTORS;
 
-    int64_t touched_sectors = 0;  // Bitmap of touched sectors
-    int64_t current_sector  = 0;  // Current sector (0-63)
-    int64_t last_sector     = 0;  // Last sector for direction detection
-    int     touched_count   = 0;  // Count of touched sectors
+    int64_t current_sector = 0;  // Current sector (0-63)
+    int64_t last_sector    = 0;  // Last sector for direction detection
+    int8_t  delta_sector   = 0;
 };
 
 class MAE3Encoder
@@ -129,23 +129,6 @@ public:
     // New method for processing PWM signal
     void processPWM();
 
-    // --- Pulse width ring buffers ---
-    static constexpr size_t                       PULSE_BUFFER_SIZE = 10;
-    const std::array<int64_t, PULSE_BUFFER_SIZE>& getWidthHBuffer() const
-    {
-        return widthHBuffer;
-    }
-
-    const std::array<int64_t, PULSE_BUFFER_SIZE>& getWidthLBuffer() const
-    {
-        return widthLBuffer;
-    }
-
-    size_t getPulseBufferIndex() const
-    {
-        return pulseBufferIndex;
-    }
-
     // Median filter for width_high
     int64_t getMedianWidthHigh() const;
 
@@ -156,16 +139,6 @@ public:
     uint8_t getCurrentSector() const
     {
         return state.current_sector;
-    }
-
-    uint8_t getTouchedSectorCount() const
-    {
-        return state.touched_count;
-    }
-
-    uint64_t getTouchedSectors() const
-    {
-        return state.touched_sectors;
     }
 
 private:
@@ -199,9 +172,15 @@ private:
     static MAE3Encoder* encoderInstances[MAX_ENCODERS];
 
     // --- Pulse width ring buffers ---
+    static constexpr size_t                PULSE_BUFFER_SIZE = 10;
     std::array<int64_t, PULSE_BUFFER_SIZE> widthLBuffer{};
     std::array<int64_t, PULSE_BUFFER_SIZE> widthHBuffer{};
     size_t                                 pulseBufferIndex = 0;
+
+    std::array<int8_t, 3> last_diffs{};
+    uint8_t               diff_index = 0;
+
+    uint8_t last_new_sector = 0;
 
     void updateSectorTracking();
     void printBinary64(uint64_t value);

@@ -51,7 +51,8 @@ MAE3Encoder::MAE3Encoder(uint8_t signalPin, uint8_t encoderId)
       bufferUpdated(false),
       widthLBuffer{},
       widthHBuffer{},
-      pulseBufferIndex(0)
+      pulseBufferIndex(0),
+      diff_index(0)
 {
 }
 
@@ -208,73 +209,55 @@ void MAE3Encoder::processPWM()
 
 void MAE3Encoder::updateSectorTracking()
 {
-    static uint8_t last_sector  = 0;
-    static bool    laps_update  = false;
-    static int8_t  delta_sector = 0;
-
     // Calculate current sector (0-63)
     uint8_t new_sector = (state.current_pulse * EncoderState::NUM_SECTORS) / EncoderState::DEFAULT_MAX_T;
 
-    if (new_sector != last_sector)
+    if (new_sector != last_new_sector)
     {
-        Serial.print(F("\ncurrent pulse:   \t"));
+        /*Serial.print(F("\ncurrent pulse:   \t"));
         Serial.println(state.current_pulse);
         Serial.print(F("new sector:      \t"));
-        Serial.println(new_sector);
+        Serial.println(new_sector);*/
 
-        delta_sector = new_sector - last_sector;
+        state.delta_sector = new_sector - last_new_sector;
 
-        Serial.print(F("delta_sector:    \t"));
-        Serial.println(delta_sector);
+        /*Serial.print(F("delta_sector:    \t"));
+        Serial.println(delta_sector);*/
 
-        last_sector = new_sector;
+        last_new_sector = new_sector;
 
-        if (!laps_update && abs(delta_sector) > 10)
+        if (!state.laps_update && abs(state.delta_sector) > 10)
         {
-            if (delta_sector > 0)
-                state.laps++;
-            else
+            if (state.delta_sector > 0)
                 state.laps--;
+            else
+                state.laps++;
 
-            laps_update = true;
+            state.laps_update = true;
         }
     }
 
-    if (abs(delta_sector) <= 1 || (state.current_sector > 0 && state.current_sector < 63))
+    if (abs(state.delta_sector) <= 1 &&
+        (state.current_sector > EncoderState::NUM_SECTORS - 128LL && state.current_sector < EncoderState::NUM_SECTORS - 1LL))
     {
-        laps_update = false;
+        state.laps_update = false;
     }
 
     // If sector changed
     if (new_sector == state.current_sector)
         return;
 
-    Serial.print(F("laps:            \t"));
-    Serial.println(state.laps);
+    // Serial.print(F("laps:            \t"));
+    // Serial.println(state.laps);
 
     state.last_sector    = state.current_sector;
     state.current_sector = new_sector;
 
-    uint64_t sector_bit  = 1ULL << state.current_sector;
-    int8_t   sector_diff = 0;
+    int64_t raw_diff    = state.current_sector - state.last_sector;
+    int8_t  sector_diff = (raw_diff + EncoderState::NUM_SECTORS) % EncoderState::NUM_SECTORS;
 
-    if (!(state.touched_sectors & sector_bit))
-    {
-        state.touched_sectors |= sector_bit;
-        state.touched_count = __builtin_popcountll(state.touched_sectors);
-    }
-
-    int64_t raw_diff = state.current_sector - state.last_sector;
-    sector_diff      = (raw_diff + EncoderState::NUM_SECTORS) % EncoderState::NUM_SECTORS;
-
-    Serial.print(F("sector diff:     \t"));
-    Serial.print(sector_diff);
-
-    if (sector_diff > EncoderState::NUM_SECTORS / 2)
-        sector_diff -= EncoderState::NUM_SECTORS;
-
-    Serial.print(F("\t"));
-    Serial.print(sector_diff);
+    // Serial.print(F("sector diff:     \t"));
+    //  Serial.print(sector_diff);
 
     // Handle wraparound
     if (sector_diff > EncoderState::NUM_SECTORS / 2)
@@ -282,25 +265,32 @@ void MAE3Encoder::updateSectorTracking()
     else if (sector_diff < -EncoderState::NUM_SECTORS / 2)
         sector_diff += EncoderState::NUM_SECTORS;
 
-    Serial.print(F("\t"));
-    Serial.println(sector_diff);
+    // Serial.print(F("\t"));
+    // Serial.println(sector_diff);
 
-    state.direction = (sector_diff == 0)  ? Direction::UNKNOWN
-                      : (sector_diff > 0) ? Direction::CLOCKWISE
-                                          : Direction::COUNTER_CLOCKWISE;
+    // Write to buffer
+    last_diffs[diff_index] = sector_diff;
+    diff_index             = (diff_index + 1) % 3;
 
-    Serial.print(F("direction:       \t"));
-    Serial.println((int64_t)state.direction);
-
-    uint64_t highest_sectors = (1ULL << (EncoderState::NUM_SECTORS - 2)) | (1ULL << (EncoderState::NUM_SECTORS - 3));
-
-    if ((state.touched_sectors & highest_sectors) == highest_sectors)
+    // Vote to determine direction
+    int pos = 0, neg = 0;
+    for (int i = 0; i < 3; ++i)
     {
-        // Reset sector tracking for next rotation
-        laps_update           = false;
-        state.touched_sectors = 0;
-        state.touched_count   = 0;
+        if (last_diffs[i] > 0)
+            pos++;
+        else if (last_diffs[i] < 0)
+            neg++;
     }
+
+    if (pos >= 2)
+        state.direction = Direction::CLOCKWISE;
+    else if (neg >= 2)
+        state.direction = Direction::COUNTER_CLOCKWISE;
+    else
+        state.direction = Direction::UNKNOWN;
+
+    // Serial.print(F("direction:       \t"));
+    // Serial.println((int64_t)state.direction);
 }
 
 void MAE3Encoder::printBinary64(uint64_t value)
@@ -318,21 +308,24 @@ void MAE3Encoder::reset()
 {
     state.current_pulse = 0;
     state.last_pulse    = 0;
-    state.width_high    = 0;
-    state.width_low     = 0;
-    state.period        = 0;
-    state.laps          = 0;
-    state.direction     = Direction::UNKNOWN;
-    state.last_pulse    = 0.0f;
+
+    state.width_high = 0;
+    state.width_low  = 0;
+
+    state.period      = 0;
+    state.laps        = 0;
+    state.laps_update = true;
+
+    state.direction = Direction::UNKNOWN;
+
     lastPulseTime       = 0;
     lastFallingEdgeTime = 0;
     lastRisingEdgeTime  = 0;
 
     // Reset sector tracking
-    state.touched_sectors = 0;
-    state.current_sector  = 0;
-    state.last_sector     = 0;
-    state.touched_count   = 0;
+    state.current_sector = 0;
+    state.last_sector    = 0;
+    state.delta_sector   = 0;
 }
 
 int64_t MAE3Encoder::getMedianWidthHigh() const
