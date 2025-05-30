@@ -3,27 +3,12 @@
 
 #include <TMCStepper.h>
 
-#define NUM_MOTORS 4
+constexpr uint8_t NUM_MOTORS = 4;
 
-static const uint16_t DIR_A = 22;
-static const uint16_t DIR_B = 4;
-static const uint16_t DIR_C = 32;
-static const uint16_t DIR_D = 27;
-
-static const uint16_t STEP_A = 21;
-static const uint16_t STEP_B = 16;
-static const uint16_t STEP_C = 33;
-static const uint16_t STEP_D = 14;
-
-static const uint16_t EN_A = 17;
-static const uint16_t EN_B = 15;
-static const uint16_t EN_C = 26;
-static const uint16_t EN_D = 13;
-
-static const uint16_t CS_A = 5;
-static const uint16_t CS_B = 2;
-static const uint16_t CS_C = 25;
-static const uint16_t CS_D = 12;
+static const uint16_t DIR[NUM_MOTORS]  = {22, 4, 32, 27};
+static const uint16_t STEP[NUM_MOTORS] = {21, 16, 33, 14};
+static const uint16_t EN[NUM_MOTORS]   = {17, 15, 26, 13};
+static const uint16_t CS[NUM_MOTORS]   = {5, 2, 25, 12};
 
 static const uint16_t W_MOSI = 23;
 static const uint16_t W_MISO = 19;
@@ -40,75 +25,75 @@ static MotorType motorType[NUM_MOTORS] = {MotorType::LINEAR, MotorType::ROTATION
 
 // Define driver objects
 TMC5160Stepper driver[NUM_MOTORS] = {
-    TMC5160Stepper(CS_A, 0.075, W_MOSI, W_MISO, W_SCK), TMC5160Stepper(CS_B, 0.075, W_MOSI, W_MISO, W_SCK),
-    TMC5160Stepper(CS_C, 0.075, W_MOSI, W_MISO, W_SCK), TMC5160Stepper(CS_D, 0.075, W_MOSI, W_MISO, W_SCK)};
+    TMC5160Stepper(CS[NUM_MOTORS], 0.075, W_MOSI, W_MISO, W_SCK), TMC5160Stepper(CS[NUM_MOTORS], 0.075, W_MOSI, W_MISO, W_SCK),
+    TMC5160Stepper(CS[NUM_MOTORS], 0.075, W_MOSI, W_MISO, W_SCK), TMC5160Stepper(CS[NUM_MOTORS], 0.075, W_MOSI, W_MISO, W_SCK)};
 
 void driversPinSetup()
 {
     // Setup pins
-    pinMode(DIR_A, OUTPUT);
-    pinMode(DIR_B, OUTPUT);
-    pinMode(DIR_C, OUTPUT);
-    pinMode(DIR_D, OUTPUT);
+    pinMode(DIR[NUM_MOTORS], OUTPUT);
+    pinMode(DIR[NUM_MOTORS], OUTPUT);
+    pinMode(DIR[NUM_MOTORS], OUTPUT);
+    pinMode(DIR[NUM_MOTORS], OUTPUT);
 
-    pinMode(STEP_A, OUTPUT);
-    pinMode(STEP_B, OUTPUT);
-    pinMode(STEP_C, OUTPUT);
-    pinMode(STEP_D, OUTPUT);
+    pinMode(STEP[NUM_MOTORS], OUTPUT);
+    pinMode(STEP[NUM_MOTORS], OUTPUT);
+    pinMode(STEP[NUM_MOTORS], OUTPUT);
+    pinMode(STEP[NUM_MOTORS], OUTPUT);
 
-    pinMode(EN_A, OUTPUT);
-    pinMode(EN_B, OUTPUT);
-    pinMode(EN_C, OUTPUT);
-    pinMode(EN_D, OUTPUT);
+    pinMode(EN[NUM_MOTORS], OUTPUT);
+    pinMode(EN[NUM_MOTORS], OUTPUT);
+    pinMode(EN[NUM_MOTORS], OUTPUT);
+    pinMode(EN[NUM_MOTORS], OUTPUT);
 
-    pinMode(CS_A, OUTPUT);
-    pinMode(CS_B, OUTPUT);
-    pinMode(CS_C, OUTPUT);
-    pinMode(CS_D, OUTPUT);
+    pinMode(CS[NUM_MOTORS], OUTPUT);
+    pinMode(CS[NUM_MOTORS], OUTPUT);
+    pinMode(CS[NUM_MOTORS], OUTPUT);
+    pinMode(CS[NUM_MOTORS], OUTPUT);
 
     pinMode(MISO, INPUT_PULLUP);
 
-    digitalWrite(EN_A, HIGH);
-    digitalWrite(EN_B, HIGH);
-    digitalWrite(EN_C, HIGH);
-    digitalWrite(EN_D, HIGH);
+    digitalWrite(EN[NUM_MOTORS], HIGH);
+    digitalWrite(EN[NUM_MOTORS], HIGH);
+    digitalWrite(EN[NUM_MOTORS], HIGH);
+    digitalWrite(EN[NUM_MOTORS], HIGH);
 
-    digitalWrite(DIR_A, LOW);
-    digitalWrite(DIR_B, LOW);
-    digitalWrite(DIR_C, LOW);
-    digitalWrite(DIR_D, LOW);
+    digitalWrite(DIR[NUM_MOTORS], LOW);
+    digitalWrite(DIR[NUM_MOTORS], LOW);
+    digitalWrite(DIR[NUM_MOTORS], LOW);
+    digitalWrite(DIR[NUM_MOTORS], LOW);
 
-    digitalWrite(STEP_A, LOW);
-    digitalWrite(STEP_B, LOW);
-    digitalWrite(STEP_C, LOW);
-    digitalWrite(STEP_D, LOW);
+    digitalWrite(STEP[NUM_MOTORS], LOW);
+    digitalWrite(STEP[NUM_MOTORS], LOW);
+    digitalWrite(STEP[NUM_MOTORS], LOW);
+    digitalWrite(STEP[NUM_MOTORS], LOW);
 }
 
 void disableDrivers()
 {
-    digitalWrite(CS_A, HIGH);
-    digitalWrite(CS_B, HIGH);
-    digitalWrite(CS_C, HIGH);
-    digitalWrite(CS_D, HIGH);
+    digitalWrite(CS[NUM_MOTORS], HIGH);
+    digitalWrite(CS[NUM_MOTORS], HIGH);
+    digitalWrite(CS[NUM_MOTORS], HIGH);
+    digitalWrite(CS[NUM_MOTORS], HIGH);
 }
 
 void disableMotor(uint8_t i)
 {
     if (i == 0)
     {
-        digitalWrite(EN_A, HIGH);
+        digitalWrite(EN[NUM_MOTORS], HIGH);
     }
     else if (i == 1)
     {
-        digitalWrite(EN_B, HIGH);
+        digitalWrite(EN[NUM_MOTORS], HIGH);
     }
     else if (i == 2)
     {
-        digitalWrite(EN_C, HIGH);
+        digitalWrite(EN[NUM_MOTORS], HIGH);
     }
     else if (i == 3)
     {
-        digitalWrite(EN_D, HIGH);
+        digitalWrite(EN[NUM_MOTORS], HIGH);
     }
 }
 
@@ -116,19 +101,19 @@ void enableMotor(uint8_t i)
 {
     if (i == 0)
     {
-        digitalWrite(EN_A, LOW);
+        digitalWrite(EN[NUM_MOTORS], LOW);
     }
     else if (i == 1)
     {
-        digitalWrite(EN_B, LOW);
+        digitalWrite(EN[NUM_MOTORS], LOW);
     }
     else if (i == 2)
     {
-        digitalWrite(EN_C, LOW);
+        digitalWrite(EN[NUM_MOTORS], LOW);
     }
     else if (i == 3)
     {
-        digitalWrite(EN_D, LOW);
+        digitalWrite(EN[NUM_MOTORS], LOW);
     }
 }
 
@@ -136,19 +121,19 @@ uint8_t selectDriver(uint8_t i)
 {
     if (i == 0)
     {
-        return CS_A;
+        return CS[NUM_MOTORS];
     }
     else if (i == 1)
     {
-        return CS_B;
+        return CS[NUM_MOTORS];
     }
     else if (i == 2)
     {
-        return CS_C;
+        return CS[NUM_MOTORS];
     }
     else if (i == 3)
     {
-        return CS_D;
+        return CS[NUM_MOTORS];
     }
     else
     {
@@ -515,19 +500,19 @@ void motorMoveForward(uint8_t i)
 
     if (i == 0)
     {
-        digitalWrite(DIR_A, HIGH);
+        digitalWrite(DIR[NUM_MOTORS], HIGH);
     }
     else if (i == 1)
     {
-        digitalWrite(DIR_B, HIGH);
+        digitalWrite(DIR[NUM_MOTORS], HIGH);
     }
     else if (i == 2)
     {
-        digitalWrite(DIR_C, HIGH);
+        digitalWrite(DIR[NUM_MOTORS], HIGH);
     }
     else if (i == 3)
     {
-        digitalWrite(DIR_D, HIGH);
+        digitalWrite(DIR[NUM_MOTORS], HIGH);
     }
 
     enableMotor(i);
@@ -539,19 +524,19 @@ void motorMoveReverse(uint8_t i)
 
     if (i == 0)
     {
-        digitalWrite(DIR_A, LOW);
+        digitalWrite(DIR[NUM_MOTORS], LOW);
     }
     else if (i == 1)
     {
-        digitalWrite(DIR_B, LOW);
+        digitalWrite(DIR[NUM_MOTORS], LOW);
     }
     else if (i == 2)
     {
-        digitalWrite(DIR_C, LOW);
+        digitalWrite(DIR[NUM_MOTORS], LOW);
     }
     else if (i == 3)
     {
-        digitalWrite(DIR_D, LOW);
+        digitalWrite(DIR[NUM_MOTORS], LOW);
     }
 
     enableMotor(i);
@@ -606,20 +591,10 @@ void motorStep(uint8_t i, uint16_t delay_us)
         return;
     }
 
-    if (i == 0)
-    {
-        digitalWrite(STEP_A, HIGH);
-        delayMicroseconds(delay_us);
-        digitalWrite(STEP_A, LOW);
-        // delayMicroseconds(delay_us);
-    }
-    else
-    {
-        digitalWrite(STEP_B, HIGH);
-        delayMicroseconds(delay_us);
-        digitalWrite(STEP_B, LOW);
-        // delayMicroseconds(delay_us);
-    }
+    digitalWrite(STEP[NUM_MOTORS], HIGH);
+    delayMicroseconds(delay_us);
+    digitalWrite(STEP[NUM_MOTORS], LOW);
+    delayMicroseconds(delay_us);
 }
 
 #endif
