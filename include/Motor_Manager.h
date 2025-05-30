@@ -185,7 +185,7 @@ void configureDriverNEMA11_1004H(uint8_t i)
     // ---------------------------
     // 3. Microstepping & Interpolation
     // ---------------------------
-    driver[i].microsteps(32);  // Fine control, 16 microsteps (try 32 for even smoother motion)
+    driver[i].microsteps(16);  // Fine control, 16 microsteps (try 32 for even smoother motion)
     driver[i].intpol(true);    // Enable interpolation for smooth motion
 
     // ---------------------------
@@ -259,8 +259,8 @@ void optimizeForPancake(uint8_t i)
     // ---------------------------
     // 3. Microstepping & Interpolation
     // ---------------------------
-    driver[i].microsteps(256);  // Increased microstepping for smoother holding
-    driver[i].intpol(true);     // Smooth motion
+    driver[i].microsteps(16);  // Increased microstepping for smoother holding
+    driver[i].intpol(true);    // Smooth motion
 
     // ---------------------------
     // 4. StealthChop Settings (Enable for holding/low speed)

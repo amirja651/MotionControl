@@ -292,11 +292,11 @@ void serialReadTask(void* pvParameters)
 
                     if (motorType[motorIndex] == MotorType::ROTATIONAL)
                     {
-                        Serial.print(encoders[motorIndex].getPositionDegrees());
+                        Serial.print(encoders[motorIndex].get_position_degrees());
                     }
                     else
                     {
-                        Serial.print(encoders[motorIndex].getPositionUM());
+                        Serial.print(encoders[motorIndex].get_position_um());
                     }
 
                     Serial.println(F("#"));
@@ -519,11 +519,11 @@ void serialPrintTask(void* pvParameters)
     }
 }
 
-double getShortestAngularDistanceError()
+float getShortestAngularDistanceError()
 {
     uint8_t motorIndex = getMotorIndex();
-    float   currentDeg = encoders[motorIndex].getPositionDegrees();
-    float   targetDeg  = getTarget() - 0.1f;
+    float   currentDeg = encoders[motorIndex].get_position_degrees();
+    float   targetDeg  = getTarget();  //- 0.1f
     float   error      = targetDeg - currentDeg;
 
     if (error > 180.0f)
@@ -534,12 +534,11 @@ double getShortestAngularDistanceError()
     return error;
 }
 
-double getSignedPositionError()
+float getSignedPositionError()
 {
     uint8_t motorIndex      = getMotorIndex();
-    float   currentPosition = encoders[motorIndex].getTotalTravelUM();
-    float   targetPosition  = getTarget() - 0.1f;
-
+    float   currentPosition = encoders[motorIndex].get_total_travel_um();
+    float   targetPosition  = getTarget();    //- 0.1f
     return targetPosition - currentPosition;  // retains sign
 }
 
@@ -551,9 +550,12 @@ void motorStopAndSavePosition()
     motorStop(motorIndex);
     command_received[motorIndex] = false;  // Reset command flag when target is reached or no command
 
-    float currentPosition = motorType[motorIndex] == MotorType::LINEAR ? encoders[motorIndex].getPositionUM()
-                                                                       : encoders[motorIndex].getPositionDegrees();
-    // saveMotorPosition(motorIndex, currentPosition);  // Save the final position to EEPROM when motor stops
+    if (0)
+    {
+        float currentPosition = motorType[motorIndex] == MotorType::LINEAR ? encoders[motorIndex].get_position_um()
+                                                                           : encoders[motorIndex].get_position_degrees();
+        saveMotorPosition(motorIndex, currentPosition);  // Save the final position to EEPROM when motor stops
+    }
 }
 
 void rotationalMotorUpdate()
@@ -562,7 +564,7 @@ void rotationalMotorUpdate()
 
     // Calculate signed angular position error [-180, 180]
     float    positionError = getShortestAngularDistanceError();
-    uint64_t steps         = fabs(positionError) * DEGREE_TO_PULSE_FACTOR_12B_256;
+    uint16_t steps         = static_cast<uint16_t>(fabs(positionError) / encoders[motorIndex].get_degrees_per_pulse());
 
     // If previously stopped, save the distance
     if (motorLastState[motorIndex] == motorState::STOPPED)
@@ -576,26 +578,32 @@ void rotationalMotorUpdate()
         motorLastState[motorIndex] = motorState::MOVING;
 
         // Select the appropriate direction and move the motor
-        if (fabs(positionError) <= 0.25f)  // Threshold to stop
+        if (!very_short_distance && fabs(positionError) <= 0.1f)  // Threshold to stop
+        {
             motorStopAndSavePosition();
-
-        if (positionError > 0.0f)
-            motorMoveReverse(motorIndex);  // Counterclockwise rotation
+        }
         else
-            motorMoveForward(motorIndex);  // Clockwise rotation
+        {
+            very_short_distance = false;  // stop short distance, it's just for one time.
 
-        if (steps > 120)
-            motorStep(motorIndex, 120);
-        else if (steps > 80)
-            motorStep(motorIndex, 80);
-        else if (steps > 40)
-            motorStep(motorIndex, 40);
-        else if (steps > 20)
-            motorStep(motorIndex, 20);
-        else if (steps > 10)
-            motorStep(motorIndex, 10);
-        else
-            motorStep(motorIndex, 1);  // Execute all remaining steps
+            if (positionError > 0.0f)
+                motorMoveReverse(motorIndex);  // Counterclockwise rotation
+            else
+                motorMoveForward(motorIndex);  // Clockwise rotation
+
+            if (steps > 120)
+                motorStep(motorIndex, 120);
+            else if (steps > 80)
+                motorStep(motorIndex, 80);
+            else if (steps > 40)
+                motorStep(motorIndex, 40);
+            else if (steps > 20)
+                motorStep(motorIndex, 20);
+            else if (steps > 10)
+                motorStep(motorIndex, 10);
+            else
+                motorStep(motorIndex, 1);  // Execute all remaining steps
+        }
     }
     else
     {
@@ -612,34 +620,40 @@ void linearMotorUpdate()  // amir
     uint8_t motorIndex    = getMotorIndex();
     float   positionError = getSignedPositionError();
 
-    uint64_t steps = fabs(positionError) * UM_TO_PULSE_FACTOR_12B_32;
+    uint16_t steps = static_cast<uint16_t>(fabs(positionError) / encoders[motorIndex].get_um_per_pulse());
 
     if (fabs(positionError) > 0)
     {
         motorLastState[motorIndex] = motorState::MOVING;
 
-        if (fabs(positionError) <= 0.25f)  // Threshold to stop
+        if (!very_short_distance && fabs(positionError) <= 0.02f)  // Threshold to stop
+        {
             motorStopAndSavePosition();
-
-        if (positionError > 0.0f)
-            motorMoveReverse(motorIndex);  // Counterclockwise rotation
+        }
         else
-            motorMoveForward(motorIndex);  // Clockwise rotation
+        {
+            very_short_distance = false;  // stop short distance, it's just for one time.
 
-        if (steps > 200)
-            motorStep(motorIndex, 200);  // Execute the step
-        else if (steps > 160)
-            motorStep(motorIndex, 160);
-        else if (steps > 120)
-            motorStep(motorIndex, 120);
-        else if (steps > 80)
-            motorStep(motorIndex, 80);
-        else if (steps > 40)
-            motorStep(motorIndex, 40);
-        else if (steps > 10)
-            motorStep(motorIndex, 10);
-        else
-            motorStep(motorIndex, 1);  // Execute all remaining steps
+            if (positionError > 0.0f)
+                motorMoveReverse(motorIndex);  // Counterclockwise rotation
+            else
+                motorMoveForward(motorIndex);  // Clockwise rotation
+
+            if (steps > 200)
+                motorStep(motorIndex, 200);  // Execute the step
+            else if (steps > 160)
+                motorStep(motorIndex, 160);
+            else if (steps > 120)
+                motorStep(motorIndex, 120);
+            else if (steps > 80)
+                motorStep(motorIndex, 80);
+            else if (steps > 40)
+                motorStep(motorIndex, 40);
+            else if (steps > 10)
+                motorStep(motorIndex, 10);
+            else
+                motorStep(motorIndex, 1);  // Execute all remaining steps
+        }
     }
     else
     {
@@ -649,16 +663,17 @@ void linearMotorUpdate()  // amir
         }
     }
 }
-double x = 0;
-void   printSerial()
+float x = 0;
+void  printSerial()
 {
     uint8_t motorIndex = getMotorIndex();
-    float   position   = motorType[motorIndex] == MotorType::ROTATIONAL ? encoders[motorIndex].getPositionDegrees()
-                                                                        : encoders[motorIndex].getTotalTravelUM();
+    float   position   = motorType[motorIndex] == MotorType::ROTATIONAL ? encoders[motorIndex].get_position_degrees()
+                                                                        : encoders[motorIndex].get_total_travel_um();
     float   error = motorType[motorIndex] == MotorType::ROTATIONAL ? getShortestAngularDistanceError() : getSignedPositionError();
+    error         = fabs(error);
     EncoderState state = encoders[motorIndex].getState();
     String direction   = state.direction == Direction::UNKNOWN ? "---" : state.direction == Direction::CLOCKWISE ? "CW" : "CCW";
-    double target      = getTarget();
+    float  target      = getTarget();
 
     if (target == 0)
         error = 0;
@@ -694,13 +709,13 @@ void   printSerial()
     }
 }
 
-void setTarget(double position)
+void setTarget(float position)
 {
     uint8_t motorIndex = getMotorIndex();
     target[motorIndex] = position;
 }
 
-double getTarget()
+float getTarget()
 {
     uint8_t motorIndex = getMotorIndex();
     return target[motorIndex];
@@ -760,7 +775,7 @@ void resetCommandReceived()
 
 bool validationInputAndSetLinearOffset(String linearOffsetStr)
 {
-    double offsetUm = linearOffsetStr.toDouble() * UM_PER_PIXEL;
+    float offsetUm = linearOffsetStr.toFloat() * UM_PER_PIXEL;
     if (offsetUm < linear_Lower_limit_um || offsetUm > linear_upper_limit_um)
     {
         Serial.print(F("ERROR: Motor 1 offset must be between "));
@@ -773,7 +788,7 @@ bool validationInputAndSetLinearOffset(String linearOffsetStr)
     return true;
 }
 
-void setLinearOffset(double offsetUm)
+void setLinearOffset(float offsetUm)
 {
     linear_offset_um = offsetUm;
     Serial.print(F("Motor 1 offset set to (px): "));
@@ -782,7 +797,7 @@ void setLinearOffset(double offsetUm)
 
 bool validationInputAndSetLinearLowerLimit(String lowerLimitPx)
 {
-    double lowerLimit = lowerLimitPx.toDouble();
+    float lowerLimit = lowerLimitPx.toFloat();
     setLowerLimits(lowerLimit);
     Serial.print(F("Motor 1 lower limit set to (px): "));
     Serial.println(lowerLimit, 2);
@@ -791,19 +806,19 @@ bool validationInputAndSetLinearLowerLimit(String lowerLimitPx)
 
 bool validationInputAndSetLinearUpperLimit(String upperLimitPx)
 {
-    double upperLimit = upperLimitPx.toDouble();
+    float upperLimit = upperLimitPx.toFloat();
     setUpperLimits(upperLimit);
     Serial.print(F("Motor 1 upper limit set to (px): "));
     Serial.println(upperLimit, 2);
     return true;
 }
 
-void setLowerLimits(double lowerLimit)
+void setLowerLimits(float lowerLimit)
 {
     linear_Lower_limit_um = lowerLimit;
 }
 
-void setUpperLimits(double upperLimit)
+void setUpperLimits(float upperLimit)
 {
     linear_upper_limit_um = upperLimit;
 }
@@ -817,13 +832,22 @@ bool validationInputAndSetTarget(String targetStr)
     }
 
     uint8_t motorIndex = getMotorIndex();
-    double  position   = targetStr.toDouble();
+    float   position   = targetStr.toFloat();
 
     Serial.print(F("Motor "));
     Serial.print(motorIndex + 1);
     Serial.print(F(" > new position is: "));
     Serial.print(position);
     Serial.println(motorType[motorIndex] == MotorType::LINEAR ? F(" um") : F(" °"));
+
+    float positionError = 0;
+    if (motorIndex == 0)
+        positionError = getShortestAngularDistanceError();
+    else
+        positionError = getSignedPositionError();
+
+    if (fabs(positionError) <= 0.01f)
+        very_short_distance = true;
 
     resetCommandReceived();
     setTarget(position);

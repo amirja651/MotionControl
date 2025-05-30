@@ -18,10 +18,8 @@ enum class Direction
 constexpr uint8_t MAX_ENCODERS = 4;
 
 // Linear motion constants
-constexpr float LEAD_SCREW_PITCH_MM = 0.5f;      // Lead screw pitch in mm
-constexpr float TOTAL_TRAVEL_MM     = 30.0f;     // Total travel distance in mm
-constexpr float LEAD_SCREW_PITCH_UM = 500.0f;    // 0.5mm = 500μm
-constexpr float TOTAL_TRAVEL_UM     = 30000.0f;  // 30mm = 30000μm
+constexpr float LEAD_SCREW_PITCH_MM = 0.2f;  // Lead screw pitch in mm (2  or 5)
+constexpr float TOTAL_TRAVEL_MM     = 5.0f;  // Total travel distance in mm
 
 struct EncoderState
 {
@@ -67,61 +65,60 @@ public:
     }
 
     // Degrees per pulse
-    float getDegreesPerPulse() const
+    float get_degrees_per_pulse() const
     {
         return 360.0f / static_cast<float>(EncoderState::DEFAULT_MAX_T);
     }
 
+    // Position in degrees
+    float get_position_degrees() const
+    {
+        return state.current_pulse * get_degrees_per_pulse();
+    }
+
     // Millimeters per pulse
-    float getMMPerPulse() const
+    float get_mm_per_pulse() const
     {
         return LEAD_SCREW_PITCH_MM / static_cast<float>(EncoderState::DEFAULT_MAX_T);
     }
 
     // Micrometers per pulse
-    float getUMPerPulse() const
+    float get_um_per_pulse() const
     {
-        return getMMPerPulse() * 1000.0f;
-    }
-
-    // Position in degrees
-    float getPositionDegrees() const
-    {
-        return state.current_pulse * getDegreesPerPulse();
+        return get_mm_per_pulse() * 1000.0f;
     }
 
     // Position in mm
-    float getPositionMM() const
+    float get_position_mm() const
     {
-        return state.current_pulse * getMMPerPulse();
+        return state.current_pulse * get_mm_per_pulse();
     }
 
     // Position in μm
-    float getPositionUM() const
+    float get_position_um() const
     {
-        return static_cast<float>(state.current_pulse) * getUMPerPulse();
+        return get_position_mm() * 1000.0f;
     }
 
-    // Total travel in μm
-    float getTotalTravelPulse() const
+    // Total travel in pulse
+    float get_total_travel_pulse() const
     {
-        float totalDistanceUM = (static_cast<float>(state.laps) * static_cast<float>(EncoderState::DEFAULT_MAX_T)) +
+        float totalPulseCount = (static_cast<float>(state.laps) * static_cast<float>(EncoderState::DEFAULT_MAX_T)) +
                                 static_cast<float>(state.current_pulse);
-        return totalDistanceUM;
+        return totalPulseCount;
     }
 
     // Total travel in mm
-    float getTotalTravelMM() const
+    float get_total_travel_mm() const
     {
-        float totalDistance = (static_cast<float>(state.laps) * LEAD_SCREW_PITCH_MM) + getPositionMM();
-        return totalDistance;
+        float totalPulseCount = get_total_travel_pulse();
+        return totalPulseCount * get_mm_per_pulse();
     }
 
     // Total travel in μm
-    float getTotalTravelUM() const
+    float get_total_travel_um() const
     {
-        float totalDistanceUM = (static_cast<float>(state.laps) * LEAD_SCREW_PITCH_UM) + getPositionUM();
-        return totalDistanceUM;
+        return get_total_travel_mm() * 1000.0f;
     }
 
     void reset();
