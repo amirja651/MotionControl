@@ -133,17 +133,11 @@ void motorUpdateTask(void* pvParameters)  // amir
 
             // Update frequency based on error and target position
             updateMotorFrequency(motorIndex, error, getTarget(), current_position[motorIndex]);
-
-            // Update motor state
-            motorLastState[motorIndex] = motorState::MOVING;
         }
         else
         {
             // Target reached - stop motor
-            stopMotorLEDC(motorIndex);
-            motorStop(motorIndex);
-            command_received[motorIndex] = false;
-            motorLastState[motorIndex]   = motorState::STOPPED;
+            motorStopAndSavePosition();
         }
 
         esp_task_wdt_reset();
@@ -562,8 +556,7 @@ void serialPrintTask(void* pvParameters)
 void motorStopAndSavePosition()
 {
     uint8_t motorIndex = getMotorIndex();
-
-    motorLastState[motorIndex] = motorState::STOPPED;
+    stopMotorLEDC(motorIndex);
     motorStop(motorIndex);
     command_received[motorIndex] = false;  // Reset command flag when target is reached or no command
 

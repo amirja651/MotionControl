@@ -57,7 +57,6 @@ int    historyIndex     = -1;  // -1 means not navigating
 float  distanceToTarget = 0;
 
 MAE3Encoder encoders[NUM_MOTORS] = {MAE3Encoder(ENC_A, 0), MAE3Encoder(ENC_B, 1), MAE3Encoder(ENC_C, 2), MAE3Encoder(ENC_D, 3)};
-motorState  motorLastState[NUM_MOTORS] = {motorState::STOPPED, motorState::STOPPED, motorState::STOPPED, motorState::STOPPED};
 
 // Task handles
 TaskHandle_t encoderUpdateTaskHandle = NULL;

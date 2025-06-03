@@ -31,7 +31,6 @@ enum class MotorType
     LINEAR
 };
 
-static bool      isMoving[NUM_MOTORS]  = {false, false, false, false};
 static MotorType motorType[NUM_MOTORS] = {MotorType::LINEAR, MotorType::ROTATIONAL, MotorType::ROTATIONAL, MotorType::ROTATIONAL};
 
 // Define driver objects
@@ -377,8 +376,6 @@ void initializeDriver(uint8_t i)
     {
         optimizeForPancake(i);
     }
-
-    isMoving[i] = false;
 }
 
 void initializeDriversAndTest()
@@ -402,7 +399,6 @@ void initializeDriversAndTest()
 
 void set_motor_direction(uint8_t motor_index, bool dir)  // dir = true (Forward), false (Reverse)
 {
-    isMoving[motor_index] = true;
     digitalWrite(pDIR[motor_index], dir);
     enableMotor(motor_index);
 }
@@ -436,8 +432,6 @@ void motorStop(uint8_t motor_index)
     /* 6. Disable output for rotary motors if needed */
     if (motorType[motor_index] == MotorType::ROTATIONAL)
         disableMotor(motor_index);
-
-    isMoving[motor_index] = false;
 
     Serial.println(F("Motor Stop"));
 }
