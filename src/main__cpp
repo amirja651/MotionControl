@@ -1,0 +1,99 @@
+#include <SPI.h>
+#include <TMCStepper.h>
+
+#define EN_PIN   17
+#define DIR_PIN  22
+#define STEP_PIN 21
+#define CS_PIN   5
+#define R_SENSE  0.075f
+
+#define MOSI_PIN 23
+#define MISO_PIN 19
+#define SCK_PIN  18
+
+TMC5160Stepper driver = TMC5160Stepper(CS_PIN, R_SENSE);
+
+const uint8_t  LEDC_CH            = 0;
+const uint32_t MICROSTEPS         = 16;
+const uint16_t FULL_STEPS_PER_REV = 200;
+const uint32_t STEPS_PER_REV      = FULL_STEPS_PER_REV * MICROSTEPS;
+
+#define MICROSTEPS      16
+#define KP              25.0f  // pulses / s per pulse error
+#define MIN_FREQ        50
+#define MAX_FREQ        10000
+#define POSITION_WINDOW 1  // ±1 pulse
+
+/*
+void setRPM(float rpm)
+{
+    uint32_t freq = (rpm * STEPS_PER_REV) / 60.0;  // Hz
+    ledcWriteTone(LEDC_CH, freq);                  // 50 % duty
+}
+*/
+
+volatile long targetPos = 0;
+
+// extern long getCurrentPosition();  // encoder
+
+void setTarget(long p)
+{
+    targetPos = p;
+}  // external call
+
+void IRAM_ATTR controlISR()
+{
+    long cur = 0;  // getCurrentPosition();
+    long err = targetPos - cur;
+
+    Serial.println(err);
+
+    if (abs(err) <= POSITION_WINDOW)
+    {
+        ledcWriteTone(0, 0);                        // stop
+        uint32_t val32 = (4 << 16) | (8 << 8) | 8;  // 0x00041408 driver.ihold_irun(8, 8, 4)
+        driver.IHOLD_IRUN(val32);                   // hold ≈40 %
+        return;
+    }
+    digitalWrite(DIR_PIN, err > 0);
+    float    freq = constrain(KP * abs(err), (float)MIN_FREQ, (float)MAX_FREQ);
+    uint32_t f    = (uint32_t)freq;  // Final frequency for ledcWriteTone
+    ledcWriteTone(0, f);
+}
+
+void setup()
+{
+    pinMode(EN_PIN, OUTPUT);
+    digitalWrite(EN_PIN, LOW);  // enable
+    pinMode(DIR_PIN, OUTPUT);
+
+    SPI.begin(SCK_PIN, MISO_PIN, MOSI_PIN, CS_PIN);  // default MISO/MOSI/SCK
+    driver.begin();
+    driver.microsteps(MICROSTEPS);  // 1/16
+    driver.rms_current(700);        // mA (≤1 A)
+    driver.en_pwm_mode(true);       // stealthChop
+    driver.toff(3);
+    driver.blank_time(24);
+
+    ledcSetup(LEDC_CH, 1000, 1);  // dummy freq, 1-bit duty (square)
+    ledcAttachPin(STEP_PIN, LEDC_CH);
+
+    hw_timer_t* t = timerBegin(0, 80, true);  // 1 µs tick
+    timerAttachInterrupt(t, controlISR, true);
+    timerAlarmWrite(t, 2000, true);  // 2 ms loop
+    timerAlarmEnable(t);
+}
+
+void loop()
+{
+    /*
+    setRPM(30);
+    delay(5000);  // 30 rpm
+    setRPM(120);
+    delay(5000);  // 120 rpm
+    */
+    setTarget(1600);
+    delay(3000);  // example move
+    setTarget(0);
+    delay(3000);
+}

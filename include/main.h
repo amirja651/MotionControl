@@ -24,9 +24,6 @@ constexpr float LINEAR_LOWER_LIMIT_PX = 550.0;
 constexpr float LINEAR_UPPER_LIMIT_PX = 880.0;
 constexpr float LINEAR_OFFSET_PX      = 680.0;
 
-constexpr float ROTATIONAL_THRESHOLD = 0.05f;
-constexpr float LINEAR_THRESHOLD     = 0.05f;
-
 constexpr float UM_PER_PIXEL = 5.2f;
 
 static const uint16_t ENC_A = 36;
@@ -69,14 +66,12 @@ TaskHandle_t serialReadTaskHandle    = NULL;
 TaskHandle_t serialPrintTaskHandle   = NULL;
 
 void    encoderUpdateTask(void* pvParameters);
+float   getShortestAngularDistanceError();
+float   getSignedPositionError();
 void    motorUpdateTask(void* pvParameters);
 void    serialReadTask(void* pvParameters);
 void    serialPrintTask(void* pvParameters);
-float   getShortestAngularDistance(float current, float target);
-float   getSignedPositionError(float current, float target);
 void    motorStopAndSavePosition();
-void    rotationalMotorUpdate();
-void    linearMotorUpdate();
 void    printSerial();
 void    setTarget(float position);
 float   getTarget();
