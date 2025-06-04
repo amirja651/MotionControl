@@ -523,12 +523,14 @@ void updateMotorFrequency(uint8_t index, float error, float target_position, flo
     uint32_t duty = (1 << LEDC_TIMER_BIT) / 2;
     ledcWrite(channel, duty);
 
-    Serial.print("ch: ");
-    Serial.print(channel);  // amir amir
-    Serial.print(" freq: ");
-    Serial.print(base_freq);
-    Serial.print(" duty: ");
-    Serial.println(duty);
+    static String buffer      = "ch: " + String(channel) + " freq: " + String(base_freq) + " duty: " + String(duty) + "ch: ";
+    static String last_buffer = " ";
+    if (buffer != last_buffer)
+    {
+        Serial.print(buffer);
+        Serial.println();
+        last_buffer = buffer;
+    }
 }
 
 void stopMotorLEDC(uint8_t index)

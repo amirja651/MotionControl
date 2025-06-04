@@ -610,7 +610,7 @@ void printSerial()
         steps = 0;
     }
 
-    if (0 && fabs(state.current_pulse - last_pulse[motorIndex]) > 1)
+    if (fabs(state.current_pulse - last_pulse[motorIndex]) > 1)
     {
         //  table header
         Serial.print(F("Motor\tLaps\tDir\tPulse\tPos\tTarget\tError\tRem. Steps\n"));
