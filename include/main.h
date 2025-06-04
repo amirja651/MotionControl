@@ -65,8 +65,8 @@ TaskHandle_t serialReadTaskHandle    = NULL;
 TaskHandle_t serialPrintTaskHandle   = NULL;
 
 void    encoderUpdateTask(void* pvParameters);
-float   getShortestAngularDistanceError();
-float   getSignedPositionError();
+float   wrapAngle180(float value);
+float   getSignedPositionError(float current_pos);
 void    motorUpdateTask(void* pvParameters);
 void    serialReadTask(void* pvParameters);
 void    serialPrintTask(void* pvParameters);

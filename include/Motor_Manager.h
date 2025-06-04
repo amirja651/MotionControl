@@ -3,14 +3,17 @@
 
 #include <TMCStepper.h>
 
+enum class MotorType
+{
+    ROTATIONAL,
+    LINEAR
+};
+
 #define NUM_MOTORS 4
 
-static const uint16_t pDIR[NUM_MOTORS]  = {22, 4, 32, 27};
-static const uint16_t pSTEP[NUM_MOTORS] = {21, 16, 33, 14};
-static const uint16_t pEN[NUM_MOTORS]   = {17, 15, 26, 13};
-static const uint16_t pCS[NUM_MOTORS]   = {5, 2, 25, 12};
-
-static const uint8_t LEDC_CHANNEL[NUM_MOTORS] = {0, 1, 2, 3};  // LEDC channel for motor A, B, C, D
+// LEDC Configuration for motor control
+#define LEDC_TIMER_BIT 10     // 10-bit timer resolution
+#define LEDC_BASE_FREQ 10000  // Base frequency in Hz
 
 #define ROTATIONAL_THRESHOLD   0.05f  // Reduced from 0.1f
 #define LINEAR_THRESHOLD       0.05f  // Reduced from 0.1f
@@ -19,79 +22,82 @@ static const uint8_t LEDC_CHANNEL[NUM_MOTORS] = {0, 1, 2, 3};  // LEDC channel f
 static const float MOTOR_THRESHOLD[NUM_MOTORS] = {LINEAR_THRESHOLD, ROTATIONAL_THRESHOLD, ROTATIONAL_THRESHOLD,
                                                   ROTATIONAL_THRESHOLD};
 
+static MotorType motorType[NUM_MOTORS] = {MotorType::LINEAR, MotorType::ROTATIONAL, MotorType::ROTATIONAL, MotorType::ROTATIONAL};
+
+String communication_test[NUM_MOTORS] = {"FAILED", "FAILED", "FAILED", "FAILED"};
+
 static const uint16_t pMOSI = 23;
 static const uint16_t pMISO = 19;
 static const uint16_t pSCK  = 18;
 
-String communication_test[NUM_MOTORS] = {"FAILED", "FAILED", "FAILED", "FAILED"};
+static const uint16_t pDIR[NUM_MOTORS]  = {22, 4, 32, 27};
+static const uint16_t pSTEP[NUM_MOTORS] = {21, 16, 33, 14};
+static const uint16_t pEN[NUM_MOTORS]   = {17, 15, 26, 13};
+static const uint16_t pCS[NUM_MOTORS]   = {5, 2, 25, 12};
 
-enum class MotorType
-{
-    ROTATIONAL,
-    LINEAR
-};
-
-static MotorType motorType[NUM_MOTORS] = {MotorType::LINEAR, MotorType::ROTATIONAL, MotorType::ROTATIONAL, MotorType::ROTATIONAL};
+static const uint8_t LEDC_CHANNEL[NUM_MOTORS] = {0, 1, 2, 3};  // LEDC channel for motor A, B, C, D
 
 // Define driver objects
 TMC5160Stepper driver[NUM_MOTORS] = {
     TMC5160Stepper(pCS[0], 0.075, pMOSI, pMISO, pSCK), TMC5160Stepper(pCS[1], 0.075, pMOSI, pMISO, pSCK),
     TMC5160Stepper(pCS[2], 0.075, pMOSI, pMISO, pSCK), TMC5160Stepper(pCS[3], 0.075, pMOSI, pMISO, pSCK)};
 
-// LEDC Configuration for motor control
-#define LEDC_TIMER_BIT 10     // 10-bit timer resolution
-#define LEDC_BASE_FREQ 10000  // Base frequency in Hz
-
 void driversPinSetup()
 {
     // Setup pins
-    for (int8_t motor_index = 0; motor_index < NUM_MOTORS; motor_index++)
+    for (int8_t index = 0; index < NUM_MOTORS; index++)
     {
-        pinMode(pDIR[motor_index], OUTPUT);
-        pinMode(pSTEP[motor_index], OUTPUT);
-        pinMode(pEN[motor_index], OUTPUT);
-        pinMode(pCS[motor_index], OUTPUT);
+        pinMode(pDIR[index], OUTPUT);
+        pinMode(pSTEP[index], OUTPUT);
+        pinMode(pEN[index], OUTPUT);
+        pinMode(pCS[index], OUTPUT);
 
-        digitalWrite(pEN[motor_index], HIGH);
-        digitalWrite(pDIR[motor_index], LOW);
-        digitalWrite(pSTEP[motor_index], LOW);
+        digitalWrite(pEN[index], HIGH);
+        digitalWrite(pDIR[index], LOW);
+        digitalWrite(pSTEP[index], LOW);
     }
 
     pinMode(MISO, INPUT_PULLUP);
 }
 
-void disableDrivers()
+void disable_all_drivers()
 {
-    for (int8_t motor_index = 0; motor_index < NUM_MOTORS; motor_index++)
+    for (int8_t index = 0; index < NUM_MOTORS; index++)
     {
-        digitalWrite(pCS[motor_index], HIGH);
+        digitalWrite(pCS[index], HIGH);
     }
 }
 
-void disableMotor(uint8_t motor_index)
+uint8_t select_driver(uint8_t index)
 {
-    digitalWrite(pEN[motor_index], HIGH);
+    return pCS[index];
 }
 
-void enableMotor(uint8_t motor_index)
+void disable_motor(uint8_t index)
 {
-    digitalWrite(pEN[motor_index], LOW);
+    digitalWrite(pEN[index], HIGH);
 }
 
-uint8_t selectDriver(uint8_t motor_index)
+void enable_motor(uint8_t index)
 {
-    return pCS[motor_index];
+    digitalWrite(pEN[index], LOW);
 }
 
-void configureDriverNEMA11_1004H(uint8_t i)
+void set_motor_direction(uint8_t index, bool dir)  // dir = true (Forward), false (Reverse)
 {
-    if (motorType[i] != MotorType::LINEAR)
+    digitalWrite(pDIR[index], dir);
+    enable_motor(index);
+}
+
+void configureDriverNEMA11_1004H(uint8_t index)
+{
+    if (motorType[index] != MotorType::LINEAR)
     {
         Serial.println("Warning: Wrong motor config!");
         return;
     }
 
-    disableDrivers();
+    disable_all_drivers();
 
     // ✱ TMC5160 – Minimum configuration for STEP/DIR mode ✱
     uint32_t gconf = 0;
@@ -100,35 +106,34 @@ void configureDriverNEMA11_1004H(uint8_t i)
     gconf |= (1 << 3);  // Microstep interpolation
     gconf |= (1 << 4);  // Double edge step
     gconf |= (1 << 6);  // Multistep filtering
-    driver[i].GCONF(gconf);
+    driver[index].GCONF(gconf);
 
     // Current and microstep
-    driver[i].rms_current(700);                  // 0.7A RMS (~1.0A peak, safer for thermal)
+    driver[index].rms_current(700);              // 0.7A RMS (~1.0A peak, safer for thermal)
     uint32_t val32 = (4 << 16) | (20 << 8) | 8;  // (8, 20, 4)
-    driver[i].IHOLD_IRUN(val32);                 // // 40% hold, 100% move, 64 ms ramp
-    driver[i].microsteps(16);                    // Fine control, 16 microsteps (try 32 for even smoother motion)
-    driver[i].intpol(true);                      // Enable interpolation for smooth motion
+    driver[index].IHOLD_IRUN(val32);             // // 40% hold, 100% move, 64 ms ramp
+    driver[index].microsteps(16);                // Fine control, 16 microsteps (try 32 for even smoother motion)
+    driver[index].intpol(true);                  // Enable interpolation for smooth motion
 
     // StealthChop / SpreadCycle
-    driver[i].en_pwm_mode(true);  // StealthChop at low speed
-    driver[i].pwm_autoscale(true);
-    driver[i].TPWMTHRS(500);   // Switch threshold
-    driver[i].toff(4);         // Chopper off-time
-    driver[i].blank_time(24);  // Blank time
+    driver[index].en_pwm_mode(true);  // StealthChop at low speed
+    driver[index].pwm_autoscale(true);
+    driver[index].TPWMTHRS(500);   // Switch threshold
+    driver[index].toff(4);         // Chopper off-time
+    driver[index].blank_time(24);  // Blank time
 
     delay(1);
 }
 
-// Optimize for pancake motor
-void optimizeForPancake(uint8_t i)
+void optimizeForPancake(uint8_t index)
 {
-    if (motorType[i] != MotorType::ROTATIONAL)
+    if (motorType[index] != MotorType::ROTATIONAL)
     {
         Serial.println("Warning: Wrong motor config!");
         return;
     }
 
-    disableDrivers();
+    disable_all_drivers();
     delay(1);
 
     // ---------------------------
@@ -140,82 +145,82 @@ void optimizeForPancake(uint8_t i)
     gconf |= (1 << 3);  // Microstep interpolation
     gconf |= (1 << 4);  // Double edge step
     gconf |= (1 << 6);  // Multistep filtering
-    driver[i].GCONF(gconf);
+    driver[index].GCONF(gconf);
     delay(1);
 
     // ---------------------------
     // 2. Current Settings (Low Power Mode)
     // ---------------------------
-    driver[i].rms_current(350);  // About 0.35A RMS (safe for Pancake)
-    driver[i].irun(200);         // Run current: ~0.35A
-    driver[i].ihold(100);        // Hold current: ~0.15A (increased for stability)
-    driver[i].iholddelay(1);     // Short delay before switching to ihold
-    driver[i].TPOWERDOWN(10);    // Power down delay
+    driver[index].rms_current(350);  // About 0.35A RMS (safe for Pancake)
+    driver[index].irun(200);         // Run current: ~0.35A
+    driver[index].ihold(100);        // Hold current: ~0.15A (increased for stability)
+    driver[index].iholddelay(1);     // Short delay before switching to ihold
+    driver[index].TPOWERDOWN(10);    // Power down delay
 
     // ---------------------------
     // 3. Microstepping & Interpolation
     // ---------------------------
-    driver[i].microsteps(16);  // Increased microstepping for smoother holding
-    driver[i].intpol(true);    // Smooth motion
+    driver[index].microsteps(16);  // Increased microstepping for smoother holding
+    driver[index].intpol(true);    // Smooth motion
 
     // ---------------------------
     // 4. StealthChop Settings (Enable for holding/low speed)
     // ---------------------------
-    driver[i].TPWMTHRS(0xFFFF);  // StealthChop active at low speeds (including holding)
-    driver[i].pwm_autoscale(true);
-    driver[i].pwm_autograd(true);
-    driver[i].pwm_ofs(36);
-    driver[i].pwm_grad(10);
-    driver[i].pwm_freq(2);
-    driver[i].en_pwm_mode(true);  // Enable StealthChop (silent mode) for holding
+    driver[index].TPWMTHRS(0xFFFF);  // StealthChop active at low speeds (including holding)
+    driver[index].pwm_autoscale(true);
+    driver[index].pwm_autograd(true);
+    driver[index].pwm_ofs(36);
+    driver[index].pwm_grad(10);
+    driver[index].pwm_freq(2);
+    driver[index].en_pwm_mode(true);  // Enable StealthChop (silent mode) for holding
 
     // ---------------------------
     // 5. SpreadCycle Chopper Settings (used only at higher speeds)
     // ---------------------------
-    driver[i].toff(4);
-    driver[i].blank_time(24);
-    driver[i].hysteresis_start(3);
-    driver[i].hysteresis_end(1);
+    driver[index].toff(4);
+    driver[index].blank_time(24);
+    driver[index].hysteresis_start(3);
+    driver[index].hysteresis_end(1);
 
     // ---------------------------
     // 6. StallGuard & CoolStep
     // ---------------------------
-    driver[i].TCOOLTHRS(200);  // CoolStep threshold
-    driver[i].sgt(5);          // StallGuard threshold
-    driver[i].sfilt(true);
+    driver[index].TCOOLTHRS(200);  // CoolStep threshold
+    driver[index].sgt(5);          // StallGuard threshold
+    driver[index].sfilt(true);
 
     // ---------------------------
     // 7. Motion Configuration (Soft Motion)
     // ---------------------------
-    driver[i].RAMPMODE(0);  // Positioning mode
-    driver[i].VSTART(1);    // Very soft start
-    driver[i].VSTOP(1);     // Smooth stop
-    driver[i].VMAX(600);    // Max speed (limit for Pancake)
-    driver[i].AMAX(100);    // Acceleration limit
-    driver[i].DMAX(100);    // Deceleration limit
-    driver[i].a1(300);      // Start acceleration
-    driver[i].d1(300);      // Start deceleration
+    driver[index].RAMPMODE(0);  // Positioning mode
+    driver[index].VSTART(1);    // Very soft start
+    driver[index].VSTOP(1);     // Smooth stop
+    driver[index].VMAX(600);    // Max speed (limit for Pancake)
+    driver[index].AMAX(100);    // Acceleration limit
+    driver[index].DMAX(100);    // Deceleration limit
+    driver[index].a1(300);      // Start acceleration
+    driver[index].d1(300);      // Start deceleration
 
     delay(1);
 }
 
-bool driverCommunicationTest(uint8_t i, bool print = true)
+bool driverCommunicationTest(uint8_t index, bool print = true)
 {
-    disableDrivers();
+    disable_all_drivers();
 
     uint8_t  version  = 0;
     uint32_t gconf    = 0;
     uint32_t status   = 0;
     uint32_t chopconf = 0;
 
-    version = driver[i].version();
+    version = driver[index].version();
 
     delay(1);
 
     if (print)
     {
         Serial.print(F("Driver "));
-        Serial.print(i + 1);
+        Serial.print(index + 1);
         Serial.print(F(": Version read attempt: 0x"));
         Serial.println(version, HEX);
     }
@@ -225,7 +230,7 @@ bool driverCommunicationTest(uint8_t i, bool print = true)
         if (print)
         {
             Serial.print(F("Driver "));
-            Serial.print(i + 1);
+            Serial.print(index + 1);
             Serial.print(F(": Invalid version (0x"));
             Serial.print(version, HEX);
             Serial.println(F(")"));
@@ -234,12 +239,12 @@ bool driverCommunicationTest(uint8_t i, bool print = true)
     }
 
     // Test GCONF register
-    gconf = driver[i].GCONF();
+    gconf = driver[index].GCONF();
 
     if (print)
     {
         Serial.print(F("Driver "));
-        Serial.print(i + 1);
+        Serial.print(index + 1);
         Serial.print(F(": GCONF read: 0x"));
         Serial.println(gconf, HEX);
     }
@@ -249,19 +254,19 @@ bool driverCommunicationTest(uint8_t i, bool print = true)
         if (print)
         {
             Serial.print(F("Driver "));
-            Serial.print(i + 1);
+            Serial.print(index + 1);
             Serial.println(F(": GCONF register read failed"));
         }
         return false;
     }
 
     // Test DRV_STATUS register
-    status = driver[i].DRV_STATUS();
+    status = driver[index].DRV_STATUS();
 
     if (print)
     {
         Serial.print(F("Driver "));
-        Serial.print(i + 1);
+        Serial.print(index + 1);
         Serial.print(F(": DRV_STATUS read: 0x"));
         Serial.println(status, HEX);
     }
@@ -271,19 +276,19 @@ bool driverCommunicationTest(uint8_t i, bool print = true)
         if (print)
         {
             Serial.print(F("Driver "));
-            Serial.print(i + 1);
+            Serial.print(index + 1);
             Serial.println(F(": DRV_STATUS register read failed"));
         }
         return false;
     }
 
     // Test CHOPCONF register
-    chopconf = driver[i].CHOPCONF();
+    chopconf = driver[index].CHOPCONF();
 
     if (print)
     {
         Serial.print(F("Driver "));
-        Serial.print(i + 1);
+        Serial.print(index + 1);
         Serial.print(F(": CHOPCONF read: 0x"));
         Serial.println(chopconf, HEX);
     }
@@ -293,21 +298,21 @@ bool driverCommunicationTest(uint8_t i, bool print = true)
         if (print)
         {
             Serial.print(F("Driver "));
-            Serial.print(i + 1);
+            Serial.print(index + 1);
             Serial.println(F(": CHOPCONF register read failed"));
         }
         return false;
     }
 
     // Test if driver is responding to commands
-    driver[i].GCONF(gconf);  // Write back the same value
+    driver[index].GCONF(gconf);  // Write back the same value
 
-    uint32_t readback = driver[i].GCONF();
+    uint32_t readback = driver[index].GCONF();
 
     if (print)
     {
         Serial.print(F("Driver "));
-        Serial.print(i + 1);
+        Serial.print(index + 1);
         Serial.print(F(": GCONF write/read test: Original=0x"));
         Serial.print(gconf, HEX);
         Serial.print(F(", Readback=0x"));
@@ -319,7 +324,7 @@ bool driverCommunicationTest(uint8_t i, bool print = true)
         if (print)
         {
             Serial.print(F("Driver "));
-            Serial.print(i + 1);
+            Serial.print(index + 1);
             Serial.println(F(": GCONF register write/read mismatch"));
         }
         return false;
@@ -328,7 +333,7 @@ bool driverCommunicationTest(uint8_t i, bool print = true)
     if (print)
     {
         Serial.print(F("Driver "));
-        Serial.print(i + 1);
+        Serial.print(index + 1);
         Serial.print(F(": Communication test passed (Version: 0x"));
         Serial.print(version, HEX);
         Serial.println(F(")"));
@@ -336,15 +341,15 @@ bool driverCommunicationTest(uint8_t i, bool print = true)
     return true;
 }
 
-void driverTest(uint8_t i, bool print = true)
+void driverTest(uint8_t index, bool print = true)
 {
-    if (!driverCommunicationTest(i, print))
+    if (!driverCommunicationTest(index, print))
     {
-        communication_test[i] = "FAILED";
+        communication_test[index] = "FAILED";
     }
     else
     {
-        communication_test[i] = "PASSED (" + String(driver[i].version()) + ")";
+        communication_test[index] = "PASSED (" + String(driver[index].version()) + ")";
     }
 
     /*if (driver[i].sd_mode() && print)
@@ -364,18 +369,13 @@ void driverTest(uint8_t i, bool print = true)
     delay(100);
 }
 
-void initializeDriver(uint8_t i)
+void initializeDriver(uint8_t index)
 {
-    disableDrivers();
+    if (motorType[index] == MotorType::LINEAR)
+        configureDriverNEMA11_1004H(index);
 
-    if (motorType[i] == MotorType::LINEAR)
-    {
-        configureDriverNEMA11_1004H(i);
-    }
-    else if (motorType[i] == MotorType::ROTATIONAL)
-    {
-        optimizeForPancake(i);
-    }
+    else if (motorType[index] == MotorType::ROTATIONAL)
+        optimizeForPancake(index);
 }
 
 void initializeDriversAndTest()
@@ -383,68 +383,45 @@ void initializeDriversAndTest()
     driversPinSetup();
     delay(1);
 
-    for (uint8_t motor_index = 0; motor_index < NUM_MOTORS; motor_index++)
+    String header = "";
+    String body   = "";
+
+    for (uint8_t index = 0; index < NUM_MOTORS; index++)
     {
-        disableDrivers();
-        driver[motor_index].begin();
-        driverTest(motor_index, false);
+        disable_all_drivers();
+        driver[index].begin();
+        driverTest(index, false);
+
+        //  Header
+        header += "Driver " + String(index);  // 7c + 1c + 13c = 21c;
+
+        if (index != 3)
+            header += "      |      ";
+
+        // Body
+        if (communication_test[index] == "FAILED")
+            body += communication_test[index] + "               ";  // 6c + 15c = 21c
+        else                                                        // 11c + 10c = 21c
+        {
+            body += communication_test[index] + "          ";
+            initializeDriver(index);
+        }
     }
-
-    Serial.println(F("\n\n=========== [Drivers Communication Test] ============"));
-    Serial.println(F("Driver 1\tDriver 2\tDriver 3\tDriver 4"));
-    Serial.println(communication_test[0] + "\t" + communication_test[1] + "\t" + communication_test[2] + "\t" +
-                   communication_test[3]);
+    Serial.println("====================== [ Communication Test  ] ========================");
+    Serial.println(header);
+    Serial.println(body);
     Serial.println();
-}
-
-void set_motor_direction(uint8_t motor_index, bool dir)  // dir = true (Forward), false (Reverse)
-{
-    digitalWrite(pDIR[motor_index], dir);
-    enableMotor(motor_index);
-}
-
-void motorStop(uint8_t motor_index)
-{
-    static const uint8_t IHOLDDELAY   = 4;   // 64 ms ramp
-    static const uint8_t IRUN_FINAL   = 25;  // ≈125% final approach current
-    static const uint8_t IHOLD_LINEAR = 15;  // ≈50% holding current
-
-    disableDrivers();
-
-    /* 1. Final approach with increased current */
-    uint32_t val32 = (IHOLDDELAY << 16) | (IRUN_FINAL << 8) | IHOLD_LINEAR;
-    driver[motor_index].IHOLD_IRUN(val32);
-
-    /* 2. Quick stop with high frequency */
-    ledcWriteTone(LEDC_CHANNEL[motor_index], 400);  // Use 400Hz for final stop
-    delayMicroseconds(100);
-
-    /* 3. Stop pulses */
-    ledcWriteTone(LEDC_CHANNEL[motor_index], 0);
-
-    /* 4. Wait for mechanical settling */
-    delayMicroseconds(300);
-
-    /* 5. Set final holding current */
-    val32 = (IHOLDDELAY << 16) | (20 << 8) | IHOLD_LINEAR;
-    driver[motor_index].IHOLD_IRUN(val32);
-
-    /* 6. Disable output for rotary motors if needed */
-    if (motorType[motor_index] == MotorType::ROTATIONAL)
-        disableMotor(motor_index);
-
-    Serial.println(F("Motor Stop"));
 }
 
 void initializeLEDC()
 {
-    for (uint8_t motor_index = 0; motor_index < NUM_MOTORS; motor_index++)
+    for (uint8_t index = 0; index < NUM_MOTORS; index++)
     {
         // Configure LEDC timer
-        ledcSetup(LEDC_CHANNEL[motor_index], LEDC_BASE_FREQ, LEDC_TIMER_BIT);
+        ledcSetup(LEDC_CHANNEL[index], LEDC_BASE_FREQ, LEDC_TIMER_BIT);
 
         // Attach LEDC channels to step pins
-        ledcAttachPin(pSTEP[motor_index], LEDC_CHANNEL[motor_index]);
+        ledcAttachPin(pSTEP[index], LEDC_CHANNEL[index]);
     }
 }
 
@@ -495,55 +472,95 @@ float calculateStoppingDistance(float current_freq)
         return 0.5f;
 }
 
-void updateMotorFrequency(uint8_t motor_index, float error, float target_position, float current_pos)
+void updateMotorFrequency(uint8_t index, float error, float target_position, float current_pos)
 {
     static float last_freq[NUM_MOTORS] = {0};
-    float        abs_error             = fabs(error);
 
-    // محاسبه فرکانس پایه
+    // Calculate base frequency
     float base_freq = calculateFrequencyFromError(error);
 
-    // محاسبه فاصله تا هدف
+    // Calculate distance to target
     float distance_to_target = fabs(target_position - current_pos);
-    float stopping_distance  = calculateStoppingDistance(last_freq[motor_index]);
+    float stopping_distance  = calculateStoppingDistance(last_freq[index]);
 
-    // کاهش تدریجی سرعت
+    // Gradual speed reduction
     if (distance_to_target <= (stopping_distance * PREDICTIVE_STOP_FACTOR))
     {
         float reduction_factor = distance_to_target / (stopping_distance * PREDICTIVE_STOP_FACTOR);
-        // تغییر الگوریتم کاهش سرعت - شیب ملایم‌تر
-        reduction_factor = pow(reduction_factor, 1.5f);  // از 0.7 به 1.5 تغییر کرده
-        base_freq        = min(base_freq, last_freq[motor_index] * reduction_factor);
+        // Change speed reduction algorithm - gentler gradient
+        reduction_factor = pow(reduction_factor, 1.5f);  // changed from 0.7 to 1.5
+        base_freq        = min(base_freq, last_freq[index] * reduction_factor);
     }
 
-    // کاهش حداکثر تغییرات فرکانس
-    float max_freq_change = 200.0f;  // از 800 به 200 کاهش یافته
+    // Reduce maximum frequency change
+    float max_freq_change = 200.0f;  // reduced from 800 to 200
 
-    // محدود کردن تغییرات فرکانس
-    if (base_freq > last_freq[motor_index])
+    // Limit frequency change
+    if (base_freq > last_freq[index])
     {
-        base_freq = min(base_freq, last_freq[motor_index] + max_freq_change);
+        base_freq = min(base_freq, last_freq[index] + max_freq_change);
     }
     else
     {
-        base_freq = max(base_freq, last_freq[motor_index] - max_freq_change);
+        base_freq = max(base_freq, last_freq[index] - max_freq_change);
     }
 
-    // ذخیره فرکانس برای دفعه بعد
-    last_freq[motor_index] = base_freq;
+    // Save frequency for next time
+    last_freq[index] = base_freq;
 
-    // اعمال فرکانس جدید
-    uint8_t channel = LEDC_CHANNEL[motor_index];
+    // Apply new frequency
+    uint8_t channel = LEDC_CHANNEL[index];
     ledcWriteTone(channel, base_freq);
-    ledcWrite(channel, (1 << LEDC_TIMER_BIT) / 2);
+    uint32_t duty = (1 << LEDC_TIMER_BIT) / 2;
+    ledcWrite(channel, duty);
+
+    Serial.print("ch: ");
+    Serial.print(channel);  // amir amir
+    Serial.print(" freq: ");
+    Serial.print(base_freq);
+    Serial.print(" duty: ");
+    Serial.println(duty);
 }
 
-void stopMotorLEDC(uint8_t motor_index)
+void stopMotorLEDC(uint8_t index)
 {
-    uint8_t channel = LEDC_CHANNEL[motor_index];
+    uint8_t channel = LEDC_CHANNEL[index];
 
     // Stop PWM output
     ledcWrite(channel, 0);
+
+    Serial.println(F("Motor Stop"));
+}
+
+void motorStop(uint8_t index)
+{
+    disable_all_drivers();
+
+    static const uint8_t IHOLDDELAY   = 4;   // 64 ms ramp
+    static const uint8_t IRUN_FINAL   = 25;  // ≈125% final approach current
+    static const uint8_t IHOLD_LINEAR = 15;  // ≈50% holding current
+
+    // 1. Final approach with increased current
+    uint32_t val32 = (IHOLDDELAY << 16) | (IRUN_FINAL << 8) | IHOLD_LINEAR;
+    driver[index].IHOLD_IRUN(val32);
+
+    /* 2. Quick stop with high frequency */
+    ledcWriteTone(LEDC_CHANNEL[index], 400);  // Use 400Hz for final stop
+    delayMicroseconds(100);
+
+    // 3. Stop pulses
+    ledcWriteTone(LEDC_CHANNEL[index], 0);
+
+    // 4. Wait for mechanical settling
+    delayMicroseconds(300);
+
+    // 5. Set final holding current
+    val32 = (IHOLDDELAY << 16) | (20 << 8) | IHOLD_LINEAR;
+    driver[index].IHOLD_IRUN(val32);
+
+    // 6. Disable output for rotary motors if needed
+    if (motorType[index] == MotorType::ROTATIONAL)
+        disable_motor(index);
 
     Serial.println(F("Motor Stop"));
 }
