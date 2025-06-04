@@ -541,25 +541,27 @@ void stopMotorLEDC(uint8_t index)
 
 void motorStop(uint8_t index)
 {
-    disable_all_drivers();
+    // 0. Stop all pulses immediately (very important)
+    ledcWriteTone(LEDC_CHANNEL[index], 0);
+    delayMicroseconds(100);  // A little pause until the last pulse is finished
 
-    // 1. Final approach with increased current
-    set_IHOLD_IRUN(1, 4, 25, 15);  // ≈50 % hold, ≈81 % run, 64 ms ramp
+    // 1. Final advance with higher current for precise stop
+    set_IHOLD_IRUN(index, 4, 25, 15);  // ≈48 % hold, ≈81 % run, 64 ms ramp
 
-    // 2. Quick stop with high frequency
-    ledcWriteTone(LEDC_CHANNEL[index], 400);  // Use 400Hz for final stop
-    delayMicroseconds(100);
+    // 2. If needed, give the final frequency to complete the rotation (e.g. 400 Hz)
+    ledcWriteTone(LEDC_CHANNEL[index], 400);
+    delay(2);  // How many milliseconds should we give until some real pulses are given
 
-    // 3. Stop pulses
+    // 3. Remove all pulses (complete stop)
     ledcWriteTone(LEDC_CHANNEL[index], 0);
 
-    // 4. Wait for mechanical settling
+    // 4. Wait for the mechanical body to relax
     delayMicroseconds(300);
 
-    // 5. Set final holding current
-    set_IHOLD_IRUN(1, 16, 20, 8);  // ≈26 % hold, ≈65 % run, 256 ms ram
+    // 5. Set the final holding current (for a linear axis about 26% is enough)
+    set_IHOLD_IRUN(index, 16, 20, 8);  // ≈26 % hold, ≈65 % run, 256 ms ramp
 
-    // 6. Disable output for rotary motors if needed
+    // 6. Disable the output if the motor is rotary
     if (motorType[index] == MotorType::ROTATIONAL)
         disable_motor(index);
 }
