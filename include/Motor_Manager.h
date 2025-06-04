@@ -561,7 +561,7 @@ void motorStop(uint8_t index)
     delayMicroseconds(300);
 
     // 5. Set the final holding current (for a linear axis about 26% is enough)
-    set_IHOLD_IRUN(index, 16, 20, 8);  // ≈26 % hold, ≈65 % run, 256 ms ramp
+    set_IHOLD_IRUN(index, 4, 20, 8);  // ≈26 % hold, ≈65 % run, 64 ms ramp
 
     // 6. Disable the output if the motor is rotary
     if (motorType[index] == MotorType::ROTATIONAL)
