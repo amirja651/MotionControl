@@ -41,7 +41,6 @@ float   linear_Lower_limit_um        = LINEAR_LOWER_LIMIT_PX * UM_PER_PIXEL;  //
 float   linear_upper_limit_um        = LINEAR_UPPER_LIMIT_PX * UM_PER_PIXEL;  // Upper limit in pixels
 float   linear_offset_um             = LINEAR_OFFSET_PX * UM_PER_PIXEL;       // Offset in pixels
 float   target[NUM_MOTORS]           = {0, 0, 0, 0};
-float   current_position[NUM_MOTORS] = {0, 0, 0, 0};
 int64_t last_pulse[NUM_MOTORS]       = {0, 0, 0, 0};
 bool    command_received[NUM_MOTORS] = {false, false, false, false};
 bool    very_short_distance          = false;
@@ -74,7 +73,6 @@ void    motorStopAndSavePosition();
 void    printSerial();
 void    setTarget(float position);
 float   getTarget();
-bool    isValidMotorIndex(uint8_t motorIndex);
 bool    validationInputAndSetMotorIndex(String motorNumber);
 uint8_t getMotorIndex();
 void    setMotorIndex(uint8_t motorIndex);

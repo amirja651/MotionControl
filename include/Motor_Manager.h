@@ -89,6 +89,16 @@ void set_motor_direction(uint8_t index, bool dir)  // dir = true (Forward), fals
     enable_motor(index);
 }
 
+void set_IHOLD_IRUN(uint8_t index, uint8_t iholddelay, uint8_t irun, uint8_t ihold)
+{
+    // iholddelay   0-15 -> 4 × 16 × tPWM → ≈ 64 ms (x ms ramp from Run to Hold)
+    // irun         0-31 -> 20 / 31 ≈ 65 ٪          (Current in motion)
+    // ihold        0-31 -> 8 / 31 ≈ 26 ٪           (Current at standstill)
+
+    uint32_t val32 = (iholddelay << 16) | (irun << 8) | ihold;
+    driver[index].IHOLD_IRUN(val32);
+}
+
 void configureDriverNEMA11_1004H(uint8_t index)
 {
     if (motorType[index] != MotorType::LINEAR)
@@ -109,11 +119,10 @@ void configureDriverNEMA11_1004H(uint8_t index)
     driver[index].GCONF(gconf);
 
     // Current and microstep
-    driver[index].rms_current(700);              // 0.7A RMS (~1.0A peak, safer for thermal)
-    uint32_t val32 = (4 << 16) | (20 << 8) | 8;  // (8, 20, 4)
-    driver[index].IHOLD_IRUN(val32);             // // 40% hold, 100% move, 64 ms ramp
-    driver[index].microsteps(16);                // Fine control, 16 microsteps (try 32 for even smoother motion)
-    driver[index].intpol(true);                  // Enable interpolation for smooth motion
+    driver[index].rms_current(700);   // 0.7A RMS (~1.0A peak, safer for thermal)
+    set_IHOLD_IRUN(index, 4, 20, 8);  // ≈26 % hold, ≈65 % run, 64 ms ramp
+    driver[index].microsteps(16);     // Fine control, 16 microsteps (try 32 for even smoother motion)
+    driver[index].intpol(true);       // Enable interpolation for smooth motion
 
     // StealthChop / SpreadCycle
     driver[index].en_pwm_mode(true);  // StealthChop at low speed
@@ -528,23 +537,16 @@ void stopMotorLEDC(uint8_t index)
 
     // Stop PWM output
     ledcWrite(channel, 0);
-
-    Serial.println(F("Motor Stop"));
 }
 
 void motorStop(uint8_t index)
 {
     disable_all_drivers();
 
-    static const uint8_t IHOLDDELAY   = 4;   // 64 ms ramp
-    static const uint8_t IRUN_FINAL   = 25;  // ≈125% final approach current
-    static const uint8_t IHOLD_LINEAR = 15;  // ≈50% holding current
-
     // 1. Final approach with increased current
-    uint32_t val32 = (IHOLDDELAY << 16) | (IRUN_FINAL << 8) | IHOLD_LINEAR;
-    driver[index].IHOLD_IRUN(val32);
+    set_IHOLD_IRUN(1, 4, 25, 15);  // ≈50 % hold, ≈81 % run, 64 ms ramp
 
-    /* 2. Quick stop with high frequency */
+    // 2. Quick stop with high frequency
     ledcWriteTone(LEDC_CHANNEL[index], 400);  // Use 400Hz for final stop
     delayMicroseconds(100);
 
@@ -555,14 +557,11 @@ void motorStop(uint8_t index)
     delayMicroseconds(300);
 
     // 5. Set final holding current
-    val32 = (IHOLDDELAY << 16) | (20 << 8) | IHOLD_LINEAR;
-    driver[index].IHOLD_IRUN(val32);
+    set_IHOLD_IRUN(1, 16, 20, 8);  // ≈26 % hold, ≈65 % run, 256 ms ram
 
     // 6. Disable output for rotary motors if needed
     if (motorType[index] == MotorType::ROTATIONAL)
         disable_motor(index);
-
-    Serial.println(F("Motor Stop"));
 }
 
 #endif

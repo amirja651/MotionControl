@@ -19,10 +19,11 @@ void setup()
     initializeDriversAndTest();
     initializeLEDC();  // Initialize LEDC channels
 
-    encoders[0].begin();
-    encoders[1].begin();
-    encoders[2].begin();
-    encoders[3].begin();
+    for (int8_t index = 0; index < NUM_MOTORS; index++)
+    {
+        if (communication_test[index] != "FAILED")
+            encoders[index].begin();
+    }
 
     xTaskCreatePinnedToCore(encoderUpdateTask, "EncoderUpdateTask", 2048, NULL, 5, &encoderUpdateTaskHandle, 1);  // Core 1
     xTaskCreatePinnedToCore(motorUpdateTask, "MotorUpdateTask", 2048, NULL, 3, &motorUpdateTaskHandle, 1);        // Core 0
@@ -43,26 +44,29 @@ void loop()
 
 void encoderUpdateTask(void* pvParameters)
 {
-    const uint8_t    ENCODER_UPDATE_TIME = 4;
-    const TickType_t xFrequency          = pdMS_TO_TICKS(ENCODER_UPDATE_TIME);
-    TickType_t       xLastWakeTime       = xTaskGetTickCount();
+    const TickType_t xFrequency    = pdMS_TO_TICKS(4);
+    TickType_t       xLastWakeTime = xTaskGetTickCount();
 
     while (1)
     {
         uint8_t motorIndex = getMotorIndex();
 
-        for (int i = 0; i < NUM_MOTORS; i++)
+        if (communication_test[motorIndex] == "FAILED")
         {
-            if (i != motorIndex && encoders[i].isEnabled())
-            {
-                encoders[i].disable();
-            }
+            Serial.println(F("ERROR: Motor communication failed!"));
+            esp_task_wdt_reset();
+            vTaskDelayUntil(&xLastWakeTime, xFrequency);
+            continue;
         }
 
-        if (!encoders[motorIndex].isEnabled())
+        for (int8_t index = 0; index < NUM_MOTORS; index++)
         {
-            encoders[motorIndex].enable();
+            if (index != motorIndex && encoders[index].isEnabled())
+                encoders[index].disable();
         }
+
+        if (encoders[motorIndex].isDisabled())
+            encoders[motorIndex].enable();
 
         encoders[motorIndex].processPWM();
 
@@ -115,14 +119,15 @@ void motorUpdateTask(void* pvParameters)  // amir
         }
 
         // Get current position and calculate error
-        current_position[motorIndex] = (motorType[motorIndex] == MotorType::ROTATIONAL)
-                                           ? encoders[motorIndex].get_position_degrees()
-                                           : encoders[motorIndex].get_total_travel_um();
+        float current_position = (motorType[motorIndex] == MotorType::ROTATIONAL) ? encoders[motorIndex].get_position_degrees()
+                                                                                  : encoders[motorIndex].get_total_travel_um();
 
-        float error = getSignedPositionError(current_position[motorIndex]);
+        float error = getSignedPositionError(current_position);
 
         if (motorType[motorIndex] == MotorType::ROTATIONAL)
             error = wrapAngle180(error);
+
+        float target = getTarget();
 
         // Motor control based on error threshold
         if (very_short_distance || abs(error) > MOTOR_THRESHOLD[motorIndex])
@@ -133,7 +138,7 @@ void motorUpdateTask(void* pvParameters)  // amir
             set_motor_direction(motorIndex, error < 0);
 
             // Update frequency based on error and target position
-            updateMotorFrequency(motorIndex, error, getTarget(), current_position[motorIndex]);
+            updateMotorFrequency(motorIndex, error, target, current_position);
         }
         else
         {
@@ -148,11 +153,10 @@ void motorUpdateTask(void* pvParameters)  // amir
 
 void serialReadTask(void* pvParameters)
 {
-    const uint8_t    SERIAL_READ_TIME = 100;
-    const TickType_t xFrequency       = pdMS_TO_TICKS(SERIAL_READ_TIME);
-    TickType_t       xLastWakeTime    = xTaskGetTickCount();
-    String           inputBuffer      = "";
-    String           lastInput        = "";
+    const TickType_t xFrequency    = pdMS_TO_TICKS(100);
+    TickType_t       xLastWakeTime = xTaskGetTickCount();
+    String           inputBuffer   = "";
+    String           lastInput     = "";
 
     while (1)
     {
@@ -518,12 +522,21 @@ void serialReadTask(void* pvParameters)
                 Serial.println(F("System restarting..."));
 
                 // Ensure motors are stopped before restart
-                for (int i = 0; i < NUM_MOTORS; i++)
+                for (int8_t index = 0; index < NUM_MOTORS; index++)
                 {
-                    motorStop(i);
+                    if (communication_test[index] != "FAILED")
+                    {
+                        stopMotorLEDC(index);
+                        motorStop(index);
+                        command_received[index] = false;  // Reset command flag when target is reached or no command
+                        Serial.print(F("Motor "));
+                        Serial.print(index);
+                        Serial.println(F("Stop"));
+                    }
                 }
 
-                delay(100);  // Give time for motors to stop
+                delay(1000);
+                // Give time for motors to stop
                 ESP.restart();
             }
         }
@@ -542,9 +555,8 @@ void serialReadTask(void* pvParameters)
 
 void serialPrintTask(void* pvParameters)
 {
-    const uint16_t   SERIAL_PRINT_TIME = 300;
-    const TickType_t xFrequency        = pdMS_TO_TICKS(SERIAL_PRINT_TIME);
-    TickType_t       xLastWakeTime     = xTaskGetTickCount();
+    const TickType_t xFrequency    = pdMS_TO_TICKS(300);
+    TickType_t       xLastWakeTime = xTaskGetTickCount();
 
     while (1)
     {
@@ -560,6 +572,7 @@ void motorStopAndSavePosition()
     stopMotorLEDC(motorIndex);
     motorStop(motorIndex);
     command_received[motorIndex] = false;  // Reset command flag when target is reached or no command
+    Serial.println(F("Motor Stop"));
 
     if (0)
     {
@@ -584,13 +597,13 @@ void printSerial()
 
     EncoderState state = encoders[motorIndex].getState();
     String direction   = state.direction == Direction::UNKNOWN ? "---" : state.direction == Direction::CLOCKWISE ? "CW" : "CCW";
-    float  target      = getTarget();
 
     // Calculate steps for monitoring (not used for control)
     uint16_t steps = (motorType[motorIndex] == MotorType::LINEAR)
                          ? static_cast<uint16_t>(error / encoders[motorIndex].get_um_per_pulse())
                          : static_cast<uint16_t>(error / encoders[motorIndex].get_degrees_per_pulse());
 
+    float target = getTarget();
     if (target == 0)
     {
         error = 0;
@@ -619,12 +632,6 @@ void printSerial()
         Serial.print(F("\t"));
         Serial.print(steps);
         Serial.println("\n");
-        // Serial.print(state.width_high);
-        // Serial.print(F("\t"));
-        // Serial.print(state.width_low);
-        // Serial.print(F("\t"));
-        // Serial.print(state.period);
-        // Serial.print(F("\t"));
 
         last_pulse[motorIndex] = state.current_pulse;
     }
@@ -640,16 +647,6 @@ float getTarget()
 {
     uint8_t motorIndex = getMotorIndex();
     return target[motorIndex];
-}
-
-bool isValidMotorIndex(uint8_t motorIndex)
-{
-    if (motorIndex >= NUM_MOTORS)
-    {
-        Serial.println(F("ERROR: Invalid motor index!"));
-        return false;
-    }
-    return true;
 }
 
 bool validationInputAndSetMotorIndex(String motorNumber)
@@ -681,17 +678,19 @@ uint8_t getMotorIndex()
 
 void setMotorIndex(uint8_t motorIndex)
 {
-    if (!isValidMotorIndex(motorIndex))
+    if (motorIndex >= NUM_MOTORS)
+    {
+        Serial.println(F("ERROR: Invalid motor index!"));
         return;
+    }
+
     motor_index = motorIndex;
 }
 
 void resetCommandReceived()
 {
-    for (int i = 0; i < NUM_MOTORS; i++)
-    {
-        command_received[i] = false;
-    }
+    for (int8_t index = 0; index < NUM_MOTORS; index++)
+        command_received[index] = false;
 }
 
 bool validationInputAndSetLinearOffset(String linearOffsetStr)

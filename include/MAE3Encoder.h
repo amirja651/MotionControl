@@ -59,6 +59,11 @@ public:
         return enabled;
     }
 
+    bool isDisabled() const
+    {
+        return !enabled;
+    }
+
     const EncoderState& getState() const
     {
         return state;
