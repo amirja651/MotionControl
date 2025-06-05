@@ -1,6 +1,7 @@
 #ifndef MOTOR_MANAGER_H
 #define MOTOR_MANAGER_H
 
+#include "MAE3Encoder.h"
 #include <TMCStepper.h>
 
 enum class MotorType
@@ -15,9 +16,9 @@ enum class MotorType
 #define LEDC_TIMER_BIT 10     // 10-bit timer resolution
 #define LEDC_BASE_FREQ 10000  // Base frequency in Hz
 
-#define ROTATIONAL_THRESHOLD   0.05f  // Reduced from 0.1f
-#define LINEAR_THRESHOLD       0.05f  // Reduced from 0.1f
-#define PREDICTIVE_STOP_FACTOR 1.1f   // Reduced from 1.2f for later slowdown
+#define ROTATIONAL_THRESHOLD   0.1f  // Reduced from 0.1f
+#define LINEAR_THRESHOLD       0.1f  // Reduced from 0.1f
+#define PREDICTIVE_STOP_FACTOR 1.1f  // Reduced from 1.2f for later slowdown
 
 static const float MOTOR_THRESHOLD[NUM_MOTORS] = {LINEAR_THRESHOLD, ROTATIONAL_THRESHOLD, ROTATIONAL_THRESHOLD,
                                                   ROTATIONAL_THRESHOLD};
@@ -85,51 +86,86 @@ void enable_motor(uint8_t index)
 
 void set_motor_direction(uint8_t index, bool dir)  // dir = true (Forward), false (Reverse)
 {
-    digitalWrite(pDIR[index], dir);
+    digitalWrite(pDIR[index], dir ? LOW : HIGH);
+    // encoders[index].setDirection(dir ? Direction::CLOCKWISE : Direction::COUNTER_CLOCKWISE);
     enable_motor(index);
 }
 
-void set_IHOLD_IRUN(uint8_t index, uint8_t iholddelay, uint8_t irun, uint8_t ihold)
+void configure_driver_nema11_1004H(uint8_t index)
 {
-    // iholddelay   0-15 -> 4 × 16 × tPWM → ≈ 64 ms (x ms ramp from Run to Hold)
-    // irun         0-31 -> 20 / 31 ≈ 65 ٪          (Current in motion)
-    // ihold        0-31 -> 8 / 31 ≈ 26 ٪           (Current at standstill)
-
-    uint32_t val32 = (iholddelay << 16) | (irun << 8) | ihold;
-    driver[index].IHOLD_IRUN(val32);
-}
-
-void configureDriverNEMA11_1004H(uint8_t index)
-{
-    if (motorType[index] != MotorType::LINEAR)
+    if (motorType[index] != MotorType::ROTATIONAL)
     {
         Serial.println("Warning: Wrong motor config!");
         return;
     }
 
     disable_all_drivers();
+    delay(1);
 
-    // ✱ TMC5160 – Minimum configuration for STEP/DIR mode ✱
+    // ---------------------------
+    // 1. Basic Driver Configuration (GCONF)
+    // ---------------------------
     uint32_t gconf = 0;
-    gconf |= (1 << 0);  // Internal Rsense
-    gconf |= (1 << 2);  // Enable StealthChop
+    // gconf |= (1 << 0);  // Internal Rsense
+    gconf |= (1 << 2);  // StealthChop enable (initially)
     gconf |= (1 << 3);  // Microstep interpolation
     gconf |= (1 << 4);  // Double edge step
     gconf |= (1 << 6);  // Multistep filtering
     driver[index].GCONF(gconf);
+    delay(1);
 
-    // Current and microstep
-    driver[index].rms_current(700);   // 0.7A RMS (~1.0A peak, safer for thermal)
-    set_IHOLD_IRUN(index, 4, 20, 8);  // ≈26 % hold, ≈65 % run, 64 ms ramp
-    driver[index].microsteps(16);     // Fine control, 16 microsteps (try 32 for even smoother motion)
-    driver[index].intpol(true);       // Enable interpolation for smooth motion
+    // ---------------------------
+    // 2. Current Settings (Low Power Mode)
+    // ---------------------------
+    driver[index].rms_current(700);  // 0.7A RMS (safer for motor life)
+    driver[index].irun(16);
+    driver[index].ihold(8);
+    driver[index].iholddelay(8);   // 8 * 16 = 128 ms before going to hold current
+    driver[index].TPOWERDOWN(10);  // Power down delay (10 × 100ms) (irun -> ihold)
 
-    // StealthChop / SpreadCycle
-    driver[index].en_pwm_mode(true);  // StealthChop at low speed
+    // ---------------------------
+    // 3. Microstepping & Interpolation
+    // ---------------------------
+    driver[index].microsteps(16);  // Increased microstepping for smoother holding
+    driver[index].intpol(true);    // Smooth motion
+
+    // ---------------------------
+    // 4. StealthChop Settings (Enable for holding/low speed)
+    // ---------------------------
+    driver[index].TPWMTHRS(0xFFFF);  // StealthChop active at low speeds (including holding)
     driver[index].pwm_autoscale(true);
-    driver[index].TPWMTHRS(500);   // Switch threshold
-    driver[index].toff(4);         // Chopper off-time
-    driver[index].blank_time(24);  // Blank time
+    driver[index].pwm_autograd(true);
+    driver[index].pwm_ofs(36);
+    driver[index].pwm_grad(10);
+    driver[index].pwm_freq(2);
+    driver[index].en_pwm_mode(true);  // Enable StealthChop (silent mode) for holding
+
+    // ---------------------------
+    // 5. SpreadCycle Chopper Settings (used only at higher speeds)
+    // ---------------------------
+    // driver[index].toff(4);
+    // driver[index].blank_time(24);
+    // driver[index].hysteresis_start(3);
+    // driver[index].hysteresis_end(1);
+
+    // ---------------------------
+    // 6. StallGuard & CoolStep
+    // ---------------------------
+    // driver[index].TCOOLTHRS(200);  // CoolStep threshold
+    // driver[index].sgt(5);          // StallGuard threshold
+    // driver[index].sfilt(true);
+
+    // ---------------------------
+    // 7. Motion Configuration (Soft Motion)
+    // ---------------------------
+    driver[index].RAMPMODE(0);  // Positioning mode
+    driver[index].VSTART(1);    // Start slowly
+    driver[index].VSTOP(1);     // Stop slowly
+    driver[index].VMAX(600);    // Maximum speed, suitable for initial testing
+    driver[index].AMAX(100);    // Acceleration
+    driver[index].DMAX(100);    // Deceleration
+    driver[index].a1(300);      // Initial acceleration
+    driver[index].d1(300);      // Initial deceleration
 
     delay(1);
 }
@@ -381,7 +417,7 @@ void driverTest(uint8_t index, bool print = true)
 void initializeDriver(uint8_t index)
 {
     if (motorType[index] == MotorType::LINEAR)
-        configureDriverNEMA11_1004H(index);
+        configure_driver_nema11_1004H(index);
 
     else if (motorType[index] == MotorType::ROTATIONAL)
         optimizeForPancake(index);
@@ -428,9 +464,10 @@ void initializeLEDC()
     {
         // Configure LEDC timer
         ledcSetup(LEDC_CHANNEL[index], LEDC_BASE_FREQ, LEDC_TIMER_BIT);
+        // ledcSetup(0, 1000, 1);  // dummy freq, 1-bit duty (square)
 
         // Attach LEDC channels to step pins
-        ledcAttachPin(pSTEP[index], LEDC_CHANNEL[index]);
+        ledcAttachPin(pSTEP[index], 0);
     }
 }
 
@@ -548,7 +585,7 @@ void motorStop(uint8_t index)
     delayMicroseconds(100);  // A little pause until the last pulse is finished
 
     // 1. Final advance with higher current for precise stop
-    set_IHOLD_IRUN(index, 4, 25, 15);  // ≈48 % hold, ≈81 % run, 64 ms ramp
+    // set_IHOLD_IRUN(index, 4, 25, 15);  // ≈48 % hold, ≈81 % run, 64 ms ramp
 
     // 2. If needed, give the final frequency to complete the rotation (e.g. 400 Hz)
     ledcWriteTone(LEDC_CHANNEL[index], 400);
@@ -561,7 +598,7 @@ void motorStop(uint8_t index)
     delayMicroseconds(300);
 
     // 5. Set the final holding current (for a linear axis about 26% is enough)
-    set_IHOLD_IRUN(index, 4, 20, 8);  // ≈26 % hold, ≈65 % run, 64 ms ramp
+    // set_IHOLD_IRUN(index, 4, 20, 8);  // ≈26 % hold, ≈65 % run, 64 ms ramp
 
     // 6. Disable the output if the motor is rotary
     if (motorType[index] == MotorType::ROTATIONAL)

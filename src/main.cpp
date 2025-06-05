@@ -44,7 +44,7 @@ void loop()
 
 void encoderUpdateTask(void* pvParameters)
 {
-    const TickType_t xFrequency    = pdMS_TO_TICKS(4);
+    const TickType_t xFrequency    = pdMS_TO_TICKS(1);
     TickType_t       xLastWakeTime = xTaskGetTickCount();
 
     while (1)
@@ -92,6 +92,9 @@ float getSignedPositionError(float current_pos)
     return error;
 }
 
+static float _error  = 0;
+static float _target = 0;
+
 void motorUpdateTask(void* pvParameters)  // amir
 {
     const uint8_t    MOTOR_UPDATE_TIME = 4;
@@ -119,26 +122,26 @@ void motorUpdateTask(void* pvParameters)  // amir
         }
 
         // Get current position and calculate error
-        float current_position = (motorType[motorIndex] == MotorType::ROTATIONAL) ? encoders[motorIndex].get_position_degrees()
-                                                                                  : encoders[motorIndex].get_total_travel_um();
+        float current_pos = (motorType[motorIndex] == MotorType::ROTATIONAL) ? encoders[motorIndex].getPositionDegrees()
+                                                                             : encoders[motorIndex].getTotalTravelUM();
 
-        float error = getSignedPositionError(current_position);
+        _error = getSignedPositionError(current_pos);
 
         if (motorType[motorIndex] == MotorType::ROTATIONAL)
-            error = wrapAngle180(error);
+            _error = wrapAngle180(_error);
 
-        float target = getTarget();
+        _target = getTarget();
 
         // Motor control based on error threshold
-        if (very_short_distance || abs(error) > MOTOR_THRESHOLD[motorIndex])
+        if (very_short_distance || abs(_error) > MOTOR_THRESHOLD[motorIndex])
         {
             very_short_distance = false;
 
             // Set direction based on error sign
-            set_motor_direction(motorIndex, error < 0);
+            set_motor_direction(motorIndex, _error > 0);
 
             // Update frequency based on error and target position
-            updateMotorFrequency(motorIndex, error, target, current_position);
+            updateMotorFrequency(motorIndex, _error, _target, current_pos);
         }
         else
         {
@@ -331,11 +334,11 @@ void serialReadTask(void* pvParameters)
 
                     if (motorType[motorIndex] == MotorType::ROTATIONAL)
                     {
-                        Serial.print(encoders[motorIndex].get_position_degrees());
+                        Serial.print(encoders[motorIndex].getPositionDegrees());
                     }
                     else
                     {
-                        Serial.print(encoders[motorIndex].get_position_um());
+                        Serial.print(encoders[motorIndex].getPositionUM());
                     }
 
                     Serial.println(F("#"));
@@ -576,8 +579,8 @@ void motorStopAndSavePosition()
 
     if (0)
     {
-        float currentPosition = motorType[motorIndex] == MotorType::LINEAR ? encoders[motorIndex].get_position_um()
-                                                                           : encoders[motorIndex].get_position_degrees();
+        float currentPosition = motorType[motorIndex] == MotorType::LINEAR ? encoders[motorIndex].getPositionUM()
+                                                                           : encoders[motorIndex].getPositionDegrees();
         saveMotorPosition(motorIndex, currentPosition);  // Save the final position to EEPROM when motor stops
     }
 }
@@ -585,35 +588,33 @@ void motorStopAndSavePosition()
 void printSerial()
 {
     uint8_t motorIndex  = getMotorIndex();
-    float   current_pos = motorType[motorIndex] == MotorType::ROTATIONAL ? encoders[motorIndex].get_position_degrees()
-                                                                         : encoders[motorIndex].get_total_travel_um();
+    float   current_pos = motorType[motorIndex] == MotorType::ROTATIONAL ? encoders[motorIndex].getPositionDegrees()
+                                                                         : encoders[motorIndex].getTotalTravelUM();
 
-    float error = getSignedPositionError(current_pos);
+    float error2 = getSignedPositionError(current_pos);
 
     if (motorType[motorIndex] == MotorType::ROTATIONAL)
-        error = wrapAngle180(error);
-
-    error = fabs(error);
+        error2 = wrapAngle180(error2);
 
     EncoderState state = encoders[motorIndex].getState();
     String direction   = state.direction == Direction::UNKNOWN ? "---" : state.direction == Direction::CLOCKWISE ? "CW" : "CCW";
 
     // Calculate steps for monitoring (not used for control)
     uint16_t steps = (motorType[motorIndex] == MotorType::LINEAR)
-                         ? static_cast<uint16_t>(error / encoders[motorIndex].get_um_per_pulse())
-                         : static_cast<uint16_t>(error / encoders[motorIndex].get_degrees_per_pulse());
+                         ? static_cast<uint16_t>(fabs(error2) / encoders[motorIndex].getUMPerPulse())
+                         : static_cast<uint16_t>(fabs(error2) / encoders[motorIndex].getDegreesPerPulse());
 
     float target = getTarget();
     if (target == 0)
     {
-        error = 0;
-        steps = 0;
+        error2 = 0;
+        steps  = 0;
     }
 
     if (fabs(state.current_pulse - last_pulse[motorIndex]) > 1)
     {
         //  table header
-        Serial.print(F("Motor\tLaps\tDir\tPulse\tPos\tTarget\tError\tRem. Steps\n"));
+        Serial.print(F("Motor\tLaps\tDir\tPulse\tPos\t\tTarget\tError\t\tRem. Steps\n"));
 
         // Format all values into the buffer
         Serial.print(motorIndex + 1);
@@ -625,11 +626,11 @@ void printSerial()
         Serial.print(state.current_pulse);
         Serial.print(F("\t"));
         Serial.print(current_pos);
+        Serial.print(F("\t\t"));
+        Serial.print(_target);
         Serial.print(F("\t"));
-        Serial.print(target);
-        Serial.print(F("\t"));
-        Serial.print(error);
-        Serial.print(F("\t"));
+        Serial.print(_error);
+        Serial.print(F("\t\t"));
         Serial.print(steps);
         Serial.println("\n");
 
@@ -760,8 +761,8 @@ bool validationInputAndSetTarget(String targetStr)
     Serial.print(position);
     Serial.println(motorType[motorIndex] == MotorType::LINEAR ? F(" um") : F(" °"));
 
-    float current_pos = motorType[motorIndex] == MotorType::ROTATIONAL ? encoders[motorIndex].get_position_degrees()
-                                                                       : encoders[motorIndex].get_total_travel_um();
+    float current_pos = motorType[motorIndex] == MotorType::ROTATIONAL ? encoders[motorIndex].getPositionDegrees()
+                                                                       : encoders[motorIndex].getTotalTravelUM();
 
     float error = getSignedPositionError(current_pos);
 
