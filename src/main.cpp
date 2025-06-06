@@ -632,6 +632,12 @@ void printSerial()
         Serial.print(_error);
         Serial.print(F("\t\t"));
         Serial.print(steps);
+        /*Serial.print(F("\t\t"));
+        Serial.print(state.width_high);
+        Serial.print(F("\t\t"));
+        Serial.print(state.width_low);
+        Serial.print(F("\t\t"));
+        Serial.print(state.period);*/
         Serial.println("\n");
 
         last_pulse[motorIndex] = state.current_pulse;

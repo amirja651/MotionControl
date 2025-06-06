@@ -3,21 +3,18 @@
 
 #include <Arduino.h>
 #include <array>
+#include <bitset>
 #include <cstdlib>  // For abs with uint32_t
 #include <esp_timer.h>
 
-#define DELTA_BUFFER_SIZE 10
-
 // Maximum number of encoders supported
-constexpr uint8_t MAX_ENCODERS            = 4;
-constexpr uint8_t CALIBRATION_BUFFER_SIZE = 20;
+constexpr uint8_t MAX_ENCODERS = 4;
 
 // Linear motion constants
-constexpr float    LEAD_SCREW_PITCH_MM = 0.5f;      // Lead screw pitch in mm
-constexpr float    TOTAL_TRAVEL_MM     = 30.0f;     // Total travel distance in mm
-constexpr float    LEAD_SCREW_PITCH_UM = 500.0f;    // 0.5mm = 500μm
-constexpr float    TOTAL_TRAVEL_UM     = 30000.0f;  // 30mm = 30000μm
-constexpr uint32_t DEFAULT_MAX_T       = 4096;      // Default 4096 value
+constexpr float LEAD_SCREW_PITCH_MM = 0.5f;      // Lead screw pitch in mm
+constexpr float TOTAL_TRAVEL_MM     = 30.0f;     // Total travel distance in mm
+constexpr float LEAD_SCREW_PITCH_UM = 500.0f;    // 0.5mm = 500μm
+constexpr float TOTAL_TRAVEL_UM     = 30000.0f;  // 30mm = 30000μm
 
 // Direction enum
 enum class Direction
@@ -41,12 +38,13 @@ struct EncoderState
     double           accumulated_steps = 0;
 
     // Sector tracking
-    static constexpr uint8_t  NUM_SECTORS      = 60;
-    static constexpr uint16_t STEPS_PER_SECTOR = 4096 / NUM_SECTORS;  // ≈ 68.266
-    uint64_t                  touched_sectors  = 0;                   // Bitmap of touched sectors
-    uint8_t                   current_sector   = 0;                   // Current sector (0-59)
-    uint8_t                   last_sector      = 0;                   // Last sector for direction detection
-    uint8_t                   touched_count    = 0;                   // Count of touched sectors
+    static constexpr uint16_t STEPS_PER_SECTOR = 3;
+    static constexpr uint16_t NUM_SECTORS      = 4096 / STEPS_PER_SECTOR;
+    std::bitset<NUM_SECTORS>  touched_sectors  = 0;
+
+    uint8_t current_sector = 0;  // Current sector (0-59)
+    uint8_t last_sector    = 0;  // Last sector for direction detection
+    uint8_t touched_count  = 0;  // Count of touched sectors
 };
 
 class MAE3Encoder
@@ -137,14 +135,14 @@ public:
     void processPWM();
 
     // --- Pulse width ring buffers ---
-    static constexpr size_t                       PULSE_BUFFER_SIZE = 10;
+    static constexpr size_t                       PULSE_BUFFER_SIZE = 3;
     const std::array<int64_t, PULSE_BUFFER_SIZE>& getWidthHBuffer() const
     {
-        return widthHBuffer;
+        return width_h_buffer;
     }
     const std::array<int64_t, PULSE_BUFFER_SIZE>& getWidthLBuffer() const
     {
-        return widthLBuffer;
+        return width_l_buffer;
     }
     size_t getPulseBufferIndex() const
     {
@@ -152,33 +150,14 @@ public:
     }
 
     // Median filter for width_high
-    int64_t getMedianWidthHigh() const;
+    int64_t get_median_width_high() const;
     // Median filter for width_low
-    int64_t getMedianWidthLow() const;
-
-    // Sector tracking methods
-    uint8_t getCurrentSector() const
-    {
-        return state.current_sector;
-    }
-    uint8_t getTouchedSectorCount() const
-    {
-        return state.touched_count;
-    }
-    bool isSectorTouched(uint8_t sector) const
-    {
-        return (state.touched_sectors & (1ULL << sector)) != 0;
-    }
-    uint64_t getTouchedSectors() const
-    {
-        return state.touched_sectors;
-    }
+    int64_t get_median_width_low() const;
 
 private:
-    void     processInterrupt();
-    void     attachInterruptHandler();
-    void     detachInterruptHandler();
-    uint32_t findMostFrequentValue(const std::array<uint32_t, CALIBRATION_BUFFER_SIZE>& buffer);
+    void processInterrupt();
+    void attachInterruptHandler();
+    void detachInterruptHandler();
 
     // Pin assignments
     const uint8_t signalPin;
@@ -187,21 +166,16 @@ private:
     // State management
     EncoderState  state;
     volatile bool enabled;
-    uint32_t      max_t;  // Instance-specific 4096 value
 
     // Filtering and timing
     int64_t          lastPulseTime;
-    volatile int64_t lastFallingEdgeTime;
-    volatile int64_t lastRisingEdgeTime;
+    volatile int64_t lastFallingEdgeTime = 0;
+    volatile int64_t lastRisingEdgeTime  = 0;
 
     // Interrupt handling
     volatile bool newPulseAvailable;
     // Flag to indicate buffer was updated (set in processInterrupt, cleared after processPWM)
     volatile bool bufferUpdated;
-
-    // Calibration buffer
-    std::array<uint32_t, CALIBRATION_BUFFER_SIZE> calibrationBuffer;
-    uint8_t                                       calibrationIndex;
 
     // Individual interrupt handler for this encoder
     static void IRAM_ATTR interruptHandler0();
@@ -213,12 +187,14 @@ private:
     static MAE3Encoder* encoderInstances[MAX_ENCODERS];
 
     // --- Pulse width ring buffers ---
-    std::array<int64_t, PULSE_BUFFER_SIZE> widthLBuffer{};
-    std::array<int64_t, PULSE_BUFFER_SIZE> widthHBuffer{};
+    std::array<int64_t, PULSE_BUFFER_SIZE> width_l_buffer{};
+    std::array<int64_t, PULSE_BUFFER_SIZE> width_h_buffer{};
     size_t                                 pulseBufferIndex = 0;
 
     void updateSectorTracking();
     bool checkFullRotation() const;
+
+    mutable portMUX_TYPE mux = portMUX_INITIALIZER_UNLOCKED;
 };
 
 #endif  // MAE3_ENCODER2_H

@@ -93,9 +93,9 @@ void set_motor_direction(uint8_t index, bool dir)  // dir = true (Forward), fals
 
 void configure_driver_nema11_1004H(uint8_t index)
 {
-    if (motorType[index] != MotorType::ROTATIONAL)
+    if (motorType[index] != MotorType::LINEAR)
     {
-        Serial.println("Warning: Wrong motor config!");
+        Serial.println("Warning: Wrong linear motor config!");
         return;
     }
 
@@ -174,7 +174,7 @@ void optimizeForPancake(uint8_t index)
 {
     if (motorType[index] != MotorType::ROTATIONAL)
     {
-        Serial.println("Warning: Wrong motor config!");
+        Serial.println("Warning: Wrong rotary motor config!");
         return;
     }
 
