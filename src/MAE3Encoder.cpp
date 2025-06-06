@@ -107,6 +107,27 @@ void MAE3Encoder::disable()
     detachInterruptHandler();
 }
 
+void MAE3Encoder::reset()
+{
+    state.current_pulse = 0;  // Current pulse value
+    state.last_pulse    = 0;  // Current pulse value
+    state.width_high    = 0;  // High pulse width (rising to falling)
+    state.width_low     = 0;  // Low pulse width (falling to rising)
+    state.period        = 0;  // Total pulse width (t_on + t_off)
+    state.laps          = 0;  // Number of complete rotations
+
+    state.direction = Direction::UNKNOWN;  // Current direction of rotation
+
+    lastPulseTime       = 0;
+    lastFallingEdgeTime = 0;
+    lastRisingEdgeTime  = 0;
+
+    newPulseAvailable = false;
+    bufferUpdated     = false;
+
+    pulseBufferIndex = 0;
+}
+
 void MAE3Encoder::attachInterruptHandler()
 {
     switch (encoderId)
@@ -225,115 +246,6 @@ void MAE3Encoder::processPWM()
     bufferUpdated = false;
     portEXIT_CRITICAL(&mux);
     lastPulseTime = esp_timer_get_time();
-
-    // در انتهای processPWM:
-    int64_t delta_pulse = state.current_pulse - state.last_pulse;
-
-    if (delta_pulse > 2048)
-        delta_pulse -= 4096;
-    else if (delta_pulse < -2048)
-        delta_pulse += 4096;
-
-    // Direction update بلادرنگ
-    if (delta_pulse > 0)
-        state.direction = Direction::CLOCKWISE;
-    else if (delta_pulse < 0)
-        state.direction = Direction::COUNTER_CLOCKWISE;
-
-    state.delta = delta_pulse;
-    state.accumulated_steps += delta_pulse;
-
-    // Laps update دقیق
-    if (state.accumulated_steps >= 4096)
-    {
-        state.laps += 1;
-        state.accumulated_steps -= 4096;
-    }
-    else if (state.accumulated_steps <= -4096)
-    {
-        state.laps -= 1;
-        state.accumulated_steps += 4096;
-    }
-
-    state.last_pulse = state.current_pulse;
-
-    // Update sector tracking
-    updateSectorTracking();
-}
-
-void MAE3Encoder::updateSectorTracking()
-{
-    uint16_t new_sector = state.current_pulse / EncoderState::STEPS_PER_SECTOR;
-
-    // Always compute sector_diff
-    int16_t sector_diff = new_sector - state.current_sector;
-
-    if (sector_diff > EncoderState::NUM_SECTORS / 2)
-        sector_diff -= EncoderState::NUM_SECTORS;
-    else if (sector_diff < -EncoderState::NUM_SECTORS / 2)
-        sector_diff += EncoderState::NUM_SECTORS;
-
-    // Update direction always
-    if (sector_diff > 0)
-        state.direction = Direction::CLOCKWISE;
-    else if (sector_diff < 0)
-        state.direction = Direction::COUNTER_CLOCKWISE;
-    // if sector_diff == 0 → keep previous direction
-
-    // Now update sectors tracking only if sector actually changed
-    if (new_sector != state.current_sector)
-    {
-        state.last_sector    = state.current_sector;
-        state.current_sector = new_sector;
-
-        // If sector was untouched
-        if (!state.touched_sectors.test(new_sector))
-        {
-            state.touched_sectors.set(new_sector);
-            state.touched_count++;
-        }
-
-        // Check full rotation
-        if (checkFullRotation())
-        {
-            state.laps += (state.direction == Direction::CLOCKWISE) ? 1 : -1;
-            state.touched_sectors.reset();
-            state.touched_count = 0;
-        }
-    }
-}
-
-bool MAE3Encoder::checkFullRotation() const
-{
-    constexpr float FULL_ROTATION_THRESHOLD = 0.95f;  // 95% of sectors touched
-
-    float touched_ratio = static_cast<float>(state.touched_count) / static_cast<float>(EncoderState::NUM_SECTORS);
-
-    return touched_ratio >= FULL_ROTATION_THRESHOLD;
-}
-
-void MAE3Encoder::reset()
-{
-    state.current_pulse     = 0;
-    state.last_pulse        = 0;
-    state.width_high        = 0;
-    state.width_low         = 0;
-    state.period            = 0;
-    state.laps              = 0;
-    state.absolute_position = 0;
-    state.direction         = Direction::UNKNOWN;
-    state.last_pulse        = 0.0f;
-    state.delta             = 0.0f;
-    newPulseAvailable       = false;
-    lastPulseTime           = 0;
-    lastFallingEdgeTime     = 0;
-    lastRisingEdgeTime      = 0;
-
-    // Reset sector tracking
-    state.touched_sectors = 0;
-    state.current_sector  = 0;
-    state.last_sector     = 0;
-    state.touched_count   = 0;
 }
 
 int64_t MAE3Encoder::get_median_width_high() const
