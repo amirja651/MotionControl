@@ -47,6 +47,7 @@ MAE3Encoder::MAE3Encoder(uint8_t signalPin, uint8_t encoderId)
       encoderId(encoderId),
       state{},
       enabled(false),
+      r_pulse{},
       lastPulseTime(0),
       lastFallingEdgeTime(0),
       lastRisingEdgeTime(0),
@@ -177,7 +178,7 @@ void IRAM_ATTR MAE3Encoder::processInterrupt()
                 return;
             }
 
-            width_l_buffer[pulseBufferIndex] = pulse_width;
+            r_pulse.low = pulse_width;
         }
     }
     else
@@ -195,18 +196,22 @@ void IRAM_ATTR MAE3Encoder::processInterrupt()
                 return;
             }
 
-            width_h_buffer[pulseBufferIndex] = pulse_width;
+            r_pulse.high = pulse_width;
         }
 
-        int64_t period = width_h_buffer[pulseBufferIndex] + width_l_buffer[pulseBufferIndex];
-        if (period < 1 || period > 4098)
+        int64_t period = r_pulse.high + r_pulse.low;
+
+        if (period > 4098 || ((r_pulse.low < 50 && r_pulse.high < 50)))
         {
+            r_pulse.high = 0;
+            r_pulse.low  = 0;
             portEXIT_CRITICAL_ISR(&mux);
             return;
         }
 
-        state.width_high = width_h_buffer[pulseBufferIndex];
-        state.width_low  = width_l_buffer[pulseBufferIndex];
+        state.period_2   = r_pulse.high + r_pulse.low;
+        state.width_high = width_h_buffer[pulseBufferIndex] = r_pulse.high;
+        state.width_low = width_l_buffer[pulseBufferIndex] = r_pulse.low;
 
         pulseBufferIndex = (pulseBufferIndex + 1) % PULSE_BUFFER_SIZE;
         bufferUpdated    = true;
@@ -231,11 +236,30 @@ void MAE3Encoder::processPWM()
     int64_t width_l = get_median_width_low();
     int64_t period  = width_h + width_l;
 
-    if (period == 0 || period < (4098 / 2))
-        return;
-
     state.period = period;
 
+    if (period == 0)  //|| (width_h < 200 && width_h < 200)
+        return;
+
+    String s = "";
+
+    if (period < 3900)
+    {
+        portENTER_CRITICAL(&mux);
+        for (size_t i = 0; i < width_h_buffer.size(); ++i)
+        {
+            s += "#";
+            s += String(i);
+            s += " ";
+            s += String(width_h_buffer[i]);
+            s += "/";
+            s += String(width_l_buffer[i]);
+            s += "    ";
+        }
+        portEXIT_CRITICAL(&mux);
+        Serial.print(s);
+        Serial.println();
+    }
     // Optimized calculation for x_measured
     int64_t x_measured = ((width_h * 4098) / period) - 1;
 

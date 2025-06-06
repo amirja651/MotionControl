@@ -22,6 +22,12 @@ enum class Direction
     UNKNOWN
 };
 
+struct RPulse
+{
+    volatile int64_t low  = 0;
+    volatile int64_t high = 0;
+};
+
 struct EncoderState
 {
     volatile int64_t current_pulse;  // Current pulse value
@@ -29,6 +35,8 @@ struct EncoderState
     volatile int64_t width_high;     // High pulse width (rising to falling)
     volatile int64_t width_low;      // Low pulse width (falling to rising)
     volatile int64_t period;         // Total pulse width (t_on + t_off)
+    volatile int64_t period_2;       // Total pulse width (t_on + t_off)
+    volatile int64_t period_3;       // Total pulse width (t_on + t_off)
     volatile int64_t laps;           // Number of complete rotations
     volatile int64_t delta;
     volatile int64_t delta_circular;
@@ -139,6 +147,8 @@ private:
     EncoderState  state;
     volatile bool enabled = false;
 
+    RPulse r_pulse;
+
     // Filtering and timing
     int64_t          lastPulseTime       = 0;
     volatile int64_t lastFallingEdgeTime = 0;
@@ -154,7 +164,7 @@ private:
     static MAE3Encoder* encoderInstances[MAX_ENCODERS];
 
     // --- Pulse width ring buffers ---
-    static constexpr size_t PULSE_BUFFER_SIZE = 5;
+    static constexpr size_t PULSE_BUFFER_SIZE = 10;
 
     std::array<int64_t, PULSE_BUFFER_SIZE> width_l_buffer{};
     std::array<int64_t, PULSE_BUFFER_SIZE> width_h_buffer{};

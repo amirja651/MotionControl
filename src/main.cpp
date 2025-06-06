@@ -620,32 +620,34 @@ void printSerial()
     if (fabs(state.current_pulse - last_pulse[motorIndex]) > 1)
     {
         //  table header
-        Serial.print(F("Motor\tLaps\tDir\tPos\tTarget\tError\tRSteps\tPulse\n"));
+        Serial.print(F("Laps\tDir\tPulse\tPrd2\tPrd\tHi\tLo\n"));
 
         // Format all values into the buffer
-        Serial.print(motorIndex + 1);
-        Serial.print(F("\t"));
+        // Serial.print(motorIndex + 1);
+        // Serial.print(F("\t"));
         Serial.print(state.laps);
         Serial.print(F("\t"));
         Serial.print(direction.c_str());
         Serial.print(F("\t"));
-        Serial.print(current_pos);
-        Serial.print(F("\t"));
-        Serial.print(_target);
-        Serial.print(F("\t"));
-        Serial.print(_error);
-        Serial.print(F("\t"));
-        Serial.print(steps);
-        Serial.print(F("\t"));
+        // Serial.print(current_pos);
+        // Serial.print(F("\t"));
+        // Serial.print(_target);
+        // Serial.print(F("\t"));
+        // Serial.print(_error);
+        // Serial.print(F("\t"));
+        // Serial.print(steps);
+        // Serial.print(F("\t"));
         Serial.print(state.current_pulse);
-        /*
+        Serial.print(F("\t"));
+        Serial.print(state.period_2);
+        Serial.print(F("\t"));
+        Serial.print(state.period);
+
         Serial.print(F("\t"));
         Serial.print(state.width_high);
         Serial.print(F("\t"));
         Serial.print(state.width_low);
-        Serial.print(F("\t"));
-        Serial.print(state.period);
-        */
+
         Serial.println("\n");
 
         last_pulse[motorIndex] = state.current_pulse;
