@@ -243,7 +243,7 @@ void MAE3Encoder::processPWM()
 
     String s = "";
 
-    if (period < 3900)
+    if (period < 3900 || period > 4096)
     {
         portENTER_CRITICAL(&mux);
         for (size_t i = 0; i < width_h_buffer.size(); ++i)

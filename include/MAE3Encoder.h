@@ -164,7 +164,7 @@ private:
     static MAE3Encoder* encoderInstances[MAX_ENCODERS];
 
     // --- Pulse width ring buffers ---
-    static constexpr size_t PULSE_BUFFER_SIZE = 10;
+    static constexpr size_t PULSE_BUFFER_SIZE = 5;
 
     std::array<int64_t, PULSE_BUFFER_SIZE> width_l_buffer{};
     std::array<int64_t, PULSE_BUFFER_SIZE> width_h_buffer{};
