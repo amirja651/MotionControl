@@ -54,6 +54,7 @@ void encoderUpdateTask(void* pvParameters)
         if (communication_test[motorIndex] == "FAILED")
         {
             Serial.println(F("ERROR: Motor communication failed!"));
+
             esp_task_wdt_reset();
             vTaskDelayUntil(&xLastWakeTime, xFrequency);
             continue;
@@ -61,15 +62,20 @@ void encoderUpdateTask(void* pvParameters)
 
         for (int8_t index = 0; index < NUM_MOTORS; index++)
         {
-            if (index != motorIndex && encoders[index].isEnabled())
-                encoders[index].disable();
+            if (index != motorIndex)
+            {
+                if (encoders[index].isEnabled())
+                    encoders[index].disable();  // Other encoder
+            }
+            else
+            {
+                if (encoders[index].isDisabled())
+                    encoders[index].enable();  // current encoder
+            }
         }
 
-        if (encoders[motorIndex].isDisabled())
-            encoders[motorIndex].enable();
-
         encoders[motorIndex].processPWM();
-
+        printSerial();
         esp_task_wdt_reset();
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }
@@ -563,7 +569,7 @@ void serialPrintTask(void* pvParameters)
 
     while (1)
     {
-        printSerial();
+        // printSerial();
         esp_task_wdt_reset();
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }
@@ -614,7 +620,7 @@ void printSerial()
     if (fabs(state.current_pulse - last_pulse[motorIndex]) > 1)
     {
         //  table header
-        Serial.print(F("Motor\tLaps\tDir\tPulse\tPos\t\tTarget\tError\t\tRem. Steps\n"));
+        Serial.print(F("Motor\tLaps\tDir\tPos\tTarget\tError\tRSteps\tPulse\n"));
 
         // Format all values into the buffer
         Serial.print(motorIndex + 1);
@@ -623,21 +629,23 @@ void printSerial()
         Serial.print(F("\t"));
         Serial.print(direction.c_str());
         Serial.print(F("\t"));
-        Serial.print(state.current_pulse);
-        Serial.print(F("\t"));
         Serial.print(current_pos);
-        Serial.print(F("\t\t"));
+        Serial.print(F("\t"));
         Serial.print(_target);
         Serial.print(F("\t"));
         Serial.print(_error);
-        Serial.print(F("\t\t"));
+        Serial.print(F("\t"));
         Serial.print(steps);
-        /*Serial.print(F("\t\t"));
+        Serial.print(F("\t"));
+        Serial.print(state.current_pulse);
+        /*
+        Serial.print(F("\t"));
         Serial.print(state.width_high);
-        Serial.print(F("\t\t"));
+        Serial.print(F("\t"));
         Serial.print(state.width_low);
-        Serial.print(F("\t\t"));
-        Serial.print(state.period);*/
+        Serial.print(F("\t"));
+        Serial.print(state.period);
+        */
         Serial.println("\n");
 
         last_pulse[motorIndex] = state.current_pulse;

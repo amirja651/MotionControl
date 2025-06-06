@@ -109,14 +109,16 @@ void MAE3Encoder::disable()
 
 void MAE3Encoder::reset()
 {
-    state.current_pulse = 0;  // Current pulse value
-    state.last_pulse    = 0;  // Current pulse value
-    state.width_high    = 0;  // High pulse width (rising to falling)
-    state.width_low     = 0;  // Low pulse width (falling to rising)
-    state.period        = 0;  // Total pulse width (t_on + t_off)
-    state.laps          = 0;  // Number of complete rotations
+    state.current_pulse  = 0;
+    state.last_pulse     = 0;
+    state.width_high     = 0;
+    state.width_low      = 0;
+    state.period         = 0;
+    state.laps           = 0;
+    state.delta          = 0;
+    state.delta_circular = 0;
 
-    state.direction = Direction::UNKNOWN;  // Current direction of rotation
+    state.direction = Direction::UNKNOWN;
 
     lastPulseTime       = 0;
     lastFallingEdgeTime = 0;
@@ -228,24 +230,64 @@ void MAE3Encoder::processPWM()
     int64_t width_h = get_median_width_high();
     int64_t width_l = get_median_width_low();
     int64_t period  = width_h + width_l;
-    state.period    = period;
 
-    if (period == 0)
+    if (period == 0 || period < (4098 / 2))
         return;
+
+    state.period = period;
 
     // Optimized calculation for x_measured
     int64_t x_measured = ((width_h * 4098) / period) - 1;
 
     // Validate based on documentation
-    if (x_measured > 4096)
+    if (x_measured > 4096 || x_measured == state.current_pulse)
         return;
+
     state.current_pulse = (x_measured >= 4095) ? 4095 : x_measured;
+
+    const int64_t DIR_THRESHOLD       = 2;     // For example, if the difference is more than 2 pulses → change direction
+    const int64_t FULL_SCALE          = 4096;  // 0..4095
+    const int64_t HIGH_WRAP_THRESHOLD = 1000;
+    const int64_t LOW_WRAP_THRESHOLD  = -1000;
+
+    state.delta = state.current_pulse - state.last_pulse;
+
+    if (state.delta > HIGH_WRAP_THRESHOLD)
+    {
+        state.laps++;
+        state.direction = Direction::CLOCKWISE;
+    }
+    else if (state.delta < LOW_WRAP_THRESHOLD)
+    {
+        state.laps--;
+        state.direction = Direction::COUNTER_CLOCKWISE;
+    }
+    else
+    {
+        // Small changes → normal direction
+        state.delta          = state.current_pulse - state.last_pulse;
+        state.delta_circular = ((state.delta + FULL_SCALE / 2) % FULL_SCALE) - FULL_SCALE / 2;
+
+        if (state.delta_circular > DIR_THRESHOLD)
+            state.direction = Direction::CLOCKWISE;
+        else if (state.delta_circular < -DIR_THRESHOLD)
+            state.direction = Direction::COUNTER_CLOCKWISE;
+    }
+
+    // Update
+    state.last_pulse = state.current_pulse;
 
     newPulseAvailable = true;
     portENTER_CRITICAL(&mux);
     bufferUpdated = false;
     portEXIT_CRITICAL(&mux);
     lastPulseTime = esp_timer_get_time();
+
+    // NEW: invoke callback if set
+    if (onPulseUpdated)
+    {
+        onPulseUpdated(state);
+    }
 }
 
 int64_t MAE3Encoder::get_median_width_high() const

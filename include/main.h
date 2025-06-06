@@ -83,3 +83,4 @@ void    setLowerLimits(float lowerLimit);
 void    setUpperLimits(float upperLimit);
 bool    validationInputAndSetTarget(String targetStr);
 void    clearScreen();
+void    printGreen(int32_t value);

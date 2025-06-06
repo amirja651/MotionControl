@@ -6,6 +6,7 @@
 #include <bitset>
 #include <cstdlib>  // For abs with uint32_t
 #include <esp_timer.h>
+#include <functional>  // For callback support
 
 // Maximum number of encoders supported
 constexpr uint8_t MAX_ENCODERS = 4;
@@ -29,6 +30,8 @@ struct EncoderState
     volatile int64_t width_low;      // Low pulse width (falling to rising)
     volatile int64_t period;         // Total pulse width (t_on + t_off)
     volatile int64_t laps;           // Number of complete rotations
+    volatile int64_t delta;
+    volatile int64_t delta_circular;
 
     Direction direction = Direction::UNKNOWN;  // Current direction of rotation
 };
@@ -109,6 +112,24 @@ public:
         return getTotalTravelMM() * 1000.0f;
     }
 
+    /**
+     * @brief Check if the encoder is considered stopped (no pulses for a while)
+     * @param threshold_us Time in microseconds to consider as stopped
+     */
+    bool isStopped(int64_t threshold_us = 500000 /* 500ms */) const
+    {
+        return (esp_timer_get_time() - lastPulseTime) > threshold_us;
+    }
+
+    /**
+     * @brief Set callback function to notify when new pulse data is available
+     * @param cb Function to call with EncoderState reference
+     */
+    void setOnPulseUpdatedCallback(std::function<void(const EncoderState&)> cb)
+    {
+        onPulseUpdated = cb;
+    }
+
 private:
     // Pin assignments
     const uint8_t signalPin;
@@ -133,7 +154,7 @@ private:
     static MAE3Encoder* encoderInstances[MAX_ENCODERS];
 
     // --- Pulse width ring buffers ---
-    static constexpr size_t PULSE_BUFFER_SIZE = 3;
+    static constexpr size_t PULSE_BUFFER_SIZE = 5;
 
     std::array<int64_t, PULSE_BUFFER_SIZE> width_l_buffer{};
     std::array<int64_t, PULSE_BUFFER_SIZE> width_h_buffer{};
@@ -141,6 +162,8 @@ private:
     size_t pulseBufferIndex = 0;
 
     mutable portMUX_TYPE mux = portMUX_INITIALIZER_UNLOCKED;
+
+    std::function<void(const EncoderState&)> onPulseUpdated;  // NEW: callback support
 
     void processInterrupt();
     void attachInterruptHandler();
