@@ -595,7 +595,7 @@ void printSerial()
 {
     uint8_t motorIndex  = getMotorIndex();
     float   current_pos = motorType[motorIndex] == MotorType::ROTATIONAL ? encoders[motorIndex].getPositionDegrees()
-                                                                         : encoders[motorIndex].getTotalTravelUM();
+                                                                         : encoders[motorIndex].getTotalTravelUM_precise();
 
     float error2 = getSignedPositionError(current_pos);
 
@@ -605,49 +605,45 @@ void printSerial()
     EncoderState state = encoders[motorIndex].getState();
     String direction   = state.direction == Direction::UNKNOWN ? "---" : state.direction == Direction::CLOCKWISE ? "CW" : "CCW";
 
+    float prd   = encoders[motorIndex].get_period(motorIndex, state.laps);
+    float prd_a = encoders[motorIndex].getAveragePeriod(motorIndex, state.laps);
     // Calculate steps for monitoring (not used for control)
-    uint16_t steps = (motorType[motorIndex] == MotorType::LINEAR)
-                         ? static_cast<uint16_t>(fabs(error2) / encoders[motorIndex].getUMPerPulse())
-                         : static_cast<uint16_t>(fabs(error2) / encoders[motorIndex].getDegreesPerPulse());
-
+    /* uint16_t steps = (motorType[motorIndex] == MotorType::LINEAR)
+                          ? static_cast<uint16_t>(fabs(error2) / encoders[motorIndex].getUMPerPulse())
+                          : static_cast<uint16_t>(fabs(error2) / encoders[motorIndex].getDegreesPerPulse());
+ */
     float target = getTarget();
     if (target == 0)
     {
         error2 = 0;
-        steps  = 0;
+        // steps  = 0;
     }
 
     if (fabs(state.current_pulse - last_pulse[motorIndex]) > 1)
     {
         //  table header
-        Serial.print(F("Laps\tDir\tPulse\tPrd2\tPrd\tHi\tLo\tPos\n"));
+        Serial.print(F("MOT\tLAPS\tDIR\tPULSE\tPOS\tprd\tprdA\n"));
 
         // Format all values into the buffer
-        // Serial.print(motorIndex + 1);
-        // Serial.print(F("\t"));
-        Serial.print(state.laps);
-        Serial.print(F("\t"));
-        Serial.print(direction.c_str());
-        Serial.print(F("\t"));
-        // Serial.print(_target);
-        // Serial.print(F("\t"));
-        // Serial.print(_error);
-        // Serial.print(F("\t"));
-        // Serial.print(steps);
-        // Serial.print(F("\t"));
-        Serial.print(state.current_pulse);
-        Serial.print(F("\t"));
-        Serial.print(state.period_2);
-        Serial.print(F("\t"));
-        Serial.print(state.period);
+        Serial.print(motorIndex + 1);
 
         Serial.print(F("\t"));
-        Serial.print(state.width_high);
+        Serial.print(state.laps);
+
         Serial.print(F("\t"));
-        Serial.print(state.width_low);
+        Serial.print(direction.c_str());
+
+        Serial.print(F("\t"));
+        Serial.print(state.current_pulse);
 
         Serial.print(F("\t"));
         Serial.print(current_pos);
+
+        Serial.print(F("\t"));
+        Serial.print(prd);
+
+        Serial.print(F("\t"));
+        Serial.print(prd_a);
 
         Serial.println("\n");
 

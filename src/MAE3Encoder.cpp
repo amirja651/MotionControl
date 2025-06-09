@@ -47,7 +47,6 @@ MAE3Encoder::MAE3Encoder(uint8_t signalPin, uint8_t encoderId)
       encoderId(encoderId),
       state{},
       enabled(false),
-      r_pulse{},
       lastPulseTime(0),
       lastFallingEdgeTime(0),
       lastRisingEdgeTime(0),
@@ -55,7 +54,9 @@ MAE3Encoder::MAE3Encoder(uint8_t signalPin, uint8_t encoderId)
       bufferUpdated(false),
       width_l_buffer{},
       width_h_buffer{},
-      pulseBufferIndex(0)
+      pulseBufferIndex(0),
+      last_pulse(0),
+      initialized(0)
 {
 }
 
@@ -110,14 +111,11 @@ void MAE3Encoder::disable()
 
 void MAE3Encoder::reset()
 {
-    state.current_pulse  = 0;
-    state.last_pulse     = 0;
-    state.width_high     = 0;
-    state.width_low      = 0;
-    state.period         = 0;
-    state.laps           = 0;
-    state.delta          = 0;
-    state.delta_circular = 0;
+    state.current_pulse = 0;
+    last_pulse          = 0;
+    state.width_high    = 0;
+    state.width_low     = 0;
+    state.laps          = 0;
 
     state.direction = Direction::UNKNOWN;
 
@@ -157,7 +155,7 @@ void MAE3Encoder::detachInterruptHandler()
 
 void IRAM_ATTR MAE3Encoder::processInterrupt()
 {
-    if (!enabled)
+    if (__builtin_expect(!enabled, 0))
         return;
 
     int64_t currentTime = esp_timer_get_time();
@@ -209,7 +207,6 @@ void IRAM_ATTR MAE3Encoder::processInterrupt()
             return;
         }
 
-        state.period_2   = r_pulse.high + r_pulse.low;
         state.width_high = width_h_buffer[pulseBufferIndex] = r_pulse.high;
         state.width_low = width_l_buffer[pulseBufferIndex] = r_pulse.low;
 
@@ -236,14 +233,17 @@ void MAE3Encoder::processPWM()
     int64_t width_l = get_median_width_low();
     int64_t period  = width_h + width_l;
 
-    state.period = period;
+    period_sum[encoderId][state.laps + LAPS_OFFSET] += period;
+    period_count[encoderId][state.laps + LAPS_OFFSET]++;
+    setPeriod(encoderId, state.laps, period);
 
     if (period == 0)  //|| (width_h < 200 && width_h < 200)
         return;
 
+#ifdef DEBUG_ENCODER
     String s = "";
 
-    if (period < 3900 || period > 4096)
+    if (period < 3900 || period > FULL_SCALE)
     {
         portENTER_CRITICAL(&mux);
         for (size_t i = 0; i < width_h_buffer.size(); ++i)
@@ -260,56 +260,60 @@ void MAE3Encoder::processPWM()
         Serial.print(s);
         Serial.println();
     }
+#endif
+
     // Optimized calculation for x_measured
-    int64_t x_measured = ((width_h * 4098) / period) - 1;
+    int32_t x_measured = ((width_h * 4098) / period) - 1;
 
     // Validate based on documentation
-    if (x_measured > 4096 || x_measured == state.current_pulse)
+    if (x_measured > FULL_SCALE || x_measured == state.current_pulse)
         return;
 
     state.current_pulse = (x_measured >= 4095) ? 4095 : x_measured;
 
-    if (!state.initialized)
+    if (!initialized)
     {
-        state.last_pulse = state.current_pulse;
-        setPeriod(encoderId, state.laps, period);
-        state.initialized = true;
+        last_pulse  = state.current_pulse;
+        initialized = true;
+
+        period_sum[encoderId][state.laps + LAPS_OFFSET]   = period;
+        period_count[encoderId][state.laps + LAPS_OFFSET] = 1;
+
         return;
     }
 
-    const int64_t DIR_THRESHOLD       = 2;     // For example, if the difference is more than 2 pulses → change direction
-    const int64_t FULL_SCALE          = 4096;  // 0..4095
-    const int64_t HIGH_WRAP_THRESHOLD = 1000;
-    const int64_t LOW_WRAP_THRESHOLD  = -1000;
+    int32_t delta = state.current_pulse - last_pulse;
 
-    state.delta = state.current_pulse - state.last_pulse;
-
-    if (state.delta > HIGH_WRAP_THRESHOLD)
+    if (delta > HIGH_WRAP_THRESHOLD)
     {
         state.laps--;
+        period_sum[encoderId][state.laps + LAPS_OFFSET]   = period;
+        period_count[encoderId][state.laps + LAPS_OFFSET] = 1;
         setPeriod(encoderId, state.laps, period);
         state.direction = Direction::CLOCKWISE;
     }
-    else if (state.delta < LOW_WRAP_THRESHOLD)
+    else if (delta < LOW_WRAP_THRESHOLD)
     {
         state.laps++;
+        period_sum[encoderId][state.laps + LAPS_OFFSET]   = period;
+        period_count[encoderId][state.laps + LAPS_OFFSET] = 1;
         setPeriod(encoderId, state.laps, period);
         state.direction = Direction::COUNTER_CLOCKWISE;
     }
     else
     {
         // Small changes → normal direction
-        state.delta          = state.current_pulse - state.last_pulse;
-        state.delta_circular = ((state.delta + FULL_SCALE / 2) % FULL_SCALE) - FULL_SCALE / 2;
+        delta                  = state.current_pulse - last_pulse;
+        int32_t delta_circular = ((delta + FULL_SCALE / 2) % FULL_SCALE) - FULL_SCALE / 2;
 
-        if (state.delta_circular > DIR_THRESHOLD)
+        if (delta_circular > DIR_THRESHOLD)
             state.direction = Direction::CLOCKWISE;
-        else if (state.delta_circular < -DIR_THRESHOLD)
+        else if (delta_circular < -DIR_THRESHOLD)
             state.direction = Direction::COUNTER_CLOCKWISE;
     }
 
     // Update
-    state.last_pulse = state.current_pulse;
+    last_pulse = state.current_pulse;
 
     newPulseAvailable = true;
     portENTER_CRITICAL(&mux);
@@ -327,9 +331,12 @@ void MAE3Encoder::processPWM()
 int64_t MAE3Encoder::get_median_width_high() const
 {
     std::array<int64_t, PULSE_BUFFER_SIZE> temp;
+
     portENTER_CRITICAL(&mux);
-    temp = width_h_buffer;
+    // Use memcpy for faster copy inside critical section
+    memcpy(temp.data(), width_h_buffer.data(), sizeof(int64_t) * PULSE_BUFFER_SIZE);
     portEXIT_CRITICAL(&mux);
+
     std::sort(temp.begin(), temp.end());
     return temp[PULSE_BUFFER_SIZE / 2];
 }
@@ -337,9 +344,12 @@ int64_t MAE3Encoder::get_median_width_high() const
 int64_t MAE3Encoder::get_median_width_low() const
 {
     std::array<int64_t, PULSE_BUFFER_SIZE> temp;
+
     portENTER_CRITICAL(&mux);
-    temp = width_l_buffer;
+    // Use memcpy for faster copy inside critical section
+    memcpy(temp.data(), width_l_buffer.data(), sizeof(int64_t) * PULSE_BUFFER_SIZE);
     portEXIT_CRITICAL(&mux);
+
     std::sort(temp.begin(), temp.end());
     return temp[PULSE_BUFFER_SIZE / 2];
 }
