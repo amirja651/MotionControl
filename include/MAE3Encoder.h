@@ -10,6 +10,8 @@
 
 // Maximum number of encoders supported
 constexpr uint8_t MAX_ENCODERS = 4;
+constexpr uint8_t MAX_LAPS     = 20;
+constexpr uint8_t LAPS_OFFSET  = 10;
 
 // Linear motion constants
 constexpr float LEAD_SCREW_PITCH_MM = 0.2f;  // Lead screw pitch in mm
@@ -41,6 +43,8 @@ struct EncoderState
     volatile int64_t delta;
     volatile int64_t delta_circular;
 
+    volatile bool initialized = false;
+
     Direction direction = Direction::UNKNOWN;  // Current direction of rotation
 };
 
@@ -56,66 +60,68 @@ public:
     void reset();
     void processPWM();
 
-    bool isEnabled() const
+    inline bool isEnabled() const
     {
         return enabled;
     }
 
-    bool isDisabled() const
+    inline bool isDisabled() const
     {
         return !enabled;
     }
 
-    const EncoderState& getState() const
+    inline const EncoderState& getState() const
     {
         return state;
     }
 
     // Degrees per pulse
-    float getDegreesPerPulse() const
+    inline float getDegreesPerPulse()
     {
-        return 360.0f / 4096;
+        int64_t p = getPeriod(encoderId, state.laps);
+        return 360.0f / p;
     }
 
     // Millimeters per pulse
-    float getMMPerPulse() const
+    inline float getMMPerPulse()
     {
-        return LEAD_SCREW_PITCH_MM / 4096;
+        int64_t p = getPeriod(encoderId, state.laps);
+        return LEAD_SCREW_PITCH_MM / p;
     }
 
     // Micrometers per pulse
-    float getUMPerPulse() const
+    inline float getUMPerPulse()
     {
         return getMMPerPulse() * 1000.0f;
     }
 
     // Position in degrees
-    float getPositionDegrees() const
+    inline float getPositionDegrees()
     {
         return state.current_pulse * getDegreesPerPulse();
     }
 
     // Position in mm
-    float getPositionMM() const
+    inline float getPositionMM()
     {
         return state.current_pulse * getMMPerPulse();
     }
 
     // Position in μm
-    float getPositionUM() const
+    inline float getPositionUM()
     {
         return getPositionMM() * 1000.0f;
     }
 
     // Total travel in mm
-    float getTotalTravelMM() const
+    inline float getTotalTravelMM()
     {
         float totalDistance = (state.laps * LEAD_SCREW_PITCH_MM) + getPositionMM();
         return totalDistance;
     }
 
     // Total travel in μm
-    float getTotalTravelUM() const
+    inline float getTotalTravelUM()
     {
         return getTotalTravelMM() * 1000.0f;
     }
@@ -175,6 +181,8 @@ private:
 
     std::function<void(const EncoderState&)> onPulseUpdated;  // NEW: callback support
 
+    volatile int64_t period[MAX_ENCODERS][MAX_LAPS] = {0};
+
     void processInterrupt();
     void attachInterruptHandler();
     void detachInterruptHandler();
@@ -186,6 +194,16 @@ private:
     static void IRAM_ATTR interruptHandler1();
     static void IRAM_ATTR interruptHandler2();
     static void IRAM_ATTR interruptHandler3();
+
+    inline void setPeriod(uint8_t encoderID, int64_t lapIndex, int64_t _period)
+    {
+        period[encoderID][lapIndex + LAPS_OFFSET] = _period;
+    }
+
+    inline int64_t getPeriod(uint8_t encoderID, int64_t lapIndex)
+    {
+        return period[encoderID][lapIndex + LAPS_OFFSET];
+    }
 };
 
 #endif  // MAE3_ENCODER2_H

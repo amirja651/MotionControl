@@ -269,6 +269,14 @@ void MAE3Encoder::processPWM()
 
     state.current_pulse = (x_measured >= 4095) ? 4095 : x_measured;
 
+    if (!state.initialized)
+    {
+        state.last_pulse = state.current_pulse;
+        setPeriod(encoderId, state.laps, period);
+        state.initialized = true;
+        return;
+    }
+
     const int64_t DIR_THRESHOLD       = 2;     // For example, if the difference is more than 2 pulses → change direction
     const int64_t FULL_SCALE          = 4096;  // 0..4095
     const int64_t HIGH_WRAP_THRESHOLD = 1000;
@@ -278,12 +286,14 @@ void MAE3Encoder::processPWM()
 
     if (state.delta > HIGH_WRAP_THRESHOLD)
     {
-        state.laps++;
+        state.laps--;
+        setPeriod(encoderId, state.laps, period);
         state.direction = Direction::CLOCKWISE;
     }
     else if (state.delta < LOW_WRAP_THRESHOLD)
     {
-        state.laps--;
+        state.laps++;
+        setPeriod(encoderId, state.laps, period);
         state.direction = Direction::COUNTER_CLOCKWISE;
     }
     else
