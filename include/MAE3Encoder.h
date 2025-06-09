@@ -227,9 +227,9 @@ private:
 
     std::function<void(const EncoderState&)> onPulseUpdated;  // NEW: callback support
 
-    volatile float    period[MAX_ENCODERS][MAX_LAPS]       = {0};
-    volatile int64_t  period_sum[MAX_ENCODERS][MAX_LAPS]   = {0};
-    volatile uint32_t period_count[MAX_ENCODERS][MAX_LAPS] = {0};
+    float    period[MAX_ENCODERS][MAX_LAPS]       = {0};
+    int64_t  period_sum[MAX_ENCODERS][MAX_LAPS]   = {0};
+    uint32_t period_count[MAX_ENCODERS][MAX_LAPS] = {0};
 
     int32_t last_pulse;
     bool    initialized;
@@ -246,14 +246,32 @@ private:
     static void IRAM_ATTR interruptHandler2();
     static void IRAM_ATTR interruptHandler3();
 
-    inline void setPeriod(uint8_t encoderID, int32_t lapIndex, int64_t _period)
+    inline void setPeriod(uint8_t encoderID, int32_t lapIndex, int64_t _period, bool reset_count = false)
     {
         period[encoderID][lapIndex + LAPS_OFFSET] = _period;
+
+        if (reset_count)
+        {
+            period_sum[encoderId][state.laps + LAPS_OFFSET]   = _period;
+            period_count[encoderId][state.laps + LAPS_OFFSET] = 1;
+        }
+        else
+        {
+            period_sum[encoderId][state.laps + LAPS_OFFSET] += _period;
+            period_count[encoderId][state.laps + LAPS_OFFSET]++;
+        }
     }
 
     inline float getPeriod(uint8_t encoderID, int32_t lapIndex) const
     {
         return static_cast<float>(period[encoderID][lapIndex + LAPS_OFFSET]);
+    }
+
+    void resetAllPeriods()
+    {
+        memset(period, 0, sizeof(period));
+        memset(period_sum, 0, sizeof(period_sum));
+        memset(period_count, 0, sizeof(period_count));
     }
 };
 

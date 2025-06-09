@@ -233,12 +233,21 @@ void MAE3Encoder::processPWM()
     int64_t width_l = get_median_width_low();
     int64_t period  = width_h + width_l;
 
-    period_sum[encoderId][state.laps + LAPS_OFFSET] += period;
-    period_count[encoderId][state.laps + LAPS_OFFSET]++;
-    setPeriod(encoderId, state.laps, period);
-
     if (period == 0)  //|| (width_h < 200 && width_h < 200)
         return;
+
+    if (!initialized)
+    {
+        last_pulse  = state.current_pulse;
+        initialized = true;
+
+        resetAllPeriods();
+        setPeriod(encoderId, state.laps, period, true);
+
+        return;
+    }
+
+    setPeriod(encoderId, state.laps, period);
 
 #ifdef DEBUG_ENCODER
     String s = "";
@@ -271,33 +280,20 @@ void MAE3Encoder::processPWM()
 
     state.current_pulse = (x_measured >= 4095) ? 4095 : x_measured;
 
-    if (!initialized)
-    {
-        last_pulse  = state.current_pulse;
-        initialized = true;
-
-        period_sum[encoderId][state.laps + LAPS_OFFSET]   = period;
-        period_count[encoderId][state.laps + LAPS_OFFSET] = 1;
-
-        return;
-    }
-
     int32_t delta = state.current_pulse - last_pulse;
 
     if (delta > HIGH_WRAP_THRESHOLD)
     {
         state.laps--;
-        period_sum[encoderId][state.laps + LAPS_OFFSET]   = period;
-        period_count[encoderId][state.laps + LAPS_OFFSET] = 1;
-        setPeriod(encoderId, state.laps, period);
+
+        //setPeriod(encoderId, state.laps, period);
         state.direction = Direction::CLOCKWISE;
     }
     else if (delta < LOW_WRAP_THRESHOLD)
     {
         state.laps++;
-        period_sum[encoderId][state.laps + LAPS_OFFSET]   = period;
-        period_count[encoderId][state.laps + LAPS_OFFSET] = 1;
-        setPeriod(encoderId, state.laps, period);
+
+        //setPeriod(encoderId, state.laps, period);
         state.direction = Direction::COUNTER_CLOCKWISE;
     }
     else
