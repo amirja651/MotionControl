@@ -75,7 +75,7 @@ void encoderUpdateTask(void* pvParameters)
         }
 
         encoders[motorIndex].processPWM();
-        printSerial();
+        // printSerial();
         esp_task_wdt_reset();
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }
@@ -453,7 +453,7 @@ void serialPrintTask(void* pvParameters)
 
     while (1)
     {
-        // printSerial();
+        printSerial();
         esp_task_wdt_reset();
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }
@@ -585,7 +585,7 @@ void printSerial()
     String direction   = state.direction == Direction::UNKNOWN ? "---" : state.direction == Direction::CLOCKWISE ? "CW" : "CCW";
 
     float prd   = encoders[motorIndex].get_period(motorIndex, state.laps);
-    float prd_a = encoders[motorIndex].getAveragePeriod(motorIndex, state.laps);
+    float prd_a = 0;  // encoders[motorIndex].getAveragePeriod(motorIndex, state.laps);
     // Calculate steps for monitoring (not used for control)
     /* uint16_t steps = (motorType[motorIndex] == MotorType::LINEAR)
                           ? static_cast<uint16_t>(fabs(error2) / encoders[motorIndex].getUMPerPulse())
