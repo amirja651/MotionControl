@@ -21,7 +21,7 @@ void setup()
 
     for (int8_t index = 0; index < NUM_MOTORS; index++)
     {
-        if (communication_test[index] != "FAILED")
+        if (communication_test[index] != FAILED)
             encoders[index].begin();
     }
 
@@ -49,9 +49,9 @@ void encoderUpdateTask(void* pvParameters)
 
     while (1)
     {
-        if (communication_test[getMotorIndex()] == "FAILED")
+        if (communication_test[getMotorIndex()] == FAILED)
         {
-            Serial.println(F("ERROR: Motor communication failed!"));
+            Serial.println(F(MOTOR_COMMUNICATION_FAILED));
 
             esp_task_wdt_reset();
             vTaskDelayUntil(&xLastWakeTime, xFrequency);
@@ -73,7 +73,6 @@ void encoderUpdateTask(void* pvParameters)
         }
 
         encoders[getMotorIndex()].processPWM();
-        // printSerial();
         esp_task_wdt_reset();
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }
@@ -107,25 +106,21 @@ void motorUpdateTask(void* pvParameters)
         if (!command_received[getMotorIndex()])
         {
             esp_task_wdt_reset();
-
             vTaskDelayUntil(&xLastWakeTime, xFrequency);
             continue;
         }
 
-        if (communication_test[getMotorIndex()] == "FAILED")
+        if (communication_test[getMotorIndex()] == FAILED)
         {
-            Serial.println(F("ERROR: Motor communication failed!"));
+            Serial.println(F(MOTOR_COMMUNICATION_FAILED));
             esp_task_wdt_reset();
             vTaskDelayUntil(&xLastWakeTime, xFrequency);
             continue;
         }
 
-        // Get current position and calculate error
-        int32_t lap_id = encoders[getMotorIndex()].gLap().id;
+        EncoderContext ec = encoders[getMotorIndex()].getEncoderContext();
 
-        float current_pos = (motorType[getMotorIndex()] == MotorType::ROTATIONAL)
-                                ? encoders[getMotorIndex()].getPositionDegrees(lap_id)
-                                : encoders[getMotorIndex()].getTotalTravelUM(lap_id);
+        float current_pos = motorType[getMotorIndex()] == MotorType::ROTATIONAL ? ec.position_degrees : ec.total_travel_um;
 
         float error = calculateSignedPositionError(current_pos);
 
@@ -140,7 +135,7 @@ void motorUpdateTask(void* pvParameters)
             isVeryShortDistance = false;
 
             // Set direction based on error sign
-            set_motor_direction(getMotorIndex(), error > 0);
+            setMotorDirection(getMotorIndex(), error > 0);
 
             // Update frequency based on error and target position
             updateMotorFrequency(getMotorIndex(), error, target, current_pos);
@@ -265,13 +260,13 @@ void serialReadTask(void* pvParameters)
             else if (c == 'i')
             {
                 // Manual step right (forward)
-                set_motor_direction(getMotorIndex(), true);
+                setMotorDirection(getMotorIndex(), true);
                 // motorStep();
             }
             else if (c == 'k')
             {
                 // Manual step left (reverse)
-                set_motor_direction(getMotorIndex(), false);
+                setMotorDirection(getMotorIndex(), false);
                 // motorStep();
             }
             else
@@ -304,7 +299,7 @@ void serialReadTask(void* pvParameters)
                 }
                 else
                 {
-                    Serial.println(errorMotorNumberIsRequired);
+                    Serial.println(F(MOTOR_NUMBER_REQUIRED));
                     esp_task_wdt_reset();
                     continue;
                 }
@@ -314,25 +309,25 @@ void serialReadTask(void* pvParameters)
                 {
                     if (!is_set_motor_number)
                     {
-                        Serial.println(errorMotorNumberIsRequired);
+                        Serial.println(F(MOTOR_NUMBER_REQUIRED));
                         esp_task_wdt_reset();
                         continue;
                     }
 
                     is_set_motor_number = false;
-                    int32_t lap_id      = encoders[getMotorIndex()].gLap().id;
-
                     Serial.print(F("*"));
                     Serial.print(getMotorIndex() + 1);
                     Serial.print(F("#"));
 
+                    EncoderContext ec = encoders[getMotorIndex()].getEncoderContext();
+
                     if (motorType[getMotorIndex()] == MotorType::ROTATIONAL)
                     {
-                        Serial.print(encoders[getMotorIndex()].getPositionDegrees(lap_id));
+                        Serial.print(ec.position_degrees);
                     }
                     else
                     {
-                        Serial.print(encoders[getMotorIndex()].getTotalTravelUM(lap_id));
+                        Serial.print(ec.total_travel_um);
                     }
 
                     Serial.println(F("#"));
@@ -345,7 +340,7 @@ void serialReadTask(void* pvParameters)
                 {
                     if (!is_set_motor_number)
                     {
-                        Serial.println(errorMotorNumberIsRequired);
+                        Serial.println(F(MOTOR_NUMBER_REQUIRED));
                         esp_task_wdt_reset();
                         continue;
                     }
@@ -367,7 +362,7 @@ void serialReadTask(void* pvParameters)
                 {
                     if (!is_set_motor_number)
                     {
-                        Serial.println(errorMotorNumberIsRequired);
+                        Serial.println(F(MOTOR_NUMBER_REQUIRED));
                         esp_task_wdt_reset();
                         continue;
                     }
@@ -388,7 +383,7 @@ void serialReadTask(void* pvParameters)
                 {
                     if (!is_set_motor_number)
                     {
-                        Serial.println(errorMotorNumberIsRequired);
+                        Serial.println(F(MOTOR_NUMBER_REQUIRED));
                         esp_task_wdt_reset();
                         continue;
                     }
@@ -414,7 +409,7 @@ void serialReadTask(void* pvParameters)
                 // Ensure motors are stopped before restart
                 for (int8_t index = 0; index < NUM_MOTORS; index++)
                 {
-                    if (communication_test[index] != "FAILED")
+                    if (communication_test[index] != FAILED)
                     {
                         stopMotorLEDC(index);
                         motorStop(index);
@@ -466,12 +461,7 @@ void motorStopAndSavePosition()
 
     if (0)
     {
-        int32_t lap_id = encoders[getMotorIndex()].gLap().id;
-
-        float currentPosition = motorType[getMotorIndex()] == MotorType::LINEAR
-                                    ? encoders[getMotorIndex()].getTotalTravelUM(lap_id)
-                                    : encoders[getMotorIndex()].getPositionDegrees(lap_id);
-        saveMotorPosition(getMotorIndex(), currentPosition);  // Save the final position to EEPROM when motor stops
+        saveMotorPosition(getMotorIndex(), 0);  // Save the final position to EEPROM when motor stops
     }
 }
 
@@ -479,7 +469,7 @@ bool validationInputAndSetMotorIndex(String motorNumber)
 {
     if (motorNumber.length() == 0)
     {
-        Serial.println(errorMotorNumberIsRequired);
+        Serial.println(F(MOTOR_NUMBER_REQUIRED));
         return false;
     }
 
@@ -487,7 +477,7 @@ bool validationInputAndSetMotorIndex(String motorNumber)
 
     if (motor_number < 0 || motor_number >= NUM_MOTORS)
     {
-        Serial.println(errorMotorNumberIsInvalid);
+        Serial.println(F("ERROR: Invalid motor number. Must be between 1 and 4"));
         return false;
     }
 
@@ -511,18 +501,17 @@ bool validateAndSetTargetPosition(String targetStr)
         return false;
     }
 
-    float position = targetStr.toFloat();
+    float target = targetStr.toFloat();
 
     Serial.print(F("Motor "));
     Serial.print(getMotorIndex() + 1);
-    Serial.print(F(" > new position is: "));
-    Serial.print(position);
+    Serial.print(F(" > new target is: "));
+    Serial.print(target);
     Serial.println(motorType[getMotorIndex()] == MotorType::LINEAR ? F(" um") : F(" °"));
 
-    int32_t lap_id = encoders[getMotorIndex()].gLap().id;
+    EncoderContext ec = encoders[getMotorIndex()].getEncoderContext();
 
-    float current_pos = motorType[getMotorIndex()] == MotorType::ROTATIONAL ? encoders[getMotorIndex()].getPositionDegrees(lap_id)
-                                                                            : encoders[getMotorIndex()].getTotalTravelUM(lap_id);
+    float current_pos = motorType[getMotorIndex()] == MotorType::ROTATIONAL ? ec.position_degrees : ec.total_travel_um;
 
     float error = calculateSignedPositionError(current_pos);
 
@@ -533,63 +522,39 @@ bool validateAndSetTargetPosition(String targetStr)
         isVeryShortDistance = true;
 
     resetAllCommandReceivedFlags();
-    setTarget(position);
+    setTarget(target);
     command_received[getMotorIndex()] = true;  // Set flag only after valid set target command
     return true;
 }
 
 void printSerial()
 {
-    int32_t current_pulse = encoders[getMotorIndex()].gState().current_pulse;
+    EncoderContext ec = encoders[getMotorIndex()].getEncoderContext();
 
-    int32_t lap_id     = encoders[getMotorIndex()].gLap().id;
-    float   lap_period = encoders[getMotorIndex()].getPeriod(lap_id);
-
-    float average_period = encoders[getMotorIndex()].getAveragePeriod(lap_id);
-
-    float degrees_per_pulse = encoders[getMotorIndex()].getDegreesPerPulse(lap_id);
-    float position_degrees  = encoders[getMotorIndex()].getPositionDegrees(lap_id);
-
-    float mm_per_pulse    = encoders[getMotorIndex()].getMMPerPulse(lap_id);
-    float position_mm     = encoders[getMotorIndex()].getPositionMM(lap_id);
-    float total_travel_mm = encoders[getMotorIndex()].getTotalTravelMM(lap_id);
-    float total_travel_um = encoders[getMotorIndex()].getTotalTravelUM(lap_id);
-
-    if (fabs(current_pulse - last_pulse[getMotorIndex()]) > 1)
+    if (fabs(ec.current_pulse - last_pulse[getMotorIndex()]) > 1)
     {
         //  table header
-        Serial.print(F("MOT\tCPL\tLAP\tPRD\tAVG\tDPP\tPDG\t\tMPP\tPMM\tTTM\tTTU\n"));
+        Serial.print(F("MOT\tCPL\tLAP\tPRD\tPDG\tPMM\tTTM\tTTU\n"));
 
         // Format all values into the buffer
         Serial.print((getMotorIndex() + 1));
         Serial.print(F("\t"));
-
-        Serial.print(current_pulse);
+        Serial.print(ec.current_pulse);
         Serial.print(F("\t"));
-
-        Serial.print(lap_id);
+        Serial.print(ec.lap_id);
         Serial.print(F("\t"));
-        Serial.print(lap_period);
+        Serial.print(ec.lap_period);
         Serial.print(F("\t"));
-
-        Serial.print(average_period);
+        Serial.print(ec.position_degrees, 2);
         Serial.print(F("\t"));
-
-        Serial.print(degrees_per_pulse);
+        Serial.print(ec.position_mm, 3);
         Serial.print(F("\t"));
-        Serial.print(position_degrees);
-        Serial.print(F("\t\t"));
-
-        Serial.print(mm_per_pulse);
+        Serial.print(ec.total_travel_mm, 2);
         Serial.print(F("\t"));
-        Serial.print(position_mm);
-        Serial.print(F("\t"));
-        Serial.print(total_travel_mm);
-        Serial.print(F("\t"));
-        Serial.print(total_travel_um);
+        Serial.print(ec.total_travel_um, 2);
 
         Serial.println("\n");
 
-        last_pulse[getMotorIndex()] = encoders[getMotorIndex()].gState().current_pulse;
+        last_pulse[getMotorIndex()] = ec.current_pulse;
     }
 }

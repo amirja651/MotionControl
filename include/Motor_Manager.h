@@ -84,7 +84,7 @@ void enable_motor(uint8_t index)
     digitalWrite(pEN[index], LOW);
 }
 
-void set_motor_direction(uint8_t index, bool dir)  // dir = true (Forward), false (Reverse)
+void setMotorDirection(uint8_t index, bool dir)  // dir = true (Forward), false (Reverse)
 {
     digitalWrite(pDIR[index], dir ? LOW : HIGH);
     // encoders[index].setDirection(dir ? Direction::CLOCKWISE : Direction::COUNTER_CLOCKWISE);

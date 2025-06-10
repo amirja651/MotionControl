@@ -37,21 +37,30 @@ struct EncoderState
     volatile int64_t width_high;     // High pulse width (rising to falling)
     volatile int64_t width_low;      // Low pulse width (falling to rising)
     Direction        direction;      // Current direction of rotation
-
-    float avgPeriod;
-    float avgPeriodCurrent;
-    float totalDistance_1;
-    float mmPerPulse_1;
-    float totalDistance_2;
-    float mmPerPulse_2;
 };
 
 struct LapState
 {
     volatile int32_t id;
-    float            period[MAX_LAPS]       = {0};
+    uint32_t         period[MAX_LAPS]       = {0};
     int64_t          period_sum[MAX_LAPS]   = {0};
     uint32_t         period_count[MAX_LAPS] = {0};
+};
+
+struct EncoderContext
+{
+    int32_t current_pulse;
+
+    int32_t  lap_id;
+    uint32_t lap_period;
+
+    // float average_period;
+
+    float position_degrees;
+
+    float position_mm;
+    float total_travel_mm;
+    float total_travel_um;
 };
 
 struct RPulse
@@ -82,62 +91,22 @@ public:
         return !enabled;
     }
 
-    inline const EncoderState& gState() const
+    EncoderContext& getEncoderContext() const
     {
-        return state;
-    }
-
-    inline const LapState& gLap() const
-    {
-        return lap;
-    }
-
-    inline float getAveragePeriod(int32_t lapIndex) const
-    {
-        int64_t sum   = lap.period_sum[lapIndex + LAPS_OFFSET];
-        int64_t count = lap.period_count[lapIndex + LAPS_OFFSET];
-        if (count == 0)
-            return FULL_SCALE;
-        return static_cast<float>(sum) / count;
-    }
-
-    // Degrees per pulse
-    inline float getDegreesPerPulse(int32_t lapIndex) const
-    {
-        float period = getAveragePeriod(lapIndex);
-        return 360.0f / period;
-    }
-
-    // Position in degrees
-    inline float getPositionDegrees(int32_t lapIndex) const
-    {
-        return state.current_pulse * getDegreesPerPulse(lapIndex);
-    }
-
-    // Millimeters per pulse
-    inline float getMMPerPulse(int32_t lapIndex) const
-    {
-        float period = getAveragePeriod(lapIndex);
-        return LEAD_SCREW_PITCH_MM / period;
-    }
-
-    // Position in mm
-    inline float getPositionMM(int32_t lapIndex) const
-    {
-        return state.current_pulse * getMMPerPulse(lapIndex);
-    }
-
-    // Total travel in mm
-    float getTotalTravelMM(int32_t lapIndex) const
-    {
-        float totalDistance = (lapIndex * LEAD_SCREW_PITCH_MM) + getPositionMM(lapIndex);
-        return totalDistance;
-    }
-
-    // Total travel in μm
-    float getTotalTravelUM(int32_t lapIndex) const
-    {
-        return getTotalTravelMM(lapIndex) * 1000.0f;
+        portENTER_CRITICAL(&mux);
+        encoderContext.current_pulse = state.current_pulse;
+        encoderContext.lap_id        = lap.id;
+        encoderContext.lap_period    = lap.period[lap.id + LAPS_OFFSET];
+        /*encoderContext.average_period =
+            (lap.period_count[lap.id + LAPS_OFFSET] == 0)
+                ? encoderContext.lap_period
+                : static_cast<float>(lap.period_sum[lap.id + LAPS_OFFSET]) / lap.period_count[lap.id + LAPS_OFFSET];*/
+        encoderContext.position_degrees = state.current_pulse * (360.0f / FULL_SCALE);
+        encoderContext.position_mm      = encoderContext.current_pulse * (LEAD_SCREW_PITCH_MM / FULL_SCALE);
+        encoderContext.total_travel_mm  = (lap.id * LEAD_SCREW_PITCH_MM) + encoderContext.position_mm;
+        encoderContext.total_travel_um  = encoderContext.total_travel_mm * 1000.0f;
+        portEXIT_CRITICAL(&mux);
+        return encoderContext;
     }
 
     bool isStopped(int64_t threshold_us = 500000 /* 500ms */) const
@@ -150,19 +119,15 @@ public:
         onPulseUpdated = cb;
     }
 
-    inline float getPeriod(int32_t lapIndex) const
-    {
-        return static_cast<float>(lap.period[lapIndex + LAPS_OFFSET]);
-    }
-
 private:
     // Pin assignments
     const uint8_t signalPin;
     const uint8_t encoderId;
 
     // State management
-    EncoderState state;
-    LapState     lap;
+    EncoderState           state;
+    LapState               lap;
+    mutable EncoderContext encoderContext;
 
     volatile bool enabled = false;
 
@@ -209,24 +174,25 @@ private:
     static void IRAM_ATTR interruptHandler2();
     static void IRAM_ATTR interruptHandler3();
 
-    inline void setPeriod(int32_t lapIndex, int64_t _period, bool reset_count = false)
+    inline void setPeriod(int32_t lapIndex, int64_t period, bool reset_count = false)
     {
-        lap.period[lapIndex + LAPS_OFFSET] = _period;
+        lap.period[lapIndex + LAPS_OFFSET] = static_cast<int32_t>(period);
 
         if (reset_count)
         {
-            lap.period_sum[lap.id + LAPS_OFFSET]   = _period;
+            lap.period_sum[lap.id + LAPS_OFFSET]   = static_cast<int32_t>(period);
             lap.period_count[lap.id + LAPS_OFFSET] = 1;
         }
         else
         {
-            lap.period_sum[lap.id + LAPS_OFFSET] += _period;
+            lap.period_sum[lap.id + LAPS_OFFSET] += static_cast<int32_t>(period);
             lap.period_count[lap.id + LAPS_OFFSET]++;
         }
     }
 
     void resetAllPeriods()
     {
+        lap.id = 0;
         memset(lap.period, 0, sizeof(lap.period));
         memset(lap.period_sum, 0, sizeof(lap.period_sum));
         memset(lap.period_count, 0, sizeof(lap.period_count));

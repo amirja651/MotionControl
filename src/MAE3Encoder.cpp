@@ -47,6 +47,7 @@ MAE3Encoder::MAE3Encoder(uint8_t signalPin, uint8_t encoderId)
       encoderId(encoderId),
       state{},
       lap{},
+      encoderContext{},
       enabled(false),
       lastPulseTime(0),
       lastFallingEdgeTime(0),
@@ -113,21 +114,29 @@ void MAE3Encoder::disable()
 void MAE3Encoder::reset()
 {
     state.current_pulse = 0;
-    last_pulse          = 0;
     state.width_high    = 0;
     state.width_low     = 0;
-    lap.id              = 0;
+    state.direction     = Direction::UNKNOWN;
 
-    state.direction = Direction::UNKNOWN;
+    encoderContext.current_pulse = 0;
+    encoderContext.lap_id        = 0;
+    encoderContext.lap_period    = 0;
+    // encoderContext.average_period   = 0;
+    encoderContext.position_degrees = 0;
+    encoderContext.position_mm      = 0;
+    encoderContext.total_travel_mm  = 0;
+    encoderContext.total_travel_um  = 0;
 
+    resetAllPeriods();
+
+    last_pulse          = 0;
     lastPulseTime       = 0;
     lastFallingEdgeTime = 0;
     lastRisingEdgeTime  = 0;
+    pulseBufferIndex    = 0;
 
     newPulseAvailable = false;
     bufferUpdated     = false;
-
-    pulseBufferIndex = 0;
 }
 
 void MAE3Encoder::attachInterruptHandler()
@@ -234,7 +243,7 @@ void MAE3Encoder::processPWM()
     int64_t width_l = get_median_width_low();
     int64_t period  = width_h + width_l;
 
-    if (period == 0)  //|| (width_h < 200 && width_h < 200)
+    if (period == 0)
         return;
 
     if (!initialized)

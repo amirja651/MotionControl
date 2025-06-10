@@ -14,9 +14,9 @@ MAE3Encoder           encoders[4] = {MAE3Encoder(ENC_A, 0), MAE3Encoder(ENC_B, 1
 
 constexpr float UM_PER_PIXEL = 5.2f;
 
-const String errorMotorNumberIsRequired                = "ERROR: Motor number (-n) requires a value";
-const String errorMotorNumberIsInvalid                 = "ERROR: Invalid motor number. Must be between 1 and 4";
-const String errorTheCommandIsOnlyValidForLinearMotors = "ERROR: The command is only valid for linear motors";
+constexpr const char* MOTOR_NUMBER_REQUIRED      = "ERROR: Motor number (-n) requires a value";
+constexpr const char* MOTOR_COMMUNICATION_FAILED = "ERROR: Motor communication failed!";
+constexpr const char* FAILED                     = "FAILED";
 
 int32_t last_pulse[NUM_MOTORS]       = {0, 0, 0, 0};
 bool    is_set_motor_number          = false;
