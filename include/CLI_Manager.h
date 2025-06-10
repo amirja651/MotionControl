@@ -13,14 +13,11 @@ Command   cmdMotor1RefHome;  // New command for Motor 1 reference home
 void initializeCLI()
 {
     cmdMotor = cli.addCmd("motor");
-    cmdMotor.addArg("n", "1");     // motor number argument
-    cmdMotor.addFlagArg("l");      // motor load position argument (um or deg)
-    cmdMotor.addFlagArg("c");      // current position
-    cmdMotor.addFlagArg("s");      // stop flag
-    cmdMotor.addArg("o", "680");   // motor offset argument or target reference (pixels)
-    cmdMotor.addArg("lo", "550");  // lower limit argument (pixels)
-    cmdMotor.addArg("up", "880");  // upper limit argument (pixels)
-    cmdMotor.addArg("p", "0.0");   // positional argument (um or deg)
+    cmdMotor.addArg("n", "1");    // motor number argument
+    cmdMotor.addFlagArg("l");     // motor load position argument (um or deg)
+    cmdMotor.addFlagArg("c");     // current position
+    cmdMotor.addFlagArg("s");     // stop flag
+    cmdMotor.addArg("p", "0.0");  // positional argument (um or deg)
 
     cmdMotor.setDescription("Control motor movement\n"
                             "Usage: motor -n <number> [-p <position>] [-s] [-c] [-l] [-o <offset>] [-lo <lower>] [-up <upper>]\n"
@@ -29,9 +26,6 @@ void initializeCLI()
                             "  -s: Stop motor\n"
                             "  -c: Get current position\n"
                             "  -l: Load saved position\n"
-                            "  -o: Set offset (pixels)\n"
-                            "  -lo: Set lower limit (pixels)\n"
-                            "  -up: Set upper limit (pixels)\n"
                             "Examples:\n"
                             "  motor -n 1 -p 100.0    # Move motor 1 to 100 um\n"
                             "  motor -n 2 -p 45.0     # Move motor 2 to 45 degrees\n"

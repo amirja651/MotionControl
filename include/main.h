@@ -12,23 +12,6 @@ MAE3Encoder           encoders[4] = {MAE3Encoder(ENC_A, 0), MAE3Encoder(ENC_B, 1
 #include <SPI.h>
 #include <inttypes.h>
 
-enum motorState
-{
-    STOPPED,
-    MOVING,
-    ERROR
-};
-
-constexpr float ROTATIONAL_POSITION_MIN = 0.1f;
-constexpr float ROTATIONAL_POSITION_MAX = 359.9f;
-
-constexpr float ROTATIONAL_OUTPUT_LIMIT_MIN = -180.0;
-constexpr float ROTATIONAL_OUTPUT_LIMIT_MAX = 180.0;
-
-constexpr float LINEAR_LOWER_LIMIT_PX = 550.0;
-constexpr float LINEAR_UPPER_LIMIT_PX = 880.0;
-constexpr float LINEAR_OFFSET_PX      = 680.0;
-
 constexpr float UM_PER_PIXEL = 5.2f;
 
 const String errorMotorNumberIsRequired                = "ERROR: Motor number (-n) requires a value";
@@ -36,24 +19,17 @@ const String errorMotorNumberIsInvalid                 = "ERROR: Invalid motor n
 const String errorTheCommandIsOnlyValidForLinearMotors = "ERROR: The command is only valid for linear motors";
 
 uint8_t motor_index                  = 0;
-bool    is_set_motor_number          = false;
-float   linear_Lower_limit_um        = LINEAR_LOWER_LIMIT_PX * UM_PER_PIXEL;  // Lower limit in pixels
-float   linear_upper_limit_um        = LINEAR_UPPER_LIMIT_PX * UM_PER_PIXEL;  // Upper limit in pixels
-float   linear_offset_um             = LINEAR_OFFSET_PX * UM_PER_PIXEL;       // Offset in pixels
+int32_t last_pulse[NUM_MOTORS]       = {0, 0, 0, 0};
 float   target[NUM_MOTORS]           = {0, 0, 0, 0};
-int64_t last_pulse[NUM_MOTORS]       = {0, 0, 0, 0};
+bool    is_set_motor_number          = false;
 bool    command_received[NUM_MOTORS] = {false, false, false, false};
-bool    very_short_distance          = false;
-
-// Buffer for storing output
-char outputBuffer[200];
+bool    isVeryShortDistance          = false;
 
 // Command history support
 #define HISTORY_SIZE 10
 String commandHistory[HISTORY_SIZE];
-int    historyCount     = 0;
-int    historyIndex     = -1;  // -1 means not navigating
-float  distanceToTarget = 0;
+int    historyCount = 0;
+int    historyIndex = -1;  // -1 means not navigating
 
 // Task handles
 TaskHandle_t encoderUpdateTaskHandle = NULL;
@@ -63,24 +39,17 @@ TaskHandle_t serialPrintTaskHandle   = NULL;
 
 void    encoderUpdateTask(void* pvParameters);
 float   wrapAngle180(float value);
-float   getSignedPositionError(float current_pos);
+float   calculateSignedPositionError(float current_pos);
 void    motorUpdateTask(void* pvParameters);
 void    serialReadTask(void* pvParameters);
 void    serialPrintTask(void* pvParameters);
 void    motorStopAndSavePosition();
-void    printSerial();
 void    setTarget(float position);
 float   getTarget();
 bool    validationInputAndSetMotorIndex(String motorNumber);
 uint8_t getMotorIndex();
 void    setMotorIndex(uint8_t motorIndex);
-void    resetCommandReceived();
-bool    validationInputAndSetLinearOffset(String linearOffsetStr);
-void    setLinearOffset(float offsetUm);
-bool    validationInputAndSetLinearLowerLimit(String lowerLimitPx);
-bool    validationInputAndSetLinearUpperLimit(String upperLimitPx);
-void    setLowerLimits(float lowerLimit);
-void    setUpperLimits(float upperLimit);
-bool    validationInputAndSetTarget(String targetStr);
+void    resetAllCommandReceivedFlags();
+bool    validateAndSetTargetPosition(String targetStr);
 void    clearScreen();
-void    printGreen(int32_t value);
+void    printSerial();

@@ -91,17 +91,14 @@ float wrapAngle180(float value)
     return value;
 }
 
-float getSignedPositionError(float current_pos)
+float calculateSignedPositionError(float current_pos)
 {
     float target_pos = getTarget();
     float error      = target_pos - current_pos;
     return error;
 }
 
-static float _error  = 0;
-static float _target = 0;
-
-void motorUpdateTask(void* pvParameters)  // amir
+void motorUpdateTask(void* pvParameters)
 {
     const uint8_t    MOTOR_UPDATE_TIME = 4;
     const TickType_t xFrequency        = pdMS_TO_TICKS(MOTOR_UPDATE_TIME);
@@ -131,23 +128,23 @@ void motorUpdateTask(void* pvParameters)  // amir
         float current_pos = (motorType[motorIndex] == MotorType::ROTATIONAL) ? encoders[motorIndex].getPositionDegrees()
                                                                              : encoders[motorIndex].getTotalTravelUM();
 
-        _error = getSignedPositionError(current_pos);
+        float error = calculateSignedPositionError(current_pos);
 
         if (motorType[motorIndex] == MotorType::ROTATIONAL)
-            _error = wrapAngle180(_error);
+            error = wrapAngle180(error);
 
-        _target = getTarget();
+        float target = getTarget();
 
         // Motor control based on error threshold
-        if (very_short_distance || abs(_error) > MOTOR_THRESHOLD[motorIndex])
+        if (isVeryShortDistance || abs(error) > MOTOR_THRESHOLD[motorIndex])
         {
-            very_short_distance = false;
+            isVeryShortDistance = false;
 
             // Set direction based on error sign
-            set_motor_direction(motorIndex, _error > 0);
+            set_motor_direction(motorIndex, error > 0);
 
             // Update frequency based on error and target position
-            updateMotorFrequency(motorIndex, _error, _target, current_pos);
+            updateMotorFrequency(motorIndex, error, target, current_pos);
         }
         else
         {
@@ -179,14 +176,12 @@ void serialReadTask(void* pvParameters)
             {
                 escState = 1;
                 esp_task_wdt_reset();
-                vTaskDelayUntil(&xLastWakeTime, xFrequency);
                 continue;
             }
             if (escState == 1 && c == '[')
             {
                 escState = 2;
                 esp_task_wdt_reset();
-                vTaskDelayUntil(&xLastWakeTime, xFrequency);
                 continue;
             }
             if (escState == 2)
@@ -206,7 +201,6 @@ void serialReadTask(void* pvParameters)
                     }
                     escState = 0;
                     esp_task_wdt_reset();
-                    vTaskDelayUntil(&xLastWakeTime, xFrequency);
                     continue;
                 }
                 else if (c == 'B')
@@ -231,12 +225,10 @@ void serialReadTask(void* pvParameters)
                     }
                     escState = 0;
                     esp_task_wdt_reset();
-                    vTaskDelayUntil(&xLastWakeTime, xFrequency);
                     continue;
                 }
                 escState = 0;
                 esp_task_wdt_reset();
-                vTaskDelayUntil(&xLastWakeTime, xFrequency);
                 continue;
             }
 
@@ -308,7 +300,6 @@ void serialReadTask(void* pvParameters)
                     if (!validationInputAndSetMotorIndex(motorNumStr))
                     {
                         esp_task_wdt_reset();
-                        vTaskDelayUntil(&xLastWakeTime, xFrequency);
                         continue;
                     }
                 }
@@ -316,7 +307,6 @@ void serialReadTask(void* pvParameters)
                 {
                     Serial.println(errorMotorNumberIsRequired);
                     esp_task_wdt_reset();
-                    vTaskDelayUntil(&xLastWakeTime, xFrequency);
                     continue;
                 }
 
@@ -327,7 +317,6 @@ void serialReadTask(void* pvParameters)
                     {
                         Serial.println(errorMotorNumberIsRequired);
                         esp_task_wdt_reset();
-                        vTaskDelayUntil(&xLastWakeTime, xFrequency);
                         continue;
                     }
 
@@ -349,7 +338,6 @@ void serialReadTask(void* pvParameters)
 
                     Serial.println(F("#"));
                     esp_task_wdt_reset();
-                    vTaskDelayUntil(&xLastWakeTime, xFrequency);
                     continue;
                 }
 
@@ -360,121 +348,20 @@ void serialReadTask(void* pvParameters)
                     {
                         Serial.println(errorMotorNumberIsRequired);
                         esp_task_wdt_reset();
-                        vTaskDelayUntil(&xLastWakeTime, xFrequency);
                         continue;
                     }
 
                     is_set_motor_number = false;
                     uint8_t motorIndex  = getMotorIndex();
 
-                    resetCommandReceived();
+                    resetAllCommandReceivedFlags();
                     motorStop(motorIndex);
 
                     Serial.print(F("Motor "));
                     Serial.print(motorIndex + 1);
                     Serial.println(F(" stopped"));
                     esp_task_wdt_reset();
-                    vTaskDelayUntil(&xLastWakeTime, xFrequency);
                     continue;
-                }
-
-                // Handle offset command
-                if (c.getArgument("o").isSet())
-                {
-                    if (!is_set_motor_number)
-                    {
-                        Serial.println(errorMotorNumberIsRequired);
-                        esp_task_wdt_reset();
-                        vTaskDelayUntil(&xLastWakeTime, xFrequency);
-                        continue;
-                    }
-
-                    is_set_motor_number = false;
-                    uint8_t motorIndex  = getMotorIndex();
-
-                    // Only allow for Motor 1
-                    if (motorType[motorIndex] != MotorType::LINEAR)
-                    {
-                        Serial.println(errorTheCommandIsOnlyValidForLinearMotors);
-                        esp_task_wdt_reset();
-                        vTaskDelayUntil(&xLastWakeTime, xFrequency);
-                        continue;
-                    }
-
-                    String linearOffsetStr = c.getArgument("o").getValue();
-
-                    if (!validationInputAndSetLinearOffset(linearOffsetStr))
-                    {
-                        esp_task_wdt_reset();
-                        vTaskDelayUntil(&xLastWakeTime, xFrequency);
-                        continue;
-                    }
-                }
-
-                // Handle lower limit command
-                if (c.getArgument("lo").isSet())
-                {
-                    if (!is_set_motor_number)
-                    {
-                        Serial.println(errorMotorNumberIsRequired);
-                        esp_task_wdt_reset();
-                        vTaskDelayUntil(&xLastWakeTime, xFrequency);
-                        continue;
-                    }
-
-                    is_set_motor_number = false;
-                    uint8_t motorIndex  = getMotorIndex();
-
-                    // Only allow for Motor 1
-                    if (motorType[motorIndex] != MotorType::LINEAR)
-                    {
-                        Serial.println(errorTheCommandIsOnlyValidForLinearMotors);
-                        esp_task_wdt_reset();
-                        vTaskDelayUntil(&xLastWakeTime, xFrequency);
-                        continue;
-                    }
-
-                    String lowerLimitPx = c.getArgument("lo").getValue();
-
-                    if (!validationInputAndSetLinearLowerLimit(lowerLimitPx))
-                    {
-                        esp_task_wdt_reset();
-                        vTaskDelayUntil(&xLastWakeTime, xFrequency);
-                        continue;
-                    }
-                }
-
-                // Handle upper limit command
-                if (c.getArgument("up").isSet())
-                {
-                    if (!is_set_motor_number)
-                    {
-                        Serial.println(errorMotorNumberIsRequired);
-                        esp_task_wdt_reset();
-                        vTaskDelayUntil(&xLastWakeTime, xFrequency);
-                        continue;
-                    }
-
-                    is_set_motor_number = false;
-                    uint8_t motorIndex  = getMotorIndex();
-
-                    // Only allow for Motor 1
-                    if (motorType[motorIndex] != MotorType::LINEAR)
-                    {
-                        Serial.println(errorTheCommandIsOnlyValidForLinearMotors);
-                        esp_task_wdt_reset();
-                        vTaskDelayUntil(&xLastWakeTime, xFrequency);
-                        continue;
-                    }
-
-                    String upperLimitPx = c.getArgument("up").getValue();
-
-                    if (!validationInputAndSetLinearUpperLimit(upperLimitPx))
-                    {
-                        esp_task_wdt_reset();
-                        vTaskDelayUntil(&xLastWakeTime, xFrequency);
-                        continue;
-                    }
                 }
 
                 // Handle position commands
@@ -484,7 +371,6 @@ void serialReadTask(void* pvParameters)
                     {
                         Serial.println(errorMotorNumberIsRequired);
                         esp_task_wdt_reset();
-                        vTaskDelayUntil(&xLastWakeTime, xFrequency);
                         continue;
                     }
 
@@ -492,10 +378,9 @@ void serialReadTask(void* pvParameters)
 
                     String targetStr = c.getArgument("p").getValue();
 
-                    if (!validationInputAndSetTarget(targetStr))
+                    if (!validateAndSetTargetPosition(targetStr))
                     {
                         esp_task_wdt_reset();
-                        vTaskDelayUntil(&xLastWakeTime, xFrequency);
                         continue;
                     }
                 }
@@ -507,7 +392,6 @@ void serialReadTask(void* pvParameters)
                     {
                         Serial.println(errorMotorNumberIsRequired);
                         esp_task_wdt_reset();
-                        vTaskDelayUntil(&xLastWakeTime, xFrequency);
                         continue;
                     }
 
@@ -516,7 +400,6 @@ void serialReadTask(void* pvParameters)
                     String targetStr = c.getArgument("l").getValue();
 
                     esp_task_wdt_reset();
-                    vTaskDelayUntil(&xLastWakeTime, xFrequency);
                     continue;
                 }
             }
@@ -527,7 +410,7 @@ void serialReadTask(void* pvParameters)
             }
             else if (c == cmdRestart)
             {
-                resetCommandReceived();
+                resetAllCommandReceivedFlags();
                 Serial.println(F("System restarting..."));
 
                 // Ensure motors are stopped before restart
@@ -557,6 +440,7 @@ void serialReadTask(void* pvParameters)
             Serial.print(F("ERROR: "));
             Serial.println(cmdError.toString());
         }
+
         esp_task_wdt_reset();
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }
@@ -588,66 +472,6 @@ void motorStopAndSavePosition()
         float currentPosition = motorType[motorIndex] == MotorType::LINEAR ? encoders[motorIndex].getPositionUM()
                                                                            : encoders[motorIndex].getPositionDegrees();
         saveMotorPosition(motorIndex, currentPosition);  // Save the final position to EEPROM when motor stops
-    }
-}
-
-void printSerial()
-{
-    uint8_t motorIndex  = getMotorIndex();
-    float   current_pos = motorType[motorIndex] == MotorType::ROTATIONAL ? encoders[motorIndex].getPositionDegrees()
-                                                                         : encoders[motorIndex].getTotalTravelUM_precise();
-
-    float error2 = getSignedPositionError(current_pos);
-
-    if (motorType[motorIndex] == MotorType::ROTATIONAL)
-        error2 = wrapAngle180(error2);
-
-    EncoderState state = encoders[motorIndex].getState();
-    String direction   = state.direction == Direction::UNKNOWN ? "---" : state.direction == Direction::CLOCKWISE ? "CW" : "CCW";
-
-    float prd   = encoders[motorIndex].get_period(motorIndex, state.laps);
-    float prd_a = encoders[motorIndex].getAveragePeriod(motorIndex, state.laps);
-    // Calculate steps for monitoring (not used for control)
-    /* uint16_t steps = (motorType[motorIndex] == MotorType::LINEAR)
-                          ? static_cast<uint16_t>(fabs(error2) / encoders[motorIndex].getUMPerPulse())
-                          : static_cast<uint16_t>(fabs(error2) / encoders[motorIndex].getDegreesPerPulse());
- */
-    float target = getTarget();
-    if (target == 0)
-    {
-        error2 = 0;
-        // steps  = 0;
-    }
-
-    if (fabs(state.current_pulse - last_pulse[motorIndex]) > 1)
-    {
-        //  table header
-        Serial.print(F("MOT\tLAPS\tDIR\tPULSE\tPOS\tprd\tprdA\n"));
-
-        // Format all values into the buffer
-        Serial.print(motorIndex + 1);
-
-        Serial.print(F("\t"));
-        Serial.print(state.laps);
-
-        Serial.print(F("\t"));
-        Serial.print(direction.c_str());
-
-        Serial.print(F("\t"));
-        Serial.print(state.current_pulse);
-
-        Serial.print(F("\t"));
-        Serial.print(current_pos);
-
-        Serial.print(F("\t"));
-        Serial.print(prd);
-
-        Serial.print(F("\t"));
-        Serial.print(prd_a);
-
-        Serial.println("\n");
-
-        last_pulse[motorIndex] = state.current_pulse;
     }
 }
 
@@ -701,63 +525,13 @@ void setMotorIndex(uint8_t motorIndex)
     motor_index = motorIndex;
 }
 
-void resetCommandReceived()
+void resetAllCommandReceivedFlags()
 {
     for (int8_t index = 0; index < NUM_MOTORS; index++)
         command_received[index] = false;
 }
 
-bool validationInputAndSetLinearOffset(String linearOffsetStr)
-{
-    float offsetUm = linearOffsetStr.toFloat() * UM_PER_PIXEL;
-    if (offsetUm < linear_Lower_limit_um || offsetUm > linear_upper_limit_um)
-    {
-        Serial.print(F("ERROR: Motor 1 offset must be between "));
-        Serial.print(linear_Lower_limit_um);
-        Serial.print(F(" and "));
-        Serial.println(linear_upper_limit_um);
-        return false;
-    }
-    setLinearOffset(offsetUm);
-    return true;
-}
-
-void setLinearOffset(float offsetUm)
-{
-    linear_offset_um = offsetUm;
-    Serial.print(F("Motor 1 offset set to (px): "));
-    Serial.println(linear_offset_um, 2);
-}
-
-bool validationInputAndSetLinearLowerLimit(String lowerLimitPx)
-{
-    float lowerLimit = lowerLimitPx.toFloat();
-    setLowerLimits(lowerLimit);
-    Serial.print(F("Motor 1 lower limit set to (px): "));
-    Serial.println(lowerLimit, 2);
-    return true;
-}
-
-bool validationInputAndSetLinearUpperLimit(String upperLimitPx)
-{
-    float upperLimit = upperLimitPx.toFloat();
-    setUpperLimits(upperLimit);
-    Serial.print(F("Motor 1 upper limit set to (px): "));
-    Serial.println(upperLimit, 2);
-    return true;
-}
-
-void setLowerLimits(float lowerLimit)
-{
-    linear_Lower_limit_um = lowerLimit;
-}
-
-void setUpperLimits(float upperLimit)
-{
-    linear_upper_limit_um = upperLimit;
-}
-
-bool validationInputAndSetTarget(String targetStr)
+bool validateAndSetTargetPosition(String targetStr)
 {
     if (targetStr.length() == 0)
     {
@@ -777,15 +551,15 @@ bool validationInputAndSetTarget(String targetStr)
     float current_pos = motorType[motorIndex] == MotorType::ROTATIONAL ? encoders[motorIndex].getPositionDegrees()
                                                                        : encoders[motorIndex].getTotalTravelUM();
 
-    float error = getSignedPositionError(current_pos);
+    float error = calculateSignedPositionError(current_pos);
 
     if (motorType[motorIndex] == MotorType::ROTATIONAL)
         error = wrapAngle180(error);
 
     if (fabs(error) <= 0.01f)
-        very_short_distance = true;
+        isVeryShortDistance = true;
 
-    resetCommandReceived();
+    resetAllCommandReceivedFlags();
     setTarget(position);
     command_received[motorIndex] = true;  // Set flag only after valid set target command
     return true;
@@ -794,4 +568,64 @@ bool validationInputAndSetTarget(String targetStr)
 void clearScreen()
 {
     printf("\e[1;1H\e[2J");  // clear screen
+}
+
+void printSerial()
+{
+    uint8_t motorIndex  = getMotorIndex();
+    float   current_pos = motorType[motorIndex] == MotorType::ROTATIONAL ? encoders[motorIndex].getPositionDegrees()
+                                                                         : encoders[motorIndex].getTotalTravelUM_precise();
+
+    float error2 = calculateSignedPositionError(current_pos);
+
+    if (motorType[motorIndex] == MotorType::ROTATIONAL)
+        error2 = wrapAngle180(error2);
+
+    EncoderState state = encoders[motorIndex].getState();
+    String direction   = state.direction == Direction::UNKNOWN ? "---" : state.direction == Direction::CLOCKWISE ? "CW" : "CCW";
+
+    float prd   = encoders[motorIndex].get_period(motorIndex, state.laps);
+    float prd_a = encoders[motorIndex].getAveragePeriod(motorIndex, state.laps);
+    // Calculate steps for monitoring (not used for control)
+    /* uint16_t steps = (motorType[motorIndex] == MotorType::LINEAR)
+                          ? static_cast<uint16_t>(fabs(error2) / encoders[motorIndex].getUMPerPulse())
+                          : static_cast<uint16_t>(fabs(error2) / encoders[motorIndex].getDegreesPerPulse());
+ */
+    float target = getTarget();
+    if (target == 0)
+    {
+        error2 = 0;
+        // steps  = 0;
+    }
+
+    if (fabs(state.current_pulse - last_pulse[motorIndex]) > 1)
+    {
+        //  table header
+        Serial.print(F("MOT\tLAPS\tDIR\tPULSE\tPOS\tprd\tprdA\n"));
+
+        // Format all values into the buffer
+        Serial.print(motorIndex + 1);
+
+        Serial.print(F("\t"));
+        Serial.print(state.laps);
+
+        Serial.print(F("\t"));
+        Serial.print(direction.c_str());
+
+        Serial.print(F("\t"));
+        Serial.print(state.current_pulse);
+
+        Serial.print(F("\t"));
+        Serial.print(current_pos);
+
+        Serial.print(F("\t"));
+        Serial.print(prd);
+
+        Serial.print(F("\t"));
+        Serial.print(prd_a);
+
+        Serial.println("\n");
+
+        last_pulse[motorIndex] = state.current_pulse;
+    }
 }
