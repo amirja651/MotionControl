@@ -95,62 +95,6 @@ float calculateSignedPositionError(float current_pos)
     return error;
 }
 
-void motorUpdateTask(void* pvParameters)
-{
-    const uint8_t    MOTOR_UPDATE_TIME = 4;
-    const TickType_t xFrequency        = pdMS_TO_TICKS(MOTOR_UPDATE_TIME);
-    TickType_t       xLastWakeTime     = xTaskGetTickCount();
-
-    while (1)
-    {
-        if (!command_received[getMotorIndex()])
-        {
-            esp_task_wdt_reset();
-            vTaskDelayUntil(&xLastWakeTime, xFrequency);
-            continue;
-        }
-
-        if (communication_test[getMotorIndex()] == FAILED)
-        {
-            Serial.println(F(MOTOR_COMMUNICATION_FAILED));
-            esp_task_wdt_reset();
-            vTaskDelayUntil(&xLastWakeTime, xFrequency);
-            continue;
-        }
-
-        EncoderContext ec = encoders[getMotorIndex()].getEncoderContext();
-
-        float current_pos = motorType[getMotorIndex()] == MotorType::ROTATIONAL ? ec.position_degrees : ec.total_travel_um;
-
-        float error = calculateSignedPositionError(current_pos);
-
-        if (motorType[getMotorIndex()] == MotorType::ROTATIONAL)
-            error = wrapAngle180(error);
-
-        float target = getTarget();
-
-        // Motor control based on error threshold
-        if (isVeryShortDistance || abs(error) > MOTOR_THRESHOLD[getMotorIndex()])
-        {
-            isVeryShortDistance = false;
-
-            // Set direction based on error sign
-            setMotorDirection(getMotorIndex(), error > 0);
-
-            // Update frequency based on error and target position
-            updateMotorFrequency(getMotorIndex(), error, target, current_pos);
-        }
-        else
-        {
-            // Target reached - stop motor
-            motorStopAndSavePosition();
-        }
-
-        esp_task_wdt_reset();
-        vTaskDelayUntil(&xLastWakeTime, xFrequency);
-    }
-}
-
 void serialReadTask(void* pvParameters)
 {
     const TickType_t xFrequency    = pdMS_TO_TICKS(100);
@@ -531,10 +475,16 @@ void printSerial()
 {
     EncoderContext ec = encoders[getMotorIndex()].getEncoderContext();
 
+    float current_pos = motorType[getMotorIndex()] == MotorType::ROTATIONAL ? ec.position_degrees : ec.total_travel_um;
+    float error       = calculateSignedPositionError(current_pos);
+
+    if (motorType[getMotorIndex()] == MotorType::ROTATIONAL)
+        error = wrapAngle180(error);
+
     if (fabs(ec.current_pulse - last_pulse[getMotorIndex()]) > 1)
     {
         //  table header
-        Serial.print(F("MOT\tCPL\tLAP\tPRD\tPDG\tPMM\tTTM\tTTU\n"));
+        Serial.print(F("MOT\tDIR\tCPL\tLAP\tPRD\tPDG\tPMM\tTTM\tTTU\tTAR\tERR\n"));
 
         // Format all values into the buffer
         Serial.print((getMotorIndex() + 1));
@@ -554,9 +504,68 @@ void printSerial()
         Serial.print(ec.total_travel_mm, 2);
         Serial.print(F("\t"));
         Serial.print(ec.total_travel_um, 2);
-
+        Serial.print(F("\t"));
+        Serial.print(getTarget());
+        Serial.print(F("\t"));
+        Serial.print(error);
         Serial.println("\n");
 
         last_pulse[getMotorIndex()] = ec.current_pulse;
+    }
+}
+
+void motorUpdateTask(void* pvParameters)
+{
+    const uint8_t    MOTOR_UPDATE_TIME = 4;
+    const TickType_t xFrequency        = pdMS_TO_TICKS(MOTOR_UPDATE_TIME);
+    TickType_t       xLastWakeTime     = xTaskGetTickCount();
+
+    while (1)
+    {
+        if (!command_received[getMotorIndex()])
+        {
+            esp_task_wdt_reset();
+            vTaskDelayUntil(&xLastWakeTime, xFrequency);
+            continue;
+        }
+
+        if (communication_test[getMotorIndex()] == FAILED)
+        {
+            Serial.println(F(MOTOR_COMMUNICATION_FAILED));
+            esp_task_wdt_reset();
+            vTaskDelayUntil(&xLastWakeTime, xFrequency);
+            continue;
+        }
+
+        EncoderContext ec = encoders[getMotorIndex()].getEncoderContext();
+
+        float current_pos = motorType[getMotorIndex()] == MotorType::ROTATIONAL ? ec.position_degrees : ec.total_travel_um;
+
+        float error = calculateSignedPositionError(current_pos);
+
+        if (motorType[getMotorIndex()] == MotorType::ROTATIONAL)
+            error = wrapAngle180(error);
+
+        float target = getTarget();
+
+        // Motor control based on error threshold
+        if (isVeryShortDistance || abs(error) > MOTOR_THRESHOLD[getMotorIndex()])
+        {
+            isVeryShortDistance = false;
+
+            // Set direction based on error sign
+            setMotorDirection(getMotorIndex(), error > 0);
+
+            // Update frequency based on error and target position
+            updateMotorFrequency(getMotorIndex(), error, target, current_pos);
+        }
+        else
+        {
+            // Target reached - stop motor
+            motorStopAndSavePosition();
+        }
+
+        esp_task_wdt_reset();
+        vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }
 }
