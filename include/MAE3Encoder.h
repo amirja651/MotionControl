@@ -36,8 +36,22 @@ struct EncoderState
     volatile int32_t current_pulse;  // Current pulse value
     volatile int64_t width_high;     // High pulse width (rising to falling)
     volatile int64_t width_low;      // Low pulse width (falling to rising)
-    volatile int32_t laps;           // Number of complete rotations
     Direction        direction;      // Current direction of rotation
+
+    float avgPeriod;
+    float avgPeriodCurrent;
+    float totalDistance_1;
+    float mmPerPulse_1;
+    float totalDistance_2;
+    float mmPerPulse_2;
+};
+
+struct LapState
+{
+    volatile int32_t id;
+    float            period[MAX_LAPS]       = {0};
+    int64_t          period_sum[MAX_LAPS]   = {0};
+    uint32_t         period_count[MAX_LAPS] = {0};
 };
 
 struct RPulse
@@ -68,126 +82,77 @@ public:
         return !enabled;
     }
 
-    inline const EncoderState& getState() const
+    inline const EncoderState& gState() const
     {
         return state;
     }
 
+    inline const LapState& gLap() const
+    {
+        return lap;
+    }
+
+    inline float getAveragePeriod(int32_t lapIndex) const
+    {
+        int64_t sum   = lap.period_sum[lapIndex + LAPS_OFFSET];
+        int64_t count = lap.period_count[lapIndex + LAPS_OFFSET];
+        if (count == 0)
+            return FULL_SCALE;
+        return static_cast<float>(sum) / count;
+    }
+
     // Degrees per pulse
-    inline float getDegreesPerPulse() const
+    inline float getDegreesPerPulse(int32_t lapIndex) const
     {
-        float p = getAveragePeriod(encoderId, state.laps);
-        return 360.0f / p;
-    }
-
-    // Millimeters per pulse
-    inline float getMMPerPulse() const
-    {
-        float p = getAveragePeriod(encoderId, state.laps);
-        return LEAD_SCREW_PITCH_MM / p;
-    }
-
-    // Micrometers per pulse
-    inline float getUMPerPulse() const
-    {
-        return getMMPerPulse() * 1000.0f;
+        float period = getAveragePeriod(lapIndex);
+        return 360.0f / period;
     }
 
     // Position in degrees
-    inline float getPositionDegrees() const
+    inline float getPositionDegrees(int32_t lapIndex) const
     {
-        return state.current_pulse * getDegreesPerPulse();
+        return state.current_pulse * getDegreesPerPulse(lapIndex);
+    }
+
+    // Millimeters per pulse
+    inline float getMMPerPulse(int32_t lapIndex) const
+    {
+        float period = getAveragePeriod(lapIndex);
+        return LEAD_SCREW_PITCH_MM / period;
     }
 
     // Position in mm
-    inline float getPositionMM() const
+    inline float getPositionMM(int32_t lapIndex) const
     {
-        return state.current_pulse * getMMPerPulse();
-    }
-
-    // Position in μm
-    inline float getPositionUM() const
-    {
-        return getPositionMM() * 1000.0f;
+        return state.current_pulse * getMMPerPulse(lapIndex);
     }
 
     // Total travel in mm
-    float getTotalTravelMM() const
+    float getTotalTravelMM(int32_t lapIndex) const
     {
-        float totalDistance = (state.laps * LEAD_SCREW_PITCH_MM) + getPositionMM();
+        float totalDistance = (lapIndex * LEAD_SCREW_PITCH_MM) + getPositionMM(lapIndex);
         return totalDistance;
-    }
-
-    float getTotalTravelMM_precise() const
-    {
-        float totalDistance = 0.0f;
-
-        int32_t lap_start = (state.laps >= 0) ? -LAPS_OFFSET : state.laps;
-        int32_t lap_end   = (state.laps >= 0) ? state.laps : -LAPS_OFFSET;
-        int32_t lap_step  = (state.laps >= 0) ? 1 : -1;
-
-        // Sum travel in full laps
-        for (int32_t i = lap_start; i != lap_end; i += lap_step)
-        {
-            float avgPeriod = getAveragePeriod(encoderId, i);
-            if (avgPeriod == 0)
-                continue;
-            float mmPerPulse = LEAD_SCREW_PITCH_MM / avgPeriod;
-            // Multiply the direction of movement:
-            totalDistance += lap_step * FULL_SCALE * mmPerPulse;
-        }
-
-        float avgPeriodCurrent = getAveragePeriod(encoderId, state.laps);
-        if (avgPeriodCurrent > 0)
-        {
-            float mmPerPulse = LEAD_SCREW_PITCH_MM / avgPeriodCurrent;
-            totalDistance += ((state.laps >= 0) ? 1.0f : -1.0f) * state.current_pulse * mmPerPulse;
-        }
-
-        return totalDistance;
-    }
-
-    float getTotalTravelUM_precise() const
-    {
-        return getTotalTravelMM_precise() * 1000.0f;
     }
 
     // Total travel in μm
-    float getTotalTravelUM() const
+    float getTotalTravelUM(int32_t lapIndex) const
     {
-        return getTotalTravelMM() * 1000.0f;
+        return getTotalTravelMM(lapIndex) * 1000.0f;
     }
 
-    /**
-     * @brief Check if the encoder is considered stopped (no pulses for a while)
-     * @param threshold_us Time in microseconds to consider as stopped
-     */
     bool isStopped(int64_t threshold_us = 500000 /* 500ms */) const
     {
         return (esp_timer_get_time() - lastPulseTime) > threshold_us;
     }
 
-    /**
-     * @brief Set callback function to notify when new pulse data is available
-     * @param cb Function to call with EncoderState reference
-     */
     void setOnPulseUpdatedCallback(std::function<void(const EncoderState&)> cb)
     {
         onPulseUpdated = cb;
     }
 
-    inline int64_t get_period(uint8_t encoderID, int32_t lapIndex) const
+    inline float getPeriod(int32_t lapIndex) const
     {
-        return period[encoderID][lapIndex + LAPS_OFFSET];
-    }
-
-    inline float getAveragePeriod(uint8_t encoderID, int32_t lapIndex) const
-    {
-        int64_t sum   = period_sum[encoderID][lapIndex + LAPS_OFFSET];
-        int64_t count = period_count[encoderID][lapIndex + LAPS_OFFSET];
-        if (count == 0)
-            return 0;
-        return static_cast<float>(sum) / count;
+        return static_cast<float>(lap.period[lapIndex + LAPS_OFFSET]);
     }
 
 private:
@@ -196,7 +161,9 @@ private:
     const uint8_t encoderId;
 
     // State management
-    EncoderState  state;
+    EncoderState state;
+    LapState     lap;
+
     volatile bool enabled = false;
 
     RPulse r_pulse;
@@ -227,10 +194,6 @@ private:
 
     std::function<void(const EncoderState&)> onPulseUpdated;  // NEW: callback support
 
-    float    period[MAX_ENCODERS][MAX_LAPS]       = {0};
-    int64_t  period_sum[MAX_ENCODERS][MAX_LAPS]   = {0};
-    uint32_t period_count[MAX_ENCODERS][MAX_LAPS] = {0};
-
     int32_t last_pulse;
     bool    initialized;
 
@@ -246,32 +209,27 @@ private:
     static void IRAM_ATTR interruptHandler2();
     static void IRAM_ATTR interruptHandler3();
 
-    inline void setPeriod(uint8_t encoderID, int32_t lapIndex, int64_t _period, bool reset_count = false)
+    inline void setPeriod(int32_t lapIndex, int64_t _period, bool reset_count = false)
     {
-        period[encoderID][lapIndex + LAPS_OFFSET] = _period;
+        lap.period[lapIndex + LAPS_OFFSET] = _period;
 
         if (reset_count)
         {
-            period_sum[encoderId][state.laps + LAPS_OFFSET]   = _period;
-            period_count[encoderId][state.laps + LAPS_OFFSET] = 1;
+            lap.period_sum[lap.id + LAPS_OFFSET]   = _period;
+            lap.period_count[lap.id + LAPS_OFFSET] = 1;
         }
         else
         {
-            period_sum[encoderId][state.laps + LAPS_OFFSET] += _period;
-            period_count[encoderId][state.laps + LAPS_OFFSET]++;
+            lap.period_sum[lap.id + LAPS_OFFSET] += _period;
+            lap.period_count[lap.id + LAPS_OFFSET]++;
         }
-    }
-
-    inline float getPeriod(uint8_t encoderID, int32_t lapIndex) const
-    {
-        return static_cast<float>(period[encoderID][lapIndex + LAPS_OFFSET]);
     }
 
     void resetAllPeriods()
     {
-        memset(period, 0, sizeof(period));
-        memset(period_sum, 0, sizeof(period_sum));
-        memset(period_count, 0, sizeof(period_count));
+        memset(lap.period, 0, sizeof(lap.period));
+        memset(lap.period_sum, 0, sizeof(lap.period_sum));
+        memset(lap.period_count, 0, sizeof(lap.period_count));
     }
 };
 

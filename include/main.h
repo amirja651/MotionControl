@@ -18,9 +18,7 @@ const String errorMotorNumberIsRequired                = "ERROR: Motor number (-
 const String errorMotorNumberIsInvalid                 = "ERROR: Invalid motor number. Must be between 1 and 4";
 const String errorTheCommandIsOnlyValidForLinearMotors = "ERROR: The command is only valid for linear motors";
 
-uint8_t motor_index                  = 0;
 int32_t last_pulse[NUM_MOTORS]       = {0, 0, 0, 0};
-float   target[NUM_MOTORS]           = {0, 0, 0, 0};
 bool    is_set_motor_number          = false;
 bool    command_received[NUM_MOTORS] = {false, false, false, false};
 bool    isVeryShortDistance          = false;
@@ -37,19 +35,48 @@ TaskHandle_t motorUpdateTaskHandle   = NULL;
 TaskHandle_t serialReadTaskHandle    = NULL;
 TaskHandle_t serialPrintTaskHandle   = NULL;
 
-void    encoderUpdateTask(void* pvParameters);
-float   wrapAngle180(float value);
-float   calculateSignedPositionError(float current_pos);
-void    motorUpdateTask(void* pvParameters);
-void    serialReadTask(void* pvParameters);
-void    serialPrintTask(void* pvParameters);
-void    motorStopAndSavePosition();
-void    setTarget(float position);
-float   getTarget();
-bool    validationInputAndSetMotorIndex(String motorNumber);
-uint8_t getMotorIndex();
-void    setMotorIndex(uint8_t motorIndex);
-void    resetAllCommandReceivedFlags();
-bool    validateAndSetTargetPosition(String targetStr);
-void    clearScreen();
-void    printSerial();
+uint8_t motor_index = 0;
+
+inline uint8_t getMotorIndex()
+{
+    return motor_index;
+}
+void setMotorIndex(uint8_t motorIndex)
+{
+    if (motorIndex >= NUM_MOTORS)
+    {
+        Serial.println(F("ERROR: Invalid motor index!"));
+        return;
+    }
+
+    motor_index = motorIndex;
+}
+
+float target[NUM_MOTORS] = {0};
+
+inline float getTarget()
+{
+    return target[motor_index];
+}
+inline void setTarget(float position)
+{
+    target[motor_index] = position;
+}
+
+inline void clearScreen()
+{
+    printf("\e[1;1H\e[2J");  // clear screen
+}
+
+void  encoderUpdateTask(void* pvParameters);
+float wrapAngle180(float value);
+float calculateSignedPositionError(float current_pos);
+void  motorUpdateTask(void* pvParameters);
+void  serialReadTask(void* pvParameters);
+void  serialPrintTask(void* pvParameters);
+void  motorStopAndSavePosition();
+bool  validationInputAndSetMotorIndex(String motorNumber);
+void  setMotorIndex(uint8_t motorIndex);
+void  resetAllCommandReceivedFlags();
+bool  validateAndSetTargetPosition(String targetStr);
+void  printSerial();

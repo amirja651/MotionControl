@@ -46,6 +46,7 @@ MAE3Encoder::MAE3Encoder(uint8_t signalPin, uint8_t encoderId)
     : signalPin(signalPin),
       encoderId(encoderId),
       state{},
+      lap{},
       enabled(false),
       lastPulseTime(0),
       lastFallingEdgeTime(0),
@@ -115,7 +116,7 @@ void MAE3Encoder::reset()
     last_pulse          = 0;
     state.width_high    = 0;
     state.width_low     = 0;
-    state.laps          = 0;
+    lap.id              = 0;
 
     state.direction = Direction::UNKNOWN;
 
@@ -242,34 +243,12 @@ void MAE3Encoder::processPWM()
         initialized = true;
 
         resetAllPeriods();
-        setPeriod(encoderId, state.laps, period, true);
+        setPeriod(lap.id, period, true);
 
         return;
     }
 
-    setPeriod(encoderId, state.laps, period);
-
-#ifdef DEBUG_ENCODER
-    String s = "";
-
-    if (period < 3900 || period > FULL_SCALE)
-    {
-        portENTER_CRITICAL(&mux);
-        for (size_t i = 0; i < width_h_buffer.size(); ++i)
-        {
-            s += "#";
-            s += String(i);
-            s += " ";
-            s += String(width_h_buffer[i]);
-            s += "/";
-            s += String(width_l_buffer[i]);
-            s += "    ";
-        }
-        portEXIT_CRITICAL(&mux);
-        Serial.print(s);
-        Serial.println();
-    }
-#endif
+    setPeriod(lap.id, period);
 
     // Optimized calculation for x_measured
     int32_t x_measured = ((width_h * 4098) / period) - 1;
@@ -284,16 +263,12 @@ void MAE3Encoder::processPWM()
 
     if (delta > HIGH_WRAP_THRESHOLD)
     {
-        state.laps--;
-
-        //setPeriod(encoderId, state.laps, period);
+        lap.id--;
         state.direction = Direction::CLOCKWISE;
     }
     else if (delta < LOW_WRAP_THRESHOLD)
     {
-        state.laps++;
-
-        //setPeriod(encoderId, state.laps, period);
+        lap.id++;
         state.direction = Direction::COUNTER_CLOCKWISE;
     }
     else
