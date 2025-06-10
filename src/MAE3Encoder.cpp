@@ -126,6 +126,7 @@ void MAE3Encoder::reset()
     encoderContext.position_mm      = 0;
     encoderContext.total_travel_mm  = 0;
     encoderContext.total_travel_um  = 0;
+    encoderContext.direction        = "UNK";
 
     resetAllPeriods();
 

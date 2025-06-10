@@ -539,6 +539,8 @@ void printSerial()
         // Format all values into the buffer
         Serial.print((getMotorIndex() + 1));
         Serial.print(F("\t"));
+        Serial.print(ec.direction);
+        Serial.print(F("\t"));
         Serial.print(ec.current_pulse);
         Serial.print(F("\t"));
         Serial.print(ec.lap_id);

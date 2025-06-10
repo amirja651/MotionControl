@@ -61,6 +61,8 @@ struct EncoderContext
     float position_mm;
     float total_travel_mm;
     float total_travel_um;
+
+    const char* direction;
 };
 
 struct RPulse
@@ -95,6 +97,9 @@ public:
     {
         portENTER_CRITICAL(&mux);
         encoderContext.current_pulse = state.current_pulse;
+        encoderContext.direction     = state.direction == Direction::UNKNOWN     ? "   "
+                                       : state.direction == Direction::CLOCKWISE ? " CW"
+                                                                                 : "CCW";
         encoderContext.lap_id        = lap.id;
         encoderContext.lap_period    = lap.period[lap.id + LAPS_OFFSET];
         /*encoderContext.average_period =
