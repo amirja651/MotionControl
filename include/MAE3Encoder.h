@@ -56,9 +56,9 @@ struct EncoderContext
 
     // float average_period;
 
-    float position_degrees;
+    float position_degrees;  //  Rotary motors
 
-    float position_mm;
+    float position_mm;  //  Linear motors
     float total_travel_mm;
     float total_travel_um;
 
@@ -102,16 +102,28 @@ public:
                                                                                  : "CCW";
         encoderContext.lap_id        = lap.id;
         encoderContext.lap_period    = lap.period[lap.id + LAPS_OFFSET];
-        /*encoderContext.average_period =
-            (lap.period_count[lap.id + LAPS_OFFSET] == 0)
-                ? encoderContext.lap_period
-                : static_cast<float>(lap.period_sum[lap.id + LAPS_OFFSET]) / lap.period_count[lap.id + LAPS_OFFSET];*/
+
         encoderContext.position_degrees = state.current_pulse * (360.0f / FULL_SCALE);
         encoderContext.position_mm      = encoderContext.current_pulse * (LEAD_SCREW_PITCH_MM / FULL_SCALE);
         encoderContext.total_travel_mm  = (lap.id * LEAD_SCREW_PITCH_MM) + encoderContext.position_mm;
         encoderContext.total_travel_um  = encoderContext.total_travel_mm * 1000.0f;
         portEXIT_CRITICAL(&mux);
         return encoderContext;
+    }
+
+    // Converts um to pulses
+    inline float umToPulses(float um)
+    {
+        float mm            = um / 1000.0f;
+        float pulses_per_mm = FULL_SCALE / LEAD_SCREW_PITCH_MM;
+        return mm * pulses_per_mm;
+    }
+
+    // Converts pulses to um
+    inline float pulsesToUm(float pulses)
+    {
+        float mm = pulses * (LEAD_SCREW_PITCH_MM / FULL_SCALE);
+        return mm * 1000.0f;
     }
 
     bool isStopped(int64_t threshold_us = 500000 /* 500ms */) const

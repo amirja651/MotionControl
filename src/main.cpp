@@ -355,7 +355,6 @@ void serialReadTask(void* pvParameters)
                 {
                     if (communication_test[index] != FAILED)
                     {
-                        stopMotorLEDC(index);
                         motorStop(index);
                         command_received[index] = false;  // Reset command flag when target is reached or no command
                         Serial.print(F("Motor "));
@@ -398,7 +397,6 @@ void serialPrintTask(void* pvParameters)
 
 void motorStopAndSavePosition()
 {
-    stopMotorLEDC(getMotorIndex());
     motorStop(getMotorIndex());
     command_received[getMotorIndex()] = false;  // Reset command flag when target is reached or no command
     Serial.println(F("Motor Stop"));
@@ -540,13 +538,15 @@ void motorUpdateTask(void* pvParameters)
         EncoderContext ec = encoders[getMotorIndex()].getEncoderContext();
 
         float current_pos = motorType[getMotorIndex()] == MotorType::ROTATIONAL ? ec.position_degrees : ec.total_travel_um;
-
-        float error = calculateSignedPositionError(current_pos);
+        float error       = calculateSignedPositionError(current_pos);
 
         if (motorType[getMotorIndex()] == MotorType::ROTATIONAL)
             error = wrapAngle180(error);
 
-        float target = getTarget();
+        float target        = getTarget();
+        float current_pos_t = encoders[getMotorIndex()].umToPulses(current_pos);
+        float target_t      = encoders[getMotorIndex()].umToPulses(target);
+        float error_t       = encoders[getMotorIndex()].umToPulses(error);
 
         // Motor control based on error threshold
         if (isVeryShortDistance || abs(error) > MOTOR_THRESHOLD[getMotorIndex()])
@@ -557,7 +557,7 @@ void motorUpdateTask(void* pvParameters)
             setMotorDirection(getMotorIndex(), error > 0);
 
             // Update frequency based on error and target position
-            updateMotorFrequency(getMotorIndex(), error, target, current_pos);
+            updateMotorFrequency(getMotorIndex(), error_t, target_t, current_pos_t);
         }
         else
         {

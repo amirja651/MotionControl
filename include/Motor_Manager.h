@@ -471,117 +471,24 @@ void initializeLEDC()
     }
 }
 
-float calculateFrequencyFromError(float error)
+#define ERROR_DEADBAND_PULSES 1  // کمتر از 1 پالس → stop
+
+inline void setStepFrequency(uint8_t motorIndex, float frequency)
 {
-    // Convert error to absolute value for comparison
-    float abs_error = fabs(error);
-
-    // Define frequency ranges (Hz) for different error thresholds
-    if (abs_error <= 0.2f)
-        return 200;  // Minimum reliable speed - 200 Hz
-    else if (abs_error <= 0.5f)
-        return 300;  // Slow - 300 Hz
-    else if (abs_error <= 1.0f)
-        return 500;  // Moderate slow - 500 Hz
-    else if (abs_error <= 2.0f)
-        return 1000;  // Moderate - 1 kHz
-    else if (abs_error <= 5.0f)
-        return 2000;  // Moderate fast - 2 kHz
-    else if (abs_error <= 10.0f)
-        return 4000;  // Fast - 4 kHz
-    else if (abs_error <= 20.0f)
-        return 6000;  // Very fast - 6 kHz
-    else
-        return 8000;  // Maximum speed - 8 kHz
-}
-
-float calculateStoppingDistance(float current_freq)
-{
-    // Reduced stopping distances for more precise control
-    if (current_freq <= 25)
-        return 0.02f;
-    else if (current_freq <= 50)
-        return 0.05f;
-    else if (current_freq <= 100)
-        return 0.08f;
-    else if (current_freq <= 200)
-        return 0.1f;
-    else if (current_freq <= 500)
-        return 0.15f;
-    else if (current_freq <= 1000)
-        return 0.2f;
-    else if (current_freq <= 2000)
-        return 0.3f;
-    else if (current_freq <= 5000)
-        return 0.4f;
-    else
-        return 0.5f;
-}
-
-void updateMotorFrequency(uint8_t index, float error, float target_position, float current_pos)
-{
-    static float last_freq[NUM_MOTORS] = {0};
-
-    // Calculate base frequency
-    float base_freq = calculateFrequencyFromError(error);
-
-    // Calculate distance to target
-    float distance_to_target = fabs(target_position - current_pos);
-    float stopping_distance  = calculateStoppingDistance(last_freq[index]);
-
-    // Gradual speed reduction
-    if (distance_to_target <= (stopping_distance * PREDICTIVE_STOP_FACTOR))
-    {
-        float reduction_factor = distance_to_target / (stopping_distance * PREDICTIVE_STOP_FACTOR);
-        // Change speed reduction algorithm - gentler gradient
-        reduction_factor = pow(reduction_factor, 1.5f);  // changed from 0.7 to 1.5
-        base_freq        = min(base_freq, last_freq[index] * reduction_factor);
-    }
-
-    // Reduce maximum frequency change
-    float max_freq_change = 200.0f;  // reduced from 800 to 200
-
-    // Limit frequency change
-    if (base_freq > last_freq[index])
-    {
-        base_freq = min(base_freq, last_freq[index] + max_freq_change);
-    }
-    else
-    {
-        base_freq = max(base_freq, last_freq[index] - max_freq_change);
-    }
-
-    // Save frequency for next time
-    last_freq[index] = base_freq;
-
-    // Apply new frequency
-    uint8_t channel = LEDC_CHANNEL[index];
-    ledcWriteTone(channel, base_freq);
+    uint8_t channel = LEDC_CHANNEL[motorIndex];
+    ledcWriteTone(channel, frequency);
     uint32_t duty = (1 << LEDC_TIMER_BIT) / 2;
     ledcWrite(channel, duty);
-
-    static String buffer      = "ch: " + String(channel) + " freq: " + String(base_freq) + " duty: " + String(duty) + "ch: ";
-    static String last_buffer = " ";
-    if (buffer != last_buffer)
-    {
-        Serial.print(buffer);
-        Serial.println();
-        last_buffer = buffer;
-    }
-}
-
-void stopMotorLEDC(uint8_t index)
-{
-    uint8_t channel = LEDC_CHANNEL[index];
-
-    // Stop PWM output
-    ledcWrite(channel, 0);
 }
 
 void motorStop(uint8_t index)
 {
+    // Stop PWM output
+    ledcWrite(LEDC_CHANNEL[index], 0);
+
     // 0. Stop all pulses immediately (very important)
     ledcWriteTone(LEDC_CHANNEL[index], 0);
+
     delayMicroseconds(100);  // A little pause until the last pulse is finished
 
     // 1. Final advance with higher current for precise stop
@@ -603,6 +510,95 @@ void motorStop(uint8_t index)
     // 6. Disable the output if the motor is rotary
     if (motorType[index] == MotorType::ROTATIONAL)
         disable_motor(index);
+}
+
+float calculateFrequencyFromError(float error_pulses)
+{
+    float abs_error = fabs(error_pulses);
+
+    if (abs_error < ERROR_DEADBAND_PULSES)
+        return 0;  // Full stop
+
+    // mapping
+    if (abs_error <= 2)
+        return 200;  // Slow
+    else if (abs_error <= 5)
+        return 400;
+    else if (abs_error <= 10)
+        return 800;
+    else if (abs_error <= 20)
+        return 1500;
+    else if (abs_error <= 50)
+        return 3000;
+    return 6000;
+}
+
+// This time → based on pulses
+float calculateStoppingDistance(float current_freq)
+{
+    // We assume that at different speeds → how many pulses are needed to stop
+    if (current_freq <= 200)
+        return 2;  // At low speed → 2 pulses are enough
+    else if (current_freq <= 500)
+        return 4;
+    else if (current_freq <= 1000)
+        return 6;
+    else if (current_freq <= 3000)
+        return 10;
+    else
+        return 15;  // At high speed → we need up to 15 pulses of deceleration
+}
+
+void updateMotorFrequency(uint8_t index, float error_pulses, float target_position_pulses, float current_pos_pulses)
+{
+    static float last_freq[NUM_MOTORS] = {0};
+
+    float base_freq = calculateFrequencyFromError(error_pulses);
+
+    // If we have to stop
+    if (base_freq == 0)
+    {
+        motorStop(index);
+        last_freq[index] = 0;
+        return;
+    }
+
+    float distance_to_target = fabs(target_position_pulses - current_pos_pulses);
+    float stopping_distance  = calculateStoppingDistance(last_freq[index]);
+
+    // Anticipate stopping → start slowing down sooner
+    if (distance_to_target <= (stopping_distance))
+    {
+        float reduction_factor = distance_to_target / stopping_distance;
+        reduction_factor       = pow(reduction_factor, 1.5f);
+        base_freq              = min(base_freq, last_freq[index] * reduction_factor);
+    }
+
+    // Limit rate of frequency change
+    float max_freq_change = 200.0f;
+
+    if (base_freq > last_freq[index])
+    {
+        base_freq = min(base_freq, last_freq[index] + max_freq_change);
+    }
+    else
+    {
+        base_freq = max(base_freq, last_freq[index] - max_freq_change);
+    }
+
+    last_freq[index] = base_freq;
+
+    // helper function:
+    setStepFrequency(index, base_freq);
+
+    // Logging
+    String buffer = "ch: " + String(LEDC_CHANNEL[index]) + " freq: " + String(base_freq, 2) + " err: " + String(error_pulses, 2);
+    static String lastBuffer = " ";
+    if (buffer != lastBuffer)
+    {
+        Serial.println(buffer);
+        lastBuffer = buffer;
+    }
 }
 
 #endif

@@ -138,6 +138,7 @@ void MAE3Encoder::reset()
 
     newPulseAvailable = false;
     bufferUpdated     = false;
+    initialized       = false;
 }
 
 void MAE3Encoder::attachInterruptHandler()
@@ -247,6 +248,15 @@ void MAE3Encoder::processPWM()
     if (period == 0)
         return;
 
+    // Optimized calculation for x_measured
+    int32_t x_measured = ((width_h * 4098) / period) - 1;
+
+    // Validate based on documentation
+    if (x_measured > FULL_SCALE || x_measured == state.current_pulse)
+        return;
+
+    state.current_pulse = (x_measured >= 4095) ? 4095 : x_measured;
+
     if (!initialized)
     {
         last_pulse  = state.current_pulse;
@@ -259,15 +269,6 @@ void MAE3Encoder::processPWM()
     }
 
     setPeriod(lap.id, period);
-
-    // Optimized calculation for x_measured
-    int32_t x_measured = ((width_h * 4098) / period) - 1;
-
-    // Validate based on documentation
-    if (x_measured > FULL_SCALE || x_measured == state.current_pulse)
-        return;
-
-    state.current_pulse = (x_measured >= 4095) ? 4095 : x_measured;
 
     int32_t delta = state.current_pulse - last_pulse;
 
